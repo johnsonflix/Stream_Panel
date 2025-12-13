@@ -4638,12 +4638,6 @@ const Settings = {
                         <small class="form-help">This is your reseller username that you generate yourself</small>
                     </div>
                     <div class="form-group">
-                        <label class="form-label">Bouquet Names Line ID (Optional)</label>
-                        <input type="text" name="os_bouquet_line_id" class="form-input"
-                               placeholder="e.g., 26d5b696-4994-4c73-94b3-4a7fbbcb4934">
-                        <small class="form-help">Optional: Line ID of a user with ALL bouquets assigned. Used to fetch bouquet names when syncing. Without this, bouquets will show as "Bouquet 123" instead of their actual names.</small>
-                    </div>
-                    <div class="form-group">
                         <label class="form-label">Admin Notes</label>
                         <textarea name="os_notes" class="form-input" rows="4"
                                   placeholder="Admin credentials, server info, or other notes..."></textarea>
@@ -5501,13 +5495,6 @@ const Settings = {
                                    value="${Utils.escapeHtml(panel.credentials.username || '')}"
                                    placeholder="Your reseller username">
                             <small class="form-help">This is your reseller username that you generate yourself</small>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Bouquet Names Line ID (Optional)</label>
-                            <input type="text" name="bouquet_line_id" class="form-input"
-                                   value="${Utils.escapeHtml(panel.credentials.bouquet_line_id || '')}"
-                                   placeholder="e.g., 26d5b696-4994-4c73-94b3-4a7fbbcb4934">
-                            <small class="form-help">Optional: Line ID of a user with ALL bouquets assigned. Used to fetch bouquet names when syncing. Without this, bouquets will show as "Bouquet 123" instead of their actual names.</small>
                         </div>
                         ` : `
                         <!-- NXT Dash / XUI One / Other Panel Credentials -->

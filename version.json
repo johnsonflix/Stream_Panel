@@ -1,6 +1,6 @@
 {
-  "version": "1.0.0",
+  "version": "1.0.1",
   "name": "Stream Panel",
   "releaseDate": "2024-12-13",
-  "description": "Initial release"
+  "description": "Remove Bouquet Names Line ID field from 1-Stream panels"
 }
