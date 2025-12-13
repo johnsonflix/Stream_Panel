@@ -1,0 +1,1090 @@
+/* ==========================================
+   CREATE USER WIZARD STYLES
+   ========================================== */
+
+/* Wizard Container */
+.wizard-container {
+    display: flex;
+    flex-direction: column;
+    min-height: 500px;
+    height: 100%;
+    gap: 1.5rem;
+    max-width: 100%;
+    overflow-x: hidden;
+}
+
+/* Progress Bar */
+.wizard-progress {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem 0;
+    gap: 0.5rem;
+    overflow-x: hidden;
+    max-width: 100%;
+}
+
+.wizard-progress-step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    flex: 1;
+    min-width: 80px;
+}
+
+.step-circle {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 0.875rem;
+    background: var(--bg-tertiary);
+    border: 2px solid var(--border-color);
+    color: var(--text-secondary);
+    transition: all 0.3s ease;
+}
+
+.wizard-progress-step.active .step-circle {
+    background: var(--primary-color);
+    border-color: var(--primary-color);
+    color: white;
+    box-shadow: 0 0 0 4px rgba(142, 36, 170, 0.1);
+}
+
+.wizard-progress-step.completed .step-circle {
+    background: var(--success-color);
+    border-color: var(--success-color);
+    color: white;
+}
+
+.step-label {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    text-align: center;
+    font-weight: 500;
+}
+
+.wizard-progress-step.active .step-label {
+    color: var(--primary-color);
+    font-weight: 600;
+}
+
+.wizard-progress-step.completed .step-label {
+    color: var(--success-color);
+}
+
+.progress-line {
+    height: 2px;
+    flex: 1;
+    background: var(--border-color);
+    margin: 0 0.5rem;
+    align-self: center;
+    margin-top: -20px;
+}
+
+.wizard-progress-step.completed ~ .wizard-progress-step .progress-line {
+    background: var(--success-color);
+}
+
+/* Wizard Content */
+.wizard-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    overflow-y: auto;
+    padding: 0 0.5rem;
+}
+
+.wizard-step-header {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid var(--border-color);
+}
+
+.wizard-step-header h2 {
+    margin: 0;
+    color: var(--text-primary);
+    font-size: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.wizard-step-header h2 i {
+    color: var(--primary-color);
+}
+
+.step-indicator {
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    margin: 0;
+}
+
+.wizard-step-body {
+    flex: 1;
+}
+
+/* Form Section */
+.form-section {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+    max-width: 100%;
+    padding: 0.5rem;
+}
+
+.section-description {
+    color: var(--text-secondary);
+    font-size: 0.9375rem;
+    line-height: 1.6;
+    margin-bottom: 0.75rem;
+    padding: 1rem 1.25rem;
+    background-color: rgba(142, 36, 170, 0.05);
+    border-left: 3px solid var(--primary-color);
+    border-radius: 0.375rem;
+}
+
+/* Form Rows - Two Column Layout */
+.form-row {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.5rem;
+}
+
+/* Form Groups */
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.625rem;
+}
+
+.form-group label {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    margin-bottom: 0.125rem;
+}
+
+.form-group .required {
+    color: var(--danger-color);
+    font-size: 1rem;
+    margin-left: 0.125rem;
+}
+
+/* Input Fields */
+.form-control {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    font-size: 0.9375rem;
+    line-height: 1.5;
+    color: var(--text-primary);
+    background-color: var(--bg-secondary);
+    border: 2px solid var(--border-color);
+    border-radius: 0.5rem;
+    transition: all 0.2s ease;
+    font-family: inherit;
+}
+
+.form-control:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 4px rgba(142, 36, 170, 0.1);
+    background-color: var(--bg-primary);
+}
+
+.form-control:hover:not(:focus) {
+    border-color: var(--text-secondary);
+}
+
+.form-control::placeholder {
+    color: var(--text-tertiary);
+}
+
+/* Select Dropdowns */
+select.form-control {
+    cursor: pointer;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%23666' viewBox='0 0 16 16'%3E%3Cpath d='M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.75rem center;
+    background-size: 16px;
+    padding-right: 2.5rem;
+    appearance: none;
+}
+
+select.form-control[multiple] {
+    background-image: none;
+    padding-right: 1rem;
+    min-height: 120px;
+}
+
+/* Textarea */
+textarea.form-control {
+    resize: vertical;
+    min-height: 100px;
+}
+
+/* Form Text (Helper Text) */
+.form-text {
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+    margin-top: 0.25rem;
+    line-height: 1.5;
+    font-style: italic;
+}
+
+/* Checkbox and Radio Labels */
+.checkbox-label,
+.radio-label {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    cursor: pointer;
+    font-size: 0.9375rem;
+    color: var(--text-primary);
+    padding: 0.75rem;
+    border-radius: 0.5rem;
+    transition: background-color 0.2s ease;
+}
+
+.checkbox-label:hover,
+.radio-label:hover {
+    background-color: var(--bg-tertiary);
+}
+
+.checkbox-label input[type="checkbox"],
+.radio-label input[type="radio"] {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+/* Radio Group */
+.radio-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+/* Input Groups (for buttons next to inputs) */
+.input-group {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.input-group .form-control {
+    flex: 1;
+}
+
+.input-group .btn {
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
+/* Alert Boxes */
+.alert {
+    padding: 1rem 1.25rem;
+    border-radius: 0.5rem;
+    display: flex;
+    align-items: start;
+    gap: 0.75rem;
+    font-size: 0.9375rem;
+    line-height: 1.6;
+}
+
+.alert i {
+    flex-shrink: 0;
+    font-size: 1.25rem;
+    margin-top: 0.125rem;
+}
+
+.alert-info {
+    background-color: rgba(63, 81, 181, 0.1);
+    border: 1px solid rgba(63, 81, 181, 0.3);
+    color: var(--text-primary);
+}
+
+.alert-info i {
+    color: #3f51b5;
+}
+
+.alert-success {
+    background-color: rgba(76, 175, 80, 0.1);
+    border: 1px solid rgba(76, 175, 80, 0.3);
+    color: var(--text-primary);
+}
+
+.alert-success i {
+    color: #4caf50;
+}
+
+.alert-warning {
+    background-color: rgba(255, 152, 0, 0.1);
+    border: 1px solid rgba(255, 152, 0, 0.3);
+    color: var(--text-primary);
+}
+
+.alert-warning i {
+    color: #ff9800;
+}
+
+.alert-warning h4 {
+    margin: 0 0 0.5rem 0;
+    font-size: 1rem;
+}
+
+.alert-warning ul {
+    margin: 0.5rem 0 0 0;
+    padding-left: 1.5rem;
+}
+
+/* Server & Library Selection */
+.server-library-selection {
+    border: 2px solid var(--border-color);
+    border-radius: 0.5rem;
+    padding: 1rem;
+    background-color: var(--bg-secondary);
+}
+
+.server-item {
+    padding: 1rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.server-item:last-child {
+    border-bottom: none;
+}
+
+.server-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 0.75rem;
+    cursor: pointer;
+}
+
+.server-checkbox input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+}
+
+.library-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-left: 2rem;
+    padding-left: 1rem;
+    border-left: 2px solid var(--border-color);
+}
+
+.library-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.9375rem;
+    color: var(--text-primary);
+    cursor: pointer;
+    padding: 0.5rem;
+    border-radius: 0.375rem;
+    transition: background-color 0.2s ease;
+}
+
+.library-checkbox:hover {
+    background-color: var(--bg-tertiary);
+}
+
+.library-checkbox input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+}
+
+/* Results Page Styling */
+.results-container {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+    padding: 1rem 0;
+}
+
+.results-header {
+    text-align: center;
+    padding: 1.5rem;
+    background: var(--bg-secondary);
+    border-radius: 0.75rem;
+    border: 2px solid var(--border-color);
+}
+
+.results-header h2 {
+    margin: 0 0 0.5rem 0;
+    font-size: 1.5rem;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+}
+
+.results-header h2 i {
+    font-size: 1.75rem;
+}
+
+.user-details {
+    font-size: 1rem;
+    color: var(--text-secondary);
+    margin: 0;
+}
+
+.jobs-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.job-item {
+    background: var(--bg-secondary);
+    border: 2px solid var(--border-color);
+    border-radius: 0.5rem;
+    padding: 1.25rem;
+    transition: all 0.3s ease;
+}
+
+.job-item.job-completed {
+    border-color: var(--success-color);
+    background: rgba(76, 175, 80, 0.05);
+}
+
+.job-item.job-error {
+    border-color: var(--danger-color);
+    background: rgba(244, 67, 54, 0.05);
+}
+
+.job-item.job-processing {
+    border-color: var(--primary-color);
+    background: rgba(142, 36, 170, 0.05);
+}
+
+.job-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 0.5rem;
+}
+
+.job-icon {
+    font-size: 1.5rem;
+    flex-shrink: 0;
+}
+
+.job-name {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    flex: 1;
+}
+
+.job-status {
+    font-size: 0.875rem;
+    font-weight: 600;
+    padding: 0.25rem 0.75rem;
+    border-radius: 1rem;
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+}
+
+.job-message {
+    font-size: 0.9375rem;
+    color: var(--text-secondary);
+    margin-top: 0.5rem;
+}
+
+.job-details {
+    margin-top: 0.75rem;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+}
+
+.job-details ul {
+    margin: 0.5rem 0 0 0;
+    padding-left: 1.5rem;
+}
+
+.results-actions {
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+    padding-top: 1rem;
+}
+
+/* Review Container */
+.review-container {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.review-item.full-width {
+    grid-column: 1 / -1;
+}
+
+/* Service Selection Grid */
+.service-selection-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.25rem;
+    margin: 1.5rem 0;
+}
+
+.service-card {
+    position: relative;
+    background: var(--bg-secondary);
+    border: 2px solid var(--border-color);
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.service-card:hover {
+    border-color: var(--primary-color);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+}
+
+.service-card.selected {
+    border-color: var(--primary-color);
+    background: linear-gradient(135deg, rgba(142, 36, 170, 0.05), rgba(63, 81, 181, 0.05));
+    box-shadow: 0 0 0 4px rgba(142, 36, 170, 0.1);
+}
+
+.service-checkbox {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+}
+
+.service-checkbox input[type="checkbox"] {
+    width: 24px;
+    height: 24px;
+    cursor: pointer;
+}
+
+.service-card label {
+    cursor: pointer;
+    display: flex;
+    align-items: start;
+    gap: 1rem;
+    margin: 0;
+}
+
+.service-icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 0.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-tertiary);
+    color: var(--primary-color);
+    font-size: 1.75rem;
+    flex-shrink: 0;
+}
+
+.service-card.selected .service-icon {
+    background: var(--primary-color);
+    color: white;
+}
+
+.service-info h3 {
+    margin: 0 0 0.5rem 0;
+    font-size: 1.125rem;
+    color: var(--text-primary);
+}
+
+.service-info p {
+    margin: 0;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    line-height: 1.5;
+}
+
+/* Library Selection */
+.library-server-group {
+    margin-bottom: 1.5rem;
+}
+
+.library-server-group h4 {
+    font-size: 1rem;
+    color: var(--text-primary);
+    margin: 0 0 1rem 0;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.library-checkbox-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 0.75rem;
+}
+
+.checkbox-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.checkbox-item input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+}
+
+.checkbox-item label {
+    cursor: pointer;
+    font-size: 0.875rem;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.checkbox-item label i {
+    color: var(--text-secondary);
+}
+
+/* Plex Server Cards */
+.plex-server-card {
+    background: var(--bg-secondary);
+    border: 2px solid var(--border-color);
+    border-radius: 0.75rem;
+    margin-bottom: 1rem;
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+.plex-server-card:hover {
+    border-color: var(--primary-color);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.server-card-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1.25rem 1.5rem;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+    user-select: none;
+}
+
+.server-card-header:hover {
+    background-color: var(--bg-tertiary);
+}
+
+.server-card-icon {
+    position: relative;
+    width: 48px;
+    height: 48px;
+    border-radius: 0.5rem;
+    background: var(--bg-tertiary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.server-card-icon i {
+    font-size: 1.5rem;
+    color: var(--primary-color);
+}
+
+.server-status {
+    position: absolute;
+    bottom: -2px;
+    right: -2px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    border: 2px solid var(--bg-secondary);
+}
+
+.server-status.online {
+    background-color: #4caf50;
+}
+
+.server-status.offline {
+    background-color: #f44336;
+}
+
+.server-card-info {
+    flex: 1;
+}
+
+.server-card-info h4 {
+    margin: 0 0 0.25rem 0;
+    font-size: 1.125rem;
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+.server-card-info p {
+    margin: 0;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+}
+
+.server-card-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 0.375rem;
+    background: var(--bg-tertiary);
+    transition: all 0.2s ease;
+}
+
+.server-card-header:hover .server-card-toggle {
+    background: var(--primary-color);
+}
+
+.server-card-toggle i {
+    color: var(--text-secondary);
+    transition: transform 0.3s ease;
+}
+
+.server-card-header:hover .server-card-toggle i {
+    color: white;
+}
+
+.server-card-body {
+    padding: 0 1.5rem 1.5rem 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.library-checkbox-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    border-radius: 0.5rem;
+    background: var(--bg-tertiary);
+    transition: all 0.2s ease;
+    cursor: pointer;
+}
+
+.library-checkbox-item:hover {
+    background: rgba(142, 36, 170, 0.1);
+    transform: translateX(4px);
+}
+
+.library-checkbox-item.preselected {
+    background: rgba(76, 175, 80, 0.1);
+    border: 1px solid rgba(76, 175, 80, 0.3);
+}
+
+.library-checkbox-item input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.library-checkbox-item .library-name {
+    flex: 1;
+    font-size: 0.9375rem;
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+.library-checkbox-item .badge {
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.25rem 0.625rem;
+    border-radius: 1rem;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+}
+
+.library-checkbox-item .badge-success {
+    background-color: rgba(76, 175, 80, 0.2);
+    color: #4caf50;
+    border: 1px solid rgba(76, 175, 80, 0.4);
+}
+
+/* Review Section */
+.review-section {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.review-section h3 {
+    margin: 0 0 1.25rem 0;
+    font-size: 1.125rem;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 2px solid var(--border-color);
+}
+
+.review-section h3 i {
+    color: var(--primary-color);
+}
+
+.review-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1rem;
+}
+
+.review-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.review-label {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+}
+
+.review-value {
+    font-size: 0.9375rem;
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+/* Wizard Navigation */
+.wizard-navigation {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding-top: 1.5rem;
+    border-top: 2px solid var(--border-color);
+}
+
+/* Required Field Indicator */
+.required {
+    color: var(--danger-color);
+    font-weight: bold;
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+    /* Full-screen modal on mobile to avoid double-scroll */
+    .modal {
+        width: 100%;
+        max-width: 100%;
+        height: 100vh;
+        max-height: 100vh;
+        margin: 0;
+        border-radius: 0;
+        top: 0;
+        left: 0;
+        transform: none;
+    }
+
+    .modal-xlarge {
+        width: 100%;
+        max-width: 100%;
+        height: 100vh;
+        max-height: 100vh;
+    }
+
+    .modal-body {
+        padding: 1rem;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .wizard-progress {
+        padding: 1rem 0;
+        gap: 0.25rem;
+        flex-wrap: nowrap;
+        overflow-x: hidden;
+    }
+
+    .wizard-progress-step {
+        min-width: 50px;
+        flex-shrink: 1;
+    }
+
+    .step-circle {
+        width: 32px;
+        height: 32px;
+        font-size: 0.75rem;
+    }
+
+    .step-label {
+        font-size: 0.625rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 50px;
+    }
+
+    .progress-line {
+        margin: 0 0.125rem;
+        margin-top: -16px;
+        flex-shrink: 1;
+        min-width: 10px;
+    }
+
+    .wizard-step-header h2 {
+        font-size: 1.25rem;
+    }
+
+    /* Single column layout on mobile */
+    .form-row {
+        grid-template-columns: 1fr;
+        gap: 1.25rem;
+    }
+
+    .service-selection-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .library-checkbox-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .review-grid {
+        grid-template-columns: 1fr;
+    }
+
+    /* Stack input groups vertically on mobile */
+    .input-group {
+        flex-direction: column;
+    }
+
+    .input-group .btn {
+        width: 100%;
+    }
+
+    /* Adjust library list indentation */
+    .library-list {
+        margin-left: 1rem;
+    }
+
+    /* Results actions stack on mobile */
+    .results-actions {
+        flex-direction: column;
+    }
+
+    .results-actions .btn {
+        width: 100%;
+    }
+
+    .wizard-navigation {
+        position: sticky;
+        bottom: 0;
+        background: var(--bg-secondary);
+        margin: -1rem;
+        padding: 1rem;
+        box-shadow: 0 -4px 6px -1px rgba(0, 0, 0, 0.1);
+    }
+
+    .wizard-navigation .btn {
+        flex: 1;
+    }
+}
+
+/* Dark Mode Adjustments */
+body.dark-mode .service-card {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+body.dark-mode .service-card.selected {
+    background: linear-gradient(135deg, rgba(142, 36, 170, 0.15), rgba(63, 81, 181, 0.15));
+}
+
+body.dark-mode .service-icon {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+body.dark-mode .review-section {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+/* ==========================================
+   MODAL OPTIMIZATIONS FOR DESKTOP
+   ========================================== */
+
+/* Larger modal size for wizard */
+.modal-xlarge {
+    max-width: 1200px;
+    width: 95%;
+}
+
+/* Desktop: Make modal even larger */
+@media (min-width: 1440px) {
+    .modal-xlarge {
+        max-width: 1400px;
+        width: 90%;
+        max-height: 92vh;
+    }
+}
+
+@media (min-width: 1920px) {
+    .modal-xlarge {
+        max-width: 1600px;
+        width: 85%;
+    }
+}
+
+/* Custom Scrollbar Styling - Subtle and Transparent */
+.modal-body::-webkit-scrollbar,
+.wizard-content::-webkit-scrollbar {
+    width: 8px;
+}
+
+.modal-body::-webkit-scrollbar-track,
+.wizard-content::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.modal-body::-webkit-scrollbar-thumb,
+.wizard-content::-webkit-scrollbar-thumb {
+    background-color: rgba(142, 36, 170, 0.2);
+    border-radius: 10px;
+    border: 2px solid transparent;
+}
+
+.modal-body::-webkit-scrollbar-thumb:hover,
+.wizard-content::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(142, 36, 170, 0.4);
+}
+
+/* Firefox scrollbar */
+.modal-body,
+.wizard-content {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(142, 36, 170, 0.2) transparent;
+}

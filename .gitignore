@@ -1,0 +1,43 @@
+# Dependencies
+node_modules/
+backend/node_modules/
+
+# Database files
+*.db
+*.db-shm
+*.db-wal
+data/
+
+# Logs
+logs/
+*.log
+backend/logs/
+
+# Uploads (user content)
+uploads/
+backend/uploads/branding/*
+!backend/uploads/.gitkeep
+!backend/uploads/branding/.gitkeep
+
+# Environment files
+.env
+backend/.env
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Build artifacts
+dist/
+build/
+
+# Temporary files
+tmp/
+temp/
+*.tmp

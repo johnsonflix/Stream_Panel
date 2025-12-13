@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Portal - Login</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* Always Dark Mode */
+        :root {
+            --bg-primary: #0f172a;
+            --bg-secondary: #1e293b;
+            --bg-tertiary: #334155;
+            --card-bg: #1e293b;
+            --border-color: #334155;
+            --text-primary: #f8fafc;
+            --text-secondary: #cbd5e1;
+            --text-tertiary: #94a3b8;
+            --primary-color: #3b82f6;
+            --primary-color-hover: #2563eb;
+            --error-color: #ef4444;
+            --success-color: #22c55e;
+            --plex-color: #e5a00d;
+            --plex-color-hover: #cc8f0c;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            padding: 20px;
+        }
+
+        .login-container {
+            width: 100%;
+            max-width: 420px;
+        }
+
+        .login-card {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 40px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
+            border: 1px solid var(--border-color);
+            animation: fadeInUp 0.5s ease-out;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .login-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .login-logo {
+            max-width: 180px;
+            max-height: 80px;
+            margin-bottom: 15px;
+            object-fit: contain;
+        }
+
+        .login-icon {
+            font-size: 48px;
+            color: var(--primary-color);
+            margin-bottom: 15px;
+        }
+
+        .login-title {
+            font-size: 24px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin: 0 0 8px 0;
+        }
+
+        .login-subtitle {
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin: 0;
+        }
+
+        /* Tab Navigation */
+        .login-tabs {
+            display: flex;
+            border-bottom: 2px solid var(--border-color);
+            margin-bottom: 24px;
+        }
+
+        .login-tab {
+            flex: 1;
+            padding: 12px;
+            text-align: center;
+            background: none;
+            border: none;
+            color: var(--text-tertiary);
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+        }
+
+        .login-tab:hover {
+            color: var(--text-secondary);
+        }
+
+        .login-tab.active {
+            color: var(--primary-color);
+        }
+
+        .login-tab.active::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: var(--primary-color);
+        }
+
+        .login-tab i {
+            margin-right: 8px;
+        }
+
+        /* Tab Panels */
+        .tab-panel {
+            display: none;
+        }
+
+        .tab-panel.active {
+            display: block;
+        }
+
+        /* Form Styles */
+        .login-form {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .form-label {
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .form-input-wrapper {
+            position: relative;
+        }
+
+        .form-input-icon {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-tertiary);
+            font-size: 16px;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 12px 12px 12px 40px;
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 14px;
+            background-color: var(--bg-secondary);
+            color: var(--text-primary);
+            transition: border-color 0.2s;
+            box-sizing: border-box;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+
+        .form-input::placeholder {
+            color: var(--text-tertiary);
+        }
+
+        .login-button {
+            width: 100%;
+            padding: 14px;
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .login-button:hover {
+            background: var(--primary-color-hover);
+            transform: translateY(-1px);
+        }
+
+        .login-button:active {
+            transform: scale(0.98);
+        }
+
+        .login-button:disabled {
+            background: var(--border-color);
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .login-button.plex-button {
+            background: var(--plex-color);
+        }
+
+        .login-button.plex-button:hover {
+            background: var(--plex-color-hover);
+        }
+
+        .login-button .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Alert Styles */
+        .alert {
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .alert.show {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .alert-error {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            color: #ef4444;
+        }
+
+        .alert-success {
+            background: rgba(34, 197, 94, 0.1);
+            border: 1px solid rgba(34, 197, 94, 0.3);
+            color: #22c55e;
+        }
+
+        /* Plex Panel */
+        .plex-info {
+            text-align: center;
+            padding: 20px 0;
+        }
+
+        .plex-info p {
+            color: var(--text-secondary);
+            font-size: 14px;
+            margin-bottom: 20px;
+        }
+
+        .plex-logo {
+            font-size: 64px;
+            color: var(--plex-color);
+            margin-bottom: 20px;
+        }
+
+        /* Footer */
+        .login-footer {
+            text-align: center;
+            margin-top: 24px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .login-footer a {
+            color: var(--text-tertiary);
+            text-decoration: none;
+            font-size: 13px;
+            transition: color 0.2s;
+        }
+
+        .login-footer a:hover {
+            color: var(--text-secondary);
+        }
+
+        /* Responsive */
+        @media (max-width: 480px) {
+            .login-card {
+                padding: 30px 20px;
+            }
+
+            .login-title {
+                font-size: 20px;
+            }
+
+            .login-tab {
+                font-size: 13px;
+                padding: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-card">
+            <div class="login-header">
+                <div id="logo-container">
+                    <div class="login-icon"><i class="fas fa-user-circle"></i></div>
+                </div>
+                <h1 class="login-title" id="portal-title">User Portal</h1>
+                <p class="login-subtitle">Sign in to access your account</p>
+            </div>
+
+            <!-- Alert Messages -->
+            <div id="alert" class="alert"></div>
+
+            <!-- Login Tabs -->
+            <div class="login-tabs">
+                <button class="login-tab active" data-tab="iptv">
+                    <i class="fas fa-tv"></i>IPTV Login
+                </button>
+                <button class="login-tab" data-tab="plex" id="plex-tab">
+                    <i class="fab fa-plex"></i>Plex Login
+                </button>
+            </div>
+
+            <!-- IPTV Login Panel -->
+            <div id="iptv-panel" class="tab-panel active">
+                <form id="iptv-login-form" class="login-form">
+                    <div class="form-group">
+                        <label for="username" class="form-label">Username</label>
+                        <div class="form-input-wrapper">
+                            <i class="fas fa-user form-input-icon"></i>
+                            <input
+                                type="text"
+                                id="username"
+                                class="form-input"
+                                placeholder="Enter your IPTV username"
+                                required
+                                autocomplete="username"
+                            >
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="password" class="form-label">Password</label>
+                        <div class="form-input-wrapper">
+                            <i class="fas fa-lock form-input-icon"></i>
+                            <input
+                                type="password"
+                                id="password"
+                                class="form-input"
+                                placeholder="Enter your password"
+                                required
+                                autocomplete="current-password"
+                            >
+                        </div>
+                    </div>
+
+                    <button type="submit" id="iptv-submit-btn" class="login-button">
+                        <i class="fas fa-sign-in-alt"></i>
+                        Sign In
+                    </button>
+                </form>
+            </div>
+
+            <!-- Plex Login Panel -->
+            <div id="plex-panel" class="tab-panel">
+                <div class="plex-info">
+                    <div class="plex-logo">
+                        <i class="fab fa-plex"></i>
+                    </div>
+                    <p>Click below to sign in with your Plex account. We'll verify your access to our Plex servers.</p>
+                    <button id="plex-login-btn" class="login-button plex-button">
+                        <i class="fab fa-plex"></i>
+                        Sign in with Plex
+                    </button>
+                </div>
+            </div>
+
+            <div class="login-footer">
+                <a href="/"><i class="fas fa-arrow-left"></i> Back to Home</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '/api/v2';
+
+        // Load branding on page load
+        loadBrandingSettings();
+
+        // Tab switching
+        document.querySelectorAll('.login-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                // Update tab active states
+                document.querySelectorAll('.login-tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+
+                // Update panel visibility
+                const targetPanel = tab.dataset.tab;
+                document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.remove('active'));
+                document.getElementById(`${targetPanel}-panel`).classList.add('active');
+
+                // Clear alerts when switching
+                hideAlert();
+            });
+        });
+
+        // IPTV Login Form Handler
+        document.getElementById('iptv-login-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value;
+            const submitBtn = document.getElementById('iptv-submit-btn');
+
+            hideAlert();
+
+            if (!username || !password) {
+                showAlert('error', 'Please enter both username and password');
+                return;
+            }
+
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="spinner"></span> Signing in...';
+
+            try {
+                const response = await fetch(`${API_BASE}/portal/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password, method: 'iptv' })
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    // Store portal session
+                    localStorage.setItem('portal_token', data.token);
+                    localStorage.setItem('portal_user', JSON.stringify(data.user));
+
+                    showAlert('success', 'Login successful! Redirecting...');
+                    setTimeout(() => {
+                        window.location.href = '/portal/';
+                    }, 1000);
+                } else {
+                    showAlert('error', data.message || 'Invalid credentials');
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Sign In';
+                }
+            } catch (error) {
+                console.error('Login error:', error);
+                showAlert('error', 'Connection error. Please try again.');
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Sign In';
+            }
+        });
+
+        // Plex Login Button Handler
+        document.getElementById('plex-login-btn').addEventListener('click', async () => {
+            const plexBtn = document.getElementById('plex-login-btn');
+
+            hideAlert();
+            plexBtn.disabled = true;
+            plexBtn.innerHTML = '<span class="spinner"></span> Connecting to Plex...';
+
+            try {
+                // Get Plex OAuth URL from backend
+                const response = await fetch(`${API_BASE}/portal/auth/plex/init`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.success && data.authUrl) {
+                    // Redirect to Plex OAuth
+                    window.location.href = data.authUrl;
+                } else {
+                    showAlert('error', data.message || 'Failed to connect to Plex');
+                    plexBtn.disabled = false;
+                    plexBtn.innerHTML = '<i class="fab fa-plex"></i> Sign in with Plex';
+                }
+            } catch (error) {
+                console.error('Plex login error:', error);
+                showAlert('error', 'Connection error. Please try again.');
+                plexBtn.disabled = false;
+                plexBtn.innerHTML = '<i class="fab fa-plex"></i> Sign in with Plex';
+            }
+        });
+
+        // Check for Plex callback
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.has('plex_token')) {
+            handlePlexCallback(urlParams.get('plex_token'));
+        }
+        if (urlParams.has('error')) {
+            showAlert('error', decodeURIComponent(urlParams.get('error')));
+        }
+
+        async function handlePlexCallback(token) {
+            showAlert('success', 'Verifying Plex account...');
+
+            try {
+                const response = await fetch(`${API_BASE}/portal/auth/plex/callback`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ plex_token: token })
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    localStorage.setItem('portal_token', data.token);
+                    localStorage.setItem('portal_user', JSON.stringify(data.user));
+
+                    showAlert('success', 'Login successful! Redirecting...');
+                    setTimeout(() => {
+                        window.location.href = '/portal/';
+                    }, 1000);
+                } else {
+                    showAlert('error', data.message || 'Failed to verify Plex account');
+                }
+            } catch (error) {
+                console.error('Plex callback error:', error);
+                showAlert('error', 'Connection error. Please try again.');
+            }
+        }
+
+        async function loadBrandingSettings() {
+            try {
+                const [titleRes, logoRes, faviconRes, plexEnabledRes] = await Promise.all([
+                    fetch(`${API_BASE}/settings/portal_title`).catch(() => ({ json: () => ({}) })),
+                    fetch(`${API_BASE}/settings/portal_logo`).catch(() => ({ json: () => ({}) })),
+                    fetch(`${API_BASE}/settings/app_favicon`).catch(() => ({ json: () => ({}) })),
+                    fetch(`${API_BASE}/settings/portal_plex_enabled`).catch(() => ({ json: () => ({}) }))
+                ]);
+
+                const titleData = await titleRes.json().catch(() => ({}));
+                const logoData = await logoRes.json().catch(() => ({}));
+                const faviconData = await faviconRes.json().catch(() => ({}));
+                const plexEnabledData = await plexEnabledRes.json().catch(() => ({}));
+
+                // Apply portal title (fall back to app title, then default)
+                if (titleData.value) {
+                    document.getElementById('portal-title').textContent = titleData.value;
+                    document.title = `${titleData.value} - Login`;
+                }
+
+                // Apply logo
+                if (logoData.value) {
+                    document.getElementById('logo-container').innerHTML =
+                        `<img src="${logoData.value}" alt="Logo" class="login-logo" onerror="this.parentElement.innerHTML='<div class=\\'login-icon\\'><i class=\\'fas fa-user-circle\\'></i></div>'">`;
+                }
+
+                // Apply favicon
+                if (faviconData.value) {
+                    let link = document.querySelector("link[rel*='icon']");
+                    if (!link) {
+                        link = document.createElement('link');
+                        link.rel = 'icon';
+                        document.head.appendChild(link);
+                    }
+                    link.href = faviconData.value;
+                }
+
+                // Hide Plex tab if disabled
+                if (plexEnabledData.value === 'false' || plexEnabledData.value === false) {
+                    document.getElementById('plex-tab').style.display = 'none';
+                }
+
+            } catch (error) {
+                console.error('Error loading branding:', error);
+            }
+        }
+
+        function showAlert(type, message) {
+            const alert = document.getElementById('alert');
+            const icon = type === 'error' ? 'fas fa-exclamation-circle' : 'fas fa-check-circle';
+            alert.className = `alert alert-${type} show`;
+            alert.innerHTML = `<i class="${icon}"></i>${message}`;
+        }
+
+        function hideAlert() {
+            const alert = document.getElementById('alert');
+            alert.className = 'alert';
+            alert.innerHTML = '';
+        }
+    </script>
+</body>
+</html>

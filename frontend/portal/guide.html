@@ -1,0 +1,3025 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TV Guide - User Portal</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <style>
+        :root {
+            --bg-primary: #0f172a;
+            --bg-secondary: #1e293b;
+            --bg-tertiary: #334155;
+            --card-bg: #1e293b;
+            --border-color: #334155;
+            --text-primary: #f8fafc;
+            --text-secondary: #cbd5e1;
+            --text-tertiary: #94a3b8;
+            --primary-color: #3b82f6;
+            --primary-color-hover: #2563eb;
+            --error-color: #ef4444;
+            --success-color: #22c55e;
+            --warning-color: #f59e0b;
+            --iptv-color: #8b5cf6;
+            --live-color: #ef4444;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        /* Custom Scrollbars for Dark Theme */
+        ::-webkit-scrollbar {
+            width: 10px;
+            height: 10px;
+        }
+        ::-webkit-scrollbar-track {
+            background: var(--bg-primary);
+            border-radius: 5px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: var(--bg-tertiary);
+            border-radius: 5px;
+            border: 2px solid var(--bg-primary);
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+        ::-webkit-scrollbar-corner {
+            background: var(--bg-primary);
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+
+        .app-container { display: flex; flex-direction: column; height: 100vh; }
+
+        /* Header */
+        .header {
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex-shrink: 0;
+            z-index: 100;
+        }
+
+        .back-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            background: var(--bg-tertiary);
+            border: none;
+            border-radius: 6px;
+            color: var(--text-secondary);
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-decoration: none;
+        }
+
+        .back-btn:hover { background: var(--border-color); color: var(--text-primary); }
+
+        .header-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .header-title i { color: var(--iptv-color); }
+
+        .search-box {
+            flex: 1;
+            max-width: 450px;
+            display: flex;
+            align-items: stretch;
+        }
+
+        .search-input-wrapper {
+            flex: 1;
+            position: relative;
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 10px 16px 10px 40px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px 0 0 8px;
+            color: var(--text-primary);
+            font-size: 14px;
+        }
+
+        .search-box input:focus { outline: none; border-color: var(--primary-color); }
+        .search-input-wrapper i { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--text-tertiary); }
+
+        .header-actions { display: flex; gap: 8px; margin-left: auto; align-items: center; }
+
+        .btn-icon {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--bg-tertiary);
+            border: none;
+            border-radius: 8px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-icon:hover { background: var(--border-color); color: var(--text-primary); }
+
+        /* Main Layout */
+        .guide-layout { display: flex; flex: 1; overflow: hidden; }
+
+        /* Sidebar - Categories */
+        .categories-sidebar {
+            width: 320px;
+            min-width: 320px;
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border-color);
+            overflow-y: auto;
+            flex-shrink: 0;
+        }
+
+        .sidebar-header {
+            padding: 16px;
+            border-bottom: 1px solid var(--border-color);
+            font-size: 12px;
+            text-transform: uppercase;
+            color: var(--text-tertiary);
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .category-item {
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border-left: 3px solid transparent;
+        }
+
+        .category-item:hover { background: var(--bg-tertiary); }
+
+        .category-item.active {
+            background: rgba(139, 92, 246, 0.15);
+            border-left-color: var(--iptv-color);
+        }
+
+        .category-item i { width: 20px; text-align: center; color: var(--text-tertiary); font-size: 14px; }
+        .category-item.active i { color: var(--iptv-color); }
+
+        .category-name {
+            flex: 1;
+            font-size: 14px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .category-count {
+            font-size: 12px;
+            color: var(--text-tertiary);
+            background: var(--bg-tertiary);
+            padding: 2px 8px;
+            border-radius: 10px;
+            flex-shrink: 0;
+        }
+
+        /* EPG Content */
+        .epg-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+        .content-header {
+            padding: 12px 20px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-shrink: 0;
+            background: var(--bg-secondary);
+        }
+
+        .content-header h2 {
+            font-size: 16px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .content-header h2 i { color: var(--iptv-color); }
+        .channel-count { font-size: 13px; color: var(--text-tertiary); }
+
+        /* Time Navigation */
+        .time-nav {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 20px;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .time-nav-btn {
+            padding: 6px 12px;
+            background: var(--bg-tertiary);
+            border: none;
+            border-radius: 6px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s;
+        }
+
+        .time-nav-btn:hover { background: var(--border-color); color: var(--text-primary); }
+        .time-nav-btn.active { background: var(--iptv-color); color: white; }
+
+        .current-date {
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        /* EPG Grid Container */
+        .epg-wrapper {
+            flex: 1;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Timeline Header */
+        .timeline-header {
+            display: flex;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            flex-shrink: 0;
+            position: sticky;
+            top: 0;
+            z-index: 20;
+        }
+
+        .timeline-spacer {
+            width: 240px;
+            min-width: 240px;
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border-color);
+            padding: 10px 16px;
+            font-size: 12px;
+            color: var(--text-tertiary);
+            display: flex;
+            align-items: center;
+        }
+
+        .timeline-times {
+            display: flex;
+            flex: 1;
+            overflow-x: auto;
+            overflow-y: hidden;
+        }
+
+        .timeline-slot {
+            min-width: 180px;
+            padding: 10px 12px;
+            font-size: 12px;
+            color: var(--text-secondary);
+            border-right: 1px solid var(--border-color);
+            background: var(--bg-secondary);
+            text-align: center;
+        }
+
+        .timeline-slot.current {
+            background: rgba(139, 92, 246, 0.15);
+            color: var(--iptv-color);
+            font-weight: 600;
+        }
+
+        .epg-container {
+            flex: 1;
+            overflow: auto;
+            position: relative;
+        }
+
+        /* EPG Table */
+        .epg-table {
+            display: flex;
+            flex-direction: column;
+            min-width: fit-content;
+        }
+
+        /* EPG Channel Row */
+        .epg-row {
+            display: flex;
+            border-bottom: 1px solid var(--border-color);
+            min-height: 70px;
+            transition: background 0.2s;
+        }
+
+        .epg-row:hover { background: rgba(139, 92, 246, 0.05); }
+
+        /* Channel Info (Left side of each row) */
+        .epg-channel {
+            width: 240px;
+            min-width: 240px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border-color);
+            cursor: pointer;
+            position: sticky;
+            left: 0;
+            z-index: 10;
+        }
+
+        .epg-channel:hover { background: var(--bg-tertiary); }
+
+        .epg-channel-logo {
+            width: 40px;
+            height: 40px;
+            border-radius: 6px;
+            background: var(--bg-tertiary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+
+        .epg-channel-logo img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .epg-channel-logo i { font-size: 16px; color: var(--text-tertiary); }
+
+        .epg-channel-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .epg-channel-name {
+            font-size: 13px;
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .epg-play-btn {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background: var(--iptv-color);
+            border: none;
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: all 0.2s;
+            flex-shrink: 0;
+            font-size: 11px;
+        }
+
+        .epg-channel:hover .epg-play-btn { opacity: 1; }
+        .epg-play-btn:hover { background: #7c3aed; transform: scale(1.1); }
+
+        /* EPG Program Cells */
+        .epg-programs {
+            display: flex;
+            align-items: stretch;
+            flex: 1;
+        }
+
+        .epg-program {
+            min-width: 180px;
+            padding: 8px 12px;
+            border-right: 1px solid var(--border-color);
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            background: var(--bg-primary);
+        }
+
+        .epg-program:hover {
+            background: var(--bg-tertiary);
+        }
+
+        .epg-program.now-playing {
+            background: rgba(139, 92, 246, 0.15);
+            border-left: 3px solid var(--iptv-color);
+        }
+
+        .epg-program-title {
+            font-size: 13px;
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-bottom: 4px;
+        }
+
+        .epg-program-time {
+            font-size: 11px;
+            color: var(--text-tertiary);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .epg-program-time .live-badge {
+            background: var(--live-color);
+            color: white;
+            padding: 1px 6px;
+            border-radius: 3px;
+            font-size: 9px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .epg-program-desc {
+            font-size: 11px;
+            color: var(--text-tertiary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-top: 2px;
+        }
+
+        .epg-no-data {
+            min-width: 180px;
+            padding: 12px;
+            color: var(--text-tertiary);
+            font-size: 12px;
+            font-style: italic;
+            display: flex;
+            align-items: center;
+            background: var(--bg-primary);
+        }
+
+        /* Loading & Empty */
+        .loading {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 60px;
+            color: var(--text-tertiary);
+            gap: 16px;
+        }
+
+        .loading i { font-size: 32px; animation: spin 1s linear infinite; }
+
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 60px 24px;
+            color: var(--text-tertiary);
+            text-align: center;
+        }
+
+        .empty-state i { font-size: 48px; margin-bottom: 16px; }
+        .empty-state h3 { font-size: 18px; margin-bottom: 8px; color: var(--text-secondary); }
+
+        .empty-state .btn {
+            margin-top: 16px;
+            padding: 10px 20px;
+            background: var(--iptv-color);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        /* Mini Player (top-right corner) */
+        .mini-player {
+            position: fixed;
+            top: 70px;
+            right: 20px;
+            width: 400px;
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            z-index: 500;
+            overflow: hidden;
+            display: none;
+            border: 1px solid var(--border-color);
+        }
+
+        .mini-player.active { display: block; }
+
+        .mini-player-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 14px;
+            background: var(--bg-tertiary);
+            cursor: move;
+        }
+
+        .mini-player-title {
+            font-size: 13px;
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            flex: 1;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .mini-player-title i { color: var(--live-color); font-size: 8px; }
+
+        .mini-player-controls {
+            display: flex;
+            gap: 4px;
+        }
+
+        .mini-player-btn {
+            width: 28px;
+            height: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: transparent;
+            border: none;
+            border-radius: 6px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+
+        .mini-player-btn:hover { background: var(--border-color); color: var(--text-primary); }
+        .mini-player-btn.close:hover { background: var(--error-color); color: white; }
+
+        .mini-player-video {
+            width: 100%;
+            aspect-ratio: 16/9;
+            background: #000;
+            position: relative;
+        }
+
+        .mini-player-video video { width: 100%; height: 100%; background: #000; }
+
+        .mini-player-loading {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            color: var(--text-tertiary);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .mini-player-loading i { font-size: 24px; animation: spin 1s linear infinite; }
+
+        .mini-player-error {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            color: var(--error-color);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            text-align: center;
+            font-size: 12px;
+        }
+
+        .mini-player-error i { font-size: 24px; }
+
+        .mini-player-footer {
+            padding: 10px 14px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: var(--bg-secondary);
+            border-top: 1px solid var(--border-color);
+        }
+
+        .mini-volume-control {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex: 1;
+        }
+
+        .mini-volume-btn {
+            width: 28px;
+            height: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .mini-volume-btn:hover { color: var(--text-primary); }
+
+        .mini-volume-slider {
+            flex: 1;
+            height: 4px;
+            -webkit-appearance: none;
+            background: var(--bg-tertiary);
+            border-radius: 2px;
+            cursor: pointer;
+        }
+
+        .mini-volume-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 12px;
+            height: 12px;
+            background: var(--iptv-color);
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        .mini-full-btn {
+            padding: 6px 12px;
+            background: var(--iptv-color);
+            border: none;
+            border-radius: 6px;
+            color: white;
+            font-size: 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s;
+        }
+
+        .mini-full-btn:hover { background: #7c3aed; }
+
+        /* Mini player resize handles */
+        .mini-player-resize {
+            position: absolute;
+            bottom: 0;
+            width: 16px;
+            height: 16px;
+            opacity: 0.5;
+        }
+
+        .mini-player-resize:hover { opacity: 1; }
+
+        .mini-player-resize.right {
+            right: 0;
+            cursor: nwse-resize;
+        }
+
+        .mini-player-resize.right::after {
+            content: '';
+            position: absolute;
+            right: 3px;
+            bottom: 3px;
+            width: 8px;
+            height: 8px;
+            border-right: 2px solid var(--text-tertiary);
+            border-bottom: 2px solid var(--text-tertiary);
+        }
+
+        .mini-player-resize.left {
+            left: 0;
+            cursor: nesw-resize;
+        }
+
+        .mini-player-resize.left::after {
+            content: '';
+            position: absolute;
+            left: 3px;
+            bottom: 3px;
+            width: 8px;
+            height: 8px;
+            border-left: 2px solid var(--text-tertiary);
+            border-bottom: 2px solid var(--text-tertiary);
+        }
+
+        /* Preview Modal - kept for fallback */
+        .preview-modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.85);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .preview-modal.active { display: flex; }
+
+        .preview-content {
+            width: 90%;
+            max-width: 900px;
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .preview-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .preview-header h3 {
+            font-size: 16px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .preview-header h3 i { color: var(--iptv-color); }
+
+        .preview-close {
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--bg-tertiary);
+            border: none;
+            border-radius: 8px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .preview-close:hover { background: var(--error-color); color: white; }
+
+        .preview-player {
+            width: 100%;
+            aspect-ratio: 16/9;
+            background: #000;
+            position: relative;
+        }
+
+        .preview-player video { width: 100%; height: 100%; background: #000; }
+
+        .preview-loading, .preview-error {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+            text-align: center;
+        }
+
+        .preview-loading { color: var(--text-tertiary); }
+        .preview-loading i { font-size: 32px; animation: spin 1s linear infinite; }
+
+        .preview-error { display: none; color: var(--error-color); }
+        .preview-error i { font-size: 32px; }
+
+        .preview-actions {
+            padding: 16px 20px;
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+        }
+
+        .preview-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+        }
+
+        .preview-btn.secondary { background: var(--bg-tertiary); color: var(--text-secondary); }
+        .preview-btn.secondary:hover { background: var(--border-color); color: var(--text-primary); }
+        .preview-btn.primary { background: var(--iptv-color); color: white; }
+        .preview-btn.primary:hover { background: #7c3aed; }
+
+        /* Cache status */
+        .cache-info {
+            font-size: 11px;
+            color: var(--text-tertiary);
+            padding: 4px 8px;
+            background: var(--bg-tertiary);
+            border-radius: 4px;
+        }
+
+        /* Source toggle */
+        .source-toggle {
+            display: flex;
+            gap: 2px;
+            background: var(--bg-tertiary);
+            border-radius: 6px;
+            padding: 2px;
+        }
+        .source-btn {
+            padding: 6px 12px;
+            border: none;
+            background: transparent;
+            color: var(--text-tertiary);
+            font-size: 12px;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+        .source-btn:hover { color: var(--text-secondary); }
+        .source-btn.active {
+            background: var(--iptv-color);
+            color: white;
+        }
+        .source-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        /* Search scope toggle */
+        .search-scope-btn {
+            padding: 8px 10px;
+            border: none;
+            background: var(--bg-tertiary);
+            color: var(--text-tertiary);
+            cursor: pointer;
+            border-radius: 0 6px 6px 0;
+            transition: all 0.2s;
+            font-size: 12px;
+            white-space: nowrap;
+        }
+        .search-scope-btn:hover { color: var(--text-secondary); background: var(--border-color); }
+        .search-scope-btn.active {
+            background: var(--iptv-color);
+            color: white;
+        }
+        .search-scope-btn i { margin-right: 4px; }
+
+        /* Responsive - Desktop stays the same, mobile gets new layout */
+        @media (max-width: 768px) {
+            /* Hide desktop layout on mobile */
+            .guide-layout { display: none !important; }
+            .mini-player { display: none !important; }
+            .search-box { display: none; }
+            .header-actions .btn-icon:not(.mobile-show) { display: none; }
+
+            /* Show mobile layout */
+            .mobile-guide { display: flex !important; }
+
+            .header { padding: 10px 12px; }
+            .header-title { font-size: 16px; }
+            .back-btn span { display: none; }
+            .back-btn { padding: 8px 10px; }
+        }
+
+        /* Mobile Guide Layout */
+        .mobile-guide {
+            display: none;
+            flex-direction: column;
+            flex: 1;
+            overflow: hidden;
+            background: var(--bg-primary);
+        }
+
+        /* Mobile Categories Bar */
+        .mobile-categories {
+            display: flex;
+            overflow-x: auto;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            padding: 8px 12px;
+            gap: 8px;
+            flex-shrink: 0;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+        }
+
+        .mobile-categories::-webkit-scrollbar { display: none; }
+
+        .mobile-cat-btn {
+            flex-shrink: 0;
+            padding: 8px 16px;
+            background: var(--bg-tertiary);
+            border: none;
+            border-radius: 20px;
+            color: var(--text-secondary);
+            font-size: 13px;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all 0.2s;
+        }
+
+        .mobile-cat-btn.active {
+            background: var(--iptv-color);
+            color: white;
+        }
+
+        /* Mobile Time Navigation */
+        .mobile-time-nav {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            flex-shrink: 0;
+        }
+
+        .mobile-time-btn {
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            background: var(--bg-tertiary);
+            border: none;
+            color: var(--text-secondary);
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+
+        .mobile-time-btn:active { background: var(--border-color); }
+
+        .mobile-time-btn.now-btn {
+            padding: 0 12px;
+            width: auto;
+            background: var(--iptv-color);
+            color: white;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .mobile-current-time {
+            flex: 1;
+            text-align: center;
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        /* Mobile EPG Container */
+        .mobile-epg-wrapper {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Mobile Timeline Header */
+        .mobile-timeline {
+            display: flex;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            flex-shrink: 0;
+        }
+
+        .mobile-timeline-channel {
+            width: 110px;
+            min-width: 110px;
+            padding: 10px 8px;
+            font-size: 11px;
+            color: var(--text-tertiary);
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .mobile-timeline-times {
+            flex: 1;
+            display: flex;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+        }
+
+        .mobile-timeline-times::-webkit-scrollbar { display: none; }
+
+        .mobile-time-slot {
+            min-width: 120px;
+            padding: 10px 8px;
+            font-size: 11px;
+            color: var(--text-secondary);
+            border-right: 1px solid var(--border-color);
+            text-align: center;
+            flex-shrink: 0;
+        }
+
+        .mobile-time-slot.current {
+            background: rgba(139, 92, 246, 0.15);
+            color: var(--iptv-color);
+            font-weight: 600;
+        }
+
+        /* Mobile EPG Scroll Container */
+        .mobile-epg-scroll {
+            flex: 1;
+            overflow: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .mobile-epg-table {
+            display: flex;
+            flex-direction: column;
+            min-width: fit-content;
+        }
+
+        /* Mobile EPG Row */
+        .mobile-epg-row {
+            display: flex;
+            border-bottom: 1px solid var(--border-color);
+            min-height: 65px;
+        }
+
+        /* Mobile Channel Cell (sticky left) */
+        .mobile-epg-channel {
+            width: 110px;
+            min-width: 110px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            padding: 8px 6px;
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border-color);
+            position: sticky;
+            left: 0;
+            z-index: 5;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .mobile-epg-channel:active {
+            background: var(--bg-tertiary);
+        }
+
+        .mobile-epg-logo {
+            width: 32px;
+            height: 32px;
+            border-radius: 6px;
+            background: var(--bg-tertiary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+
+        .mobile-epg-logo img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .mobile-epg-logo i { font-size: 12px; color: var(--text-tertiary); }
+
+        .mobile-epg-name {
+            font-size: 10px;
+            font-weight: 500;
+            text-align: center;
+            line-height: 1.2;
+            max-width: 100%;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        /* Mobile Program Cells */
+        .mobile-epg-programs {
+            display: flex;
+            flex: 1;
+        }
+
+        .mobile-epg-program {
+            min-width: 120px;
+            padding: 8px;
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            background: var(--bg-primary);
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .mobile-epg-program:active {
+            background: var(--bg-tertiary);
+        }
+
+        .mobile-epg-program.now-playing {
+            background: rgba(139, 92, 246, 0.12);
+            border-left: 3px solid var(--iptv-color);
+        }
+
+        .mobile-program-title {
+            font-size: 11px;
+            font-weight: 500;
+            margin-bottom: 3px;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            line-height: 1.3;
+        }
+
+        .mobile-program-time {
+            font-size: 10px;
+            color: var(--text-tertiary);
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .mobile-program-time .live-tag {
+            background: var(--live-color);
+            color: white;
+            padding: 1px 5px;
+            border-radius: 3px;
+            font-size: 8px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .mobile-epg-nodata {
+            min-width: 120px;
+            padding: 8px;
+            color: var(--text-tertiary);
+            font-size: 10px;
+            font-style: italic;
+            display: flex;
+            align-items: center;
+            background: var(--bg-primary);
+            border-right: 1px solid var(--border-color);
+        }
+
+        /* Swipe hint overlay */
+        .mobile-swipe-hint {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 10px 16px;
+            border-radius: 20px;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            z-index: 100;
+            pointer-events: none;
+            opacity: 1;
+            transition: opacity 0.5s;
+        }
+
+        .mobile-swipe-hint.hidden { opacity: 0; }
+
+        .mobile-swipe-hint i {
+            animation: swipeAnim 1.5s ease-in-out infinite;
+        }
+
+        @keyframes swipeAnim {
+            0%, 100% { transform: translateX(0); }
+            50% { transform: translateX(-8px); }
+        }
+
+        /* Mobile Fullscreen Player */
+        .mobile-fullscreen-player {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: #000;
+            z-index: 2000;
+            display: none;
+            flex-direction: column;
+        }
+
+        .mobile-fullscreen-player.active {
+            display: flex;
+        }
+
+        .mobile-player-header {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            padding: 12px 16px;
+            background: linear-gradient(180deg, rgba(0,0,0,0.8) 0%, transparent 100%);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            z-index: 10;
+            opacity: 1;
+            transition: opacity 0.3s;
+        }
+
+        .mobile-player-header.hidden { opacity: 0; pointer-events: none; }
+
+        .mobile-player-close {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.2);
+            border: none;
+            color: white;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+
+        .mobile-player-title {
+            flex: 1;
+            font-size: 16px;
+            font-weight: 500;
+            color: white;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .mobile-player-live {
+            background: var(--live-color);
+            color: white;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .mobile-player-video {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #000;
+        }
+
+        .mobile-player-video video {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .mobile-player-loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .mobile-player-loading i { font-size: 40px; animation: spin 1s linear infinite; }
+
+        .mobile-player-error {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: var(--error-color);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .mobile-player-error i { font-size: 40px; }
+
+        .mobile-player-controls {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 20px 16px;
+            padding-bottom: max(20px, env(safe-area-inset-bottom));
+            background: linear-gradient(0deg, rgba(0,0,0,0.8) 0%, transparent 100%);
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            z-index: 10;
+            opacity: 1;
+            transition: opacity 0.3s;
+        }
+
+        .mobile-player-controls.hidden { opacity: 0; pointer-events: none; }
+
+        .mobile-ctrl-btn {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.2);
+            border: none;
+            color: white;
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+
+        .mobile-ctrl-btn:active {
+            background: rgba(255,255,255,0.3);
+        }
+
+        .mobile-volume-slider {
+            flex: 1;
+            height: 6px;
+            -webkit-appearance: none;
+            background: rgba(255,255,255,0.3);
+            border-radius: 3px;
+            cursor: pointer;
+        }
+
+        .mobile-volume-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 20px;
+            height: 20px;
+            background: white;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        /* Empty state for mobile */
+        .mobile-empty-state {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 40px 20px;
+            color: var(--text-tertiary);
+            text-align: center;
+        }
+
+        .mobile-empty-state i { font-size: 48px; margin-bottom: 16px; }
+        .mobile-empty-state h3 { font-size: 18px; color: var(--text-secondary); margin-bottom: 8px; }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <header class="header">
+            <a href="iptv.html" class="back-btn">
+                <i class="fas fa-arrow-left"></i>
+                <span>Back</span>
+            </a>
+            <div class="header-title">
+                <i class="fas fa-tv"></i>
+                <span>TV Guide</span>
+            </div>
+            <div class="search-box">
+                <div class="search-input-wrapper">
+                    <i class="fas fa-search"></i>
+                    <input type="text" id="searchInput" placeholder="Search channels..." oninput="filterChannels()">
+                </div>
+                <button class="search-scope-btn" id="searchAllBtn" onclick="toggleSearchScope()" title="Search all categories">
+                    <i class="fas fa-globe"></i> All
+                </button>
+            </div>
+            <div class="source-toggle" id="sourceToggle" style="display: none;">
+                <button class="source-btn" id="sourceEditor" onclick="switchSource('editor')">
+                    <i class="fas fa-star"></i> Primary
+                </button>
+                <button class="source-btn" id="sourceDirect" onclick="switchSource('direct')">
+                    <i class="fas fa-shield-alt"></i> Backup
+                </button>
+            </div>
+            <div class="header-actions">
+                <span class="cache-info" id="cacheInfo" style="display: none;"></span>
+                <button class="btn-icon" onclick="refreshGuide()" title="Refresh Guide">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
+            </div>
+        </header>
+
+        <div class="guide-layout">
+            <!-- Categories Sidebar -->
+            <div class="categories-sidebar" id="categoriesSidebar">
+                <div class="sidebar-header">
+                    <i class="fas fa-folder"></i>
+                    <span>Categories</span>
+                </div>
+                <div id="categoriesList">
+                    <div class="loading"><i class="fas fa-spinner"></i></div>
+                </div>
+            </div>
+
+            <!-- EPG Content -->
+            <div class="epg-content">
+                <div class="content-header">
+                    <h2 id="contentTitle">
+                        <i class="fas fa-list"></i>
+                        <span>All Channels</span>
+                    </h2>
+                    <span class="channel-count" id="channelCount"></span>
+                </div>
+
+                <!-- Time Navigation -->
+                <div class="time-nav">
+                    <button class="time-nav-btn" onclick="navigateTime(-1)">
+                        <i class="fas fa-chevron-left"></i>
+                    </button>
+                    <button class="time-nav-btn active" onclick="goToNow()">
+                        <i class="fas fa-clock"></i> Now
+                    </button>
+                    <button class="time-nav-btn" onclick="navigateTime(1)">
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
+                    <span class="current-date" id="currentDate"></span>
+                </div>
+
+                <!-- EPG Grid -->
+                <div class="epg-wrapper">
+                    <!-- Timeline Header -->
+                    <div class="timeline-header">
+                        <div class="timeline-spacer">Channel</div>
+                        <div class="timeline-times" id="timelineSlots"></div>
+                    </div>
+
+                    <div class="epg-container" id="epgContainer">
+                        <div class="loading"><i class="fas fa-spinner"></i><span>Loading guide...</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mobile Guide View (hidden on desktop) -->
+        <div class="mobile-guide" id="mobileGuide">
+            <!-- Mobile Categories -->
+            <div class="mobile-categories" id="mobileCategories">
+                <!-- Categories will be rendered here -->
+            </div>
+
+            <!-- Mobile Time Navigation -->
+            <div class="mobile-time-nav">
+                <button class="mobile-time-btn" onclick="mobileNavigateTime(-2)">
+                    <i class="fas fa-chevron-left"></i>
+                </button>
+                <button class="mobile-time-btn now-btn" onclick="mobileGoToNow()">
+                    Now
+                </button>
+                <div class="mobile-current-time" id="mobileCurrentTime">Today</div>
+                <button class="mobile-time-btn" onclick="mobileNavigateTime(2)">
+                    <i class="fas fa-chevron-right"></i>
+                </button>
+            </div>
+
+            <!-- Mobile EPG Grid -->
+            <div class="mobile-epg-wrapper">
+                <!-- Timeline Header -->
+                <div class="mobile-timeline">
+                    <div class="mobile-timeline-channel">Channel</div>
+                    <div class="mobile-timeline-times" id="mobileTimelineSlots">
+                        <!-- Time slots rendered by JS -->
+                    </div>
+                </div>
+
+                <!-- EPG Rows -->
+                <div class="mobile-epg-scroll" id="mobileEpgScroll">
+                    <div class="mobile-epg-table" id="mobileEpgTable">
+                        <div class="mobile-empty-state">
+                            <i class="fas fa-spinner fa-spin"></i>
+                            <h3>Loading guide...</h3>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Swipe Hint -->
+                <div class="mobile-swipe-hint" id="mobileSwipeHint">
+                    <i class="fas fa-hand-point-left"></i>
+                    Swipe left for guide
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mobile Fullscreen Player -->
+    <div class="mobile-fullscreen-player" id="mobilePlayer">
+        <div class="mobile-player-header" id="mobilePlayerHeader">
+            <button class="mobile-player-close" onclick="closeMobilePlayer()">
+                <i class="fas fa-times"></i>
+            </button>
+            <div class="mobile-player-title" id="mobilePlayerTitle">Channel Name</div>
+            <span class="mobile-player-live">LIVE</span>
+        </div>
+        <div class="mobile-player-video" onclick="toggleMobileControls()">
+            <video id="mobileVideo" playsinline webkit-playsinline></video>
+            <div class="mobile-player-loading" id="mobilePlayerLoading">
+                <i class="fas fa-spinner"></i>
+                <span>Loading stream...</span>
+            </div>
+            <div class="mobile-player-error" id="mobilePlayerError">
+                <i class="fas fa-exclamation-circle"></i>
+                <span id="mobilePlayerErrorText">Stream unavailable</span>
+            </div>
+        </div>
+        <div class="mobile-player-controls" id="mobilePlayerControls">
+            <button class="mobile-ctrl-btn" onclick="toggleMobilePlayPause()">
+                <i class="fas fa-pause" id="mobilePlayIcon"></i>
+            </button>
+            <button class="mobile-ctrl-btn" onclick="toggleMobileMute()">
+                <i class="fas fa-volume-up" id="mobileVolumeIcon"></i>
+            </button>
+            <input type="range" class="mobile-volume-slider" id="mobileVolumeSlider" min="0" max="100" value="100" oninput="setMobileVolume(this.value)">
+        </div>
+    </div>
+
+    <!-- Mini Player (top-right corner) -->
+    <div class="mini-player" id="miniPlayer">
+        <div class="mini-player-header" id="miniPlayerHeader">
+            <div class="mini-player-title">
+                <i class="fas fa-circle"></i>
+                <span id="miniPlayerTitle">Channel Name</span>
+            </div>
+            <div class="mini-player-controls">
+                <button class="mini-player-btn close" onclick="closeMiniPlayer()" title="Close">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        </div>
+        <div class="mini-player-video">
+            <video id="miniVideo" playsinline></video>
+            <div class="mini-player-loading" id="miniLoading">
+                <i class="fas fa-spinner"></i>
+                <span>Loading...</span>
+            </div>
+            <div class="mini-player-error" id="miniError">
+                <i class="fas fa-exclamation-circle"></i>
+                <span id="miniErrorText">Stream error</span>
+            </div>
+        </div>
+        <div class="mini-player-footer">
+            <div class="mini-volume-control">
+                <button class="mini-volume-btn" onclick="toggleMiniMute()" title="Mute/Unmute">
+                    <i class="fas fa-volume-up" id="miniVolumeIcon"></i>
+                </button>
+                <input type="range" class="mini-volume-slider" id="miniVolumeSlider" min="0" max="100" value="100" oninput="setMiniVolume(this.value)">
+            </div>
+            <button class="mini-full-btn" onclick="openFullPlayer()">
+                <i class="fas fa-expand"></i> Full Player
+            </button>
+        </div>
+        <div class="mini-player-resize left" id="miniPlayerResizeLeft"></div>
+        <div class="mini-player-resize right" id="miniPlayerResizeRight"></div>
+    </div>
+
+    <!-- Preview Modal (fallback - kept for compatibility) -->
+    <div class="preview-modal" id="previewModal" onclick="closePreview(event)" style="display: none;">
+        <div class="preview-content" onclick="event.stopPropagation()">
+            <div class="preview-header">
+                <h3><i class="fas fa-play-circle"></i><span id="previewTitle">Channel Preview</span></h3>
+                <button class="preview-close" onclick="closePreview()"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="preview-player">
+                <video id="previewVideo" controls autoplay playsinline></video>
+                <div class="preview-loading" id="previewLoading"><i class="fas fa-spinner"></i><span>Loading stream...</span></div>
+                <div class="preview-error" id="previewError"><i class="fas fa-exclamation-circle"></i><span id="previewErrorText">Failed to load stream</span></div>
+            </div>
+            <div class="preview-actions">
+                <button class="preview-btn secondary" onclick="closePreview()"><i class="fas fa-times"></i> Close</button>
+                <button class="preview-btn primary" onclick="openFullPlayer()"><i class="fas fa-expand"></i> Open Full Player</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '/api/v2';
+
+        // Load favicon from settings
+        (async function loadFavicon() {
+            try {
+                const response = await fetch();
+                const data = await response.json();
+                if (data.value) {
+                    let link = document.querySelector("link[rel~='icon']");
+                    if (!link) {
+                        link = document.createElement('link');
+                        link.rel = 'icon';
+                        document.head.appendChild(link);
+                    }
+                    link.href = data.value;
+                }
+            } catch (error) {
+                console.error('Error loading favicon:', error);
+            }
+        })();
+
+
+        // State
+        let guideData = null;
+        let epgData = {};  // EPG data keyed by epg_channel_id
+        let categories = [];
+        let allChannels = [];
+        let currentCategory = 'all';
+        let currentChannel = null;
+        let currentSource = 'editor';
+        let hlsPlayer = null;
+        let baseUrl = '';
+        let currentTimeOffset = 0;  // Hours offset from now
+        let timeSlotWidth = 180;    // Width of each 30-min slot
+        let searchAllCategories = false;  // When true, search across all categories
+        let allChannelsCache = [];  // Cache of all channels for global search
+        let epgCache = {};  // Persistent EPG cache keyed by epg_channel_id
+        let showingGlobalSearchResults = false;  // When true, bypass category filter in renderEPG
+        let miniPlayerExpanded = true;  // Mini player size state
+        let savedVolume = parseFloat(localStorage.getItem('iptv_volume') || '1');  // Persistent volume (0-1)
+
+        function getToken() {
+            return localStorage.getItem('portal_token');
+        }
+
+        async function api(endpoint, options = {}) {
+            const token = getToken();
+            if (!token) {
+                window.location.href = '/login.html';
+                return;
+            }
+
+            const response = await fetch(`${API_BASE}${endpoint}`, {
+                ...options,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                    ...options.headers
+                }
+            });
+
+            if (response.status === 401) {
+                localStorage.removeItem('portal_token');
+                window.location.href = '/login.html';
+                return;
+            }
+
+            return response.json();
+        }
+
+        async function loadGuide() {
+            try {
+                const result = await api(`/portal/iptv/guide?source=${currentSource}`);
+
+                if (!result.success) {
+                    if (result.needsRefresh) {
+                        showNeedsRefresh();
+                    } else {
+                        showError(result.message || 'Failed to load guide');
+                    }
+                    return;
+                }
+
+                guideData = result;
+                categories = result.categories || [];
+                allChannels = result.channels || [];
+                epgData = result.epg || {};
+                baseUrl = result.baseUrl || '';
+                currentSource = result.source || 'editor';
+
+                // Merge EPG into persistent cache for global search
+                if (epgData && Object.keys(epgData).length > 0) {
+                    Object.assign(epgCache, epgData);
+                }
+
+                // Show source toggle if both sources are available
+                const sources = result.availableSources || {};
+                const sourceToggle = document.getElementById('sourceToggle');
+                if (sources.editor && sources.direct) {
+                    sourceToggle.style.display = 'flex';
+                    updateSourceButtons();
+                } else {
+                    sourceToggle.style.display = 'none';
+                }
+
+                // Show cache info with source name
+                const cacheInfo = document.getElementById('cacheInfo');
+                const sourceName = result.sourceName || currentSource;
+                if (result.cacheLastUpdated) {
+                    const cacheDate = new Date(result.cacheLastUpdated + 'Z');
+                    cacheInfo.textContent = `${sourceName} • Updated: ${cacheDate.toLocaleTimeString()}`;
+                } else {
+                    cacheInfo.textContent = sourceName;
+                }
+                cacheInfo.style.display = 'inline';
+
+                renderCategories();
+                updateTimeDisplay();
+                renderTimeline();
+
+                // Default to first real category (not 'all') for faster initial load
+                const firstCategory = categories.find(c => c.category_id !== 'all');
+                selectCategory(firstCategory ? firstCategory.category_id : 'all');
+
+            } catch (error) {
+                console.error('Error loading guide:', error);
+                showError('Failed to load guide: ' + error.message);
+            }
+        }
+
+        function updateTimeDisplay() {
+            const now = new Date();
+            now.setHours(now.getHours() + currentTimeOffset);
+            const options = { weekday: 'long', month: 'short', day: 'numeric' };
+            document.getElementById('currentDate').textContent = now.toLocaleDateString('en-US', options);
+        }
+
+        function renderTimeline() {
+            const container = document.getElementById('timelineSlots');
+            const now = new Date();
+            const currentHour = now.getHours();
+            const startHour = currentHour + currentTimeOffset;
+
+            let html = '';
+            for (let i = 0; i < 8; i++) { // Show 8 hours
+                const hour = (startHour + i) % 24;
+                const displayHour = hour === 0 ? 12 : (hour > 12 ? hour - 12 : hour);
+                const ampm = hour >= 12 ? 'PM' : 'AM';
+                const isCurrent = i === 0 && currentTimeOffset === 0;
+
+                html += `
+                    <div class="timeline-slot ${isCurrent ? 'current' : ''}">
+                        ${displayHour}:00 ${ampm}
+                    </div>
+                `;
+            }
+
+            container.innerHTML = html;
+        }
+
+        function navigateTime(direction) {
+            currentTimeOffset += direction * 2; // Move 2 hours at a time
+            if (currentTimeOffset < 0) currentTimeOffset = 0;
+            if (currentTimeOffset > 168) currentTimeOffset = 168; // Max 7 days
+
+            updateTimeDisplay();
+            renderTimeline();
+            renderEPG();
+        }
+
+        function goToNow() {
+            currentTimeOffset = 0;
+            updateTimeDisplay();
+            renderTimeline();
+            renderEPG();
+        }
+
+        function showError(message) {
+            document.getElementById('categoriesList').innerHTML = '';
+            document.getElementById('epgContainer').innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-exclamation-circle"></i>
+                    <h3>Error</h3>
+                    <p>${escapeHtml(message)}</p>
+                </div>
+            `;
+        }
+
+        function showNeedsRefresh() {
+            document.getElementById('categoriesList').innerHTML = '';
+            document.getElementById('epgContainer').innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-sync-alt"></i>
+                    <h3>Guide Not Ready</h3>
+                    <p>The TV Guide hasn't been cached yet. Click refresh to load it now.</p>
+                    <button class="btn" onclick="triggerRefresh()">
+                        <i class="fas fa-sync-alt"></i> Refresh Now
+                    </button>
+                </div>
+            `;
+        }
+
+        async function triggerRefresh() {
+            document.getElementById('epgContainer').innerHTML = `
+                <div class="loading">
+                    <i class="fas fa-spinner"></i>
+                    <span>Refreshing guide cache... This may take a moment.</span>
+                </div>
+            `;
+
+            try {
+                const result = await api('/portal/iptv/guide/refresh', { method: 'POST' });
+                if (result.success) {
+                    await loadGuide();
+                } else {
+                    showError(result.message || 'Refresh failed');
+                }
+            } catch (error) {
+                showError('Refresh failed: ' + error.message);
+            }
+        }
+
+        function renderCategories() {
+            const container = document.getElementById('categoriesList');
+
+            let html = categories.map(cat => {
+                const isAll = cat.category_id === 'all';
+                const icon = isAll ? 'fas fa-globe' : getCategoryIcon(cat.category_name);
+
+                return `
+                    <div class="category-item ${currentCategory === cat.category_id ? 'active' : ''}"
+                         onclick="selectCategory('${cat.category_id}')"
+                         title="${escapeHtml(cat.category_name)}">
+                        <i class="${icon}"></i>
+                        <span class="category-name">${escapeHtml(cat.category_name)}</span>
+                        <span class="category-count">${cat.channel_count || 0}</span>
+                    </div>
+                `;
+            }).join('');
+
+            container.innerHTML = html;
+        }
+
+        function getCategoryIcon(category) {
+            if (!category) return 'fas fa-folder';
+            const lower = category.toLowerCase();
+            if (lower.includes('sport')) return 'fas fa-football-ball';
+            if (lower.includes('news')) return 'fas fa-newspaper';
+            if (lower.includes('movie') || lower.includes('cinema')) return 'fas fa-film';
+            if (lower.includes('music')) return 'fas fa-music';
+            if (lower.includes('kids') || lower.includes('child')) return 'fas fa-child';
+            if (lower.includes('documentary') || lower.includes('doc')) return 'fas fa-book';
+            if (lower.includes('entertainment')) return 'fas fa-star';
+            if (lower.includes('adult') || lower.includes('xxx')) return 'fas fa-ban';
+            if (lower.includes('hockey')) return 'fas fa-hockey-puck';
+            if (lower.includes('nfl') || lower.includes('football')) return 'fas fa-football-ball';
+            if (lower.includes('nba') || lower.includes('basketball')) return 'fas fa-basketball-ball';
+            if (lower.includes('mlb') || lower.includes('baseball')) return 'fas fa-baseball-ball';
+            if (lower.includes('soccer')) return 'fas fa-futbol';
+            if (lower.includes('cricket')) return 'fas fa-cricket';
+            if (lower.includes('rugby')) return 'fas fa-football-ball';
+            if (lower.includes('racing')) return 'fas fa-flag-checkered';
+            if (lower.includes('usa') || lower.includes('us ') || lower.includes('us:')) return 'fas fa-flag-usa';
+            if (lower.includes('uk') || lower.includes('british')) return 'fas fa-crown';
+            if (lower.includes('local')) return 'fas fa-map-marker-alt';
+            if (lower.includes('24/7')) return 'fas fa-clock';
+            return 'fas fa-folder';
+        }
+
+        async function selectCategory(categoryId) {
+            currentCategory = categoryId;
+            showingGlobalSearchResults = false;  // Reset global search flag
+            renderCategories();
+
+            // Fetch EPG data for this category from the API
+            if (categoryId && categoryId !== 'all') {
+                try {
+                    // Show loading in EPG area
+                    document.getElementById('epgContainer').innerHTML = `
+                        <div class="loading">
+                            <i class="fas fa-spinner"></i>
+                            <span>Loading guide data...</span>
+                        </div>
+                    `;
+
+                    const result = await api(`/portal/iptv/guide?source=${currentSource}&category_id=${categoryId}`);
+                    if (result.success) {
+                        // Update channels and EPG data for this category
+                        allChannels = result.channels || [];
+                        epgData = result.epg || {};
+
+                        // Merge EPG into persistent cache for global search
+                        Object.assign(epgCache, epgData);
+                    }
+                } catch (error) {
+                    console.error('Error loading category EPG:', error);
+                }
+            }
+
+            renderEPG();
+        }
+
+        function renderEPG() {
+            const container = document.getElementById('epgContainer');
+            const titleEl = document.getElementById('contentTitle').querySelector('span');
+            const countEl = document.getElementById('channelCount');
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+
+            // If showing global search results, don't filter by category or update title
+            let filtered;
+            if (showingGlobalSearchResults) {
+                // Already filtered by search - use all channels as-is
+                filtered = allChannels;
+                // Title was already set by searchAllCategoriesAPI
+            } else {
+                // Find category name
+                const cat = categories.find(c => c.category_id === currentCategory);
+                titleEl.textContent = cat ? cat.category_name : 'All Channels';
+
+                // Filter channels by category
+                filtered = currentCategory === 'all'
+                    ? allChannels
+                    : allChannels.filter(ch => String(ch.category_id) === String(currentCategory));
+
+                // Then filter by search term if any
+                if (searchTerm) {
+                    filtered = filtered.filter(ch =>
+                        ch.name.toLowerCase().includes(searchTerm)
+                    );
+                }
+            }
+
+            countEl.textContent = `${filtered.length} channel${filtered.length !== 1 ? 's' : ''}`;
+
+            if (filtered.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-search"></i>
+                        <h3>No Channels Found</h3>
+                        <p>${searchTerm ? 'Try a different search term' : 'No channels in this category'}</p>
+                    </div>
+                `;
+                return;
+            }
+
+            // Render EPG rows
+            const html = `
+                <div class="epg-table">
+                    ${filtered.map((channel, index) => renderEPGRow(channel)).join('')}
+                </div>
+            `;
+
+            container.innerHTML = html;
+        }
+
+        function renderEPGRow(channel) {
+            const logo = channel.stream_icon
+                ? `<img src="${escapeHtml(channel.stream_icon)}" onerror="this.parentNode.innerHTML='<i class=\\'fas fa-tv\\'></i>'" alt="">`
+                : '<i class="fas fa-tv"></i>';
+
+            // Get EPG data for this channel
+            const channelEpg = epgData[channel.epg_channel_id] || [];
+            const epgCells = renderEPGCells(channelEpg, channel);
+
+            return `
+                <div class="epg-row">
+                    <div class="epg-channel" onclick="openPreview(${channel.stream_id})">
+                        <div class="epg-channel-logo">${logo}</div>
+                        <div class="epg-channel-info">
+                            <div class="epg-channel-name" title="${escapeHtml(channel.name)}">${escapeHtml(channel.name)}</div>
+                        </div>
+                        <button class="epg-play-btn" onclick="event.stopPropagation(); openPreview(${channel.stream_id})" title="Play">
+                            <i class="fas fa-play"></i>
+                        </button>
+                    </div>
+                    <div class="epg-programs">
+                        ${epgCells}
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderEPGCells(channelEpg, channel) {
+            const now = new Date();
+            const startTime = new Date(now);
+            startTime.setHours(startTime.getHours() + currentTimeOffset);
+            startTime.setMinutes(0, 0, 0);
+
+            // If no EPG data, show empty slots
+            if (!channelEpg || channelEpg.length === 0) {
+                let cells = '';
+                for (let i = 0; i < 8; i++) {
+                    cells += `<div class="epg-no-data">No guide data</div>`;
+                }
+                return cells;
+            }
+
+            // Render actual EPG programs
+            let cells = '';
+            for (let i = 0; i < 8; i++) {
+                const slotStart = new Date(startTime);
+                slotStart.setHours(slotStart.getHours() + i);
+
+                // Find program at this time (API returns 'stop' not 'end')
+                const program = channelEpg.find(p => {
+                    const pStart = new Date(p.start);
+                    const pEnd = new Date(p.stop); // Backend uses 'stop'
+                    return slotStart >= pStart && slotStart < pEnd;
+                });
+
+                if (program) {
+                    const pStart = new Date(program.start);
+                    const pEnd = new Date(program.stop); // Backend uses 'stop'
+                    const isNow = now >= pStart && now < pEnd && currentTimeOffset === 0;
+                    const timeStr = `${formatTime(pStart)} - ${formatTime(pEnd)}`;
+                    const desc = program.description || program.desc || ''; // Backend uses 'description'
+
+                    cells += `
+                        <div class="epg-program ${isNow ? 'now-playing' : ''}" title="${escapeHtml(program.title)}">
+                            <div class="epg-program-title">${escapeHtml(program.title)}</div>
+                            <div class="epg-program-time">
+                                ${isNow ? '<span class="live-badge">Live</span>' : ''}
+                                ${timeStr}
+                            </div>
+                            ${desc ? `<div class="epg-program-desc">${escapeHtml(desc.substring(0, 50))}...</div>` : ''}
+                        </div>
+                    `;
+                } else {
+                    cells += `<div class="epg-no-data">No data</div>`;
+                }
+            }
+
+            return cells;
+        }
+
+        function formatTime(date) {
+            const hours = date.getHours();
+            const minutes = date.getMinutes();
+            const h = hours === 0 ? 12 : (hours > 12 ? hours - 12 : hours);
+            const ampm = hours >= 12 ? 'PM' : 'AM';
+            return `${h}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+        }
+
+        function filterChannels() {
+            const searchTerm = document.getElementById('searchInput').value.trim();
+
+            // If searching all categories and there's a search term, fetch from API
+            if (searchAllCategories && searchTerm.length >= 2) {
+                searchAllCategoriesAPI(searchTerm);
+            } else {
+                // Reset global search flag when doing category-specific search
+                showingGlobalSearchResults = false;
+                renderEPG();
+            }
+        }
+
+        async function toggleSearchScope() {
+            searchAllCategories = !searchAllCategories;
+            const btn = document.getElementById('searchAllBtn');
+            btn.classList.toggle('active', searchAllCategories);
+
+            // Update placeholder text
+            const input = document.getElementById('searchInput');
+            input.placeholder = searchAllCategories ? 'Search all categories...' : 'Search channels...';
+
+            // If toggling off global search, reset to current category
+            if (!searchAllCategories) {
+                showingGlobalSearchResults = false;
+                // Reload current category data
+                await selectCategory(currentCategory);
+            } else {
+                // Re-run search if there's a term
+                const searchTerm = input.value.trim();
+                if (searchTerm.length >= 2) {
+                    filterChannels();
+                }
+            }
+        }
+
+        let searchTimeout = null;
+        async function searchAllCategoriesAPI(searchTerm) {
+            // Debounce the search
+            if (searchTimeout) clearTimeout(searchTimeout);
+
+            searchTimeout = setTimeout(async () => {
+                try {
+                    // Show loading
+                    document.getElementById('epgContainer').innerHTML = `
+                        <div class="loading">
+                            <i class="fas fa-spinner"></i>
+                            <span>Searching all categories...</span>
+                        </div>
+                    `;
+
+                    // Search without category filter to get all channels, then filter on frontend
+                    // We need to fetch all channels for search - use cached data if available
+                    if (allChannelsCache.length === 0) {
+                        const result = await api(`/portal/iptv/guide?source=${currentSource}`);
+                        if (result.success) {
+                            allChannelsCache = result.channels || [];
+                        }
+                    }
+
+                    // Filter cached channels by search term
+                    const searchLower = searchTerm.toLowerCase();
+                    const matchingChannels = allChannelsCache.filter(ch =>
+                        ch.name.toLowerCase().includes(searchLower)
+                    );
+
+                    // Display results
+                    allChannels = matchingChannels;
+                    showingGlobalSearchResults = true;  // Flag to bypass category filter
+
+                    // Update title
+                    const titleEl = document.getElementById('contentTitle').querySelector('span');
+                    titleEl.textContent = `Search Results: "${searchTerm}"`;
+
+                    // Find categories that need EPG data
+                    const categoriesNeedingEpg = new Set();
+                    for (const ch of matchingChannels) {
+                        // Check if we already have EPG for this channel
+                        if (!epgCache[ch.epg_channel_id]) {
+                            categoriesNeedingEpg.add(ch.category_id);
+                        }
+                    }
+
+                    // Use cached EPG data
+                    epgData = epgCache;
+
+                    // If we need EPG for some categories, fetch them (limit to 5 to avoid too many requests)
+                    const categoriesToFetch = Array.from(categoriesNeedingEpg).slice(0, 5);
+                    if (categoriesToFetch.length > 0) {
+                        // First render with whatever EPG we have
+                        renderEPG();
+
+                        // Then fetch missing EPG in background
+                        for (const catId of categoriesToFetch) {
+                            try {
+                                const result = await api(`/portal/iptv/guide?source=${currentSource}&category_id=${catId}`);
+                                if (result.success && result.epg) {
+                                    Object.assign(epgCache, result.epg);
+                                }
+                            } catch (e) {
+                                console.warn('Failed to fetch EPG for category', catId);
+                            }
+                        }
+                        // Update epgData and re-render with new EPG
+                        epgData = epgCache;
+                        renderEPG();
+                    } else {
+                        renderEPG();
+                    }
+
+                } catch (error) {
+                    console.error('Error searching all categories:', error);
+                }
+            }, 300);
+        }
+
+        function openPreview(streamId) {
+            const channel = allChannels.find(ch => ch.stream_id === streamId);
+            if (!channel) {
+                alert('Channel not found');
+                return;
+            }
+
+            currentChannel = channel;
+
+            // Use mini-player instead of modal
+            document.getElementById('miniPlayerTitle').textContent = channel.name;
+            document.getElementById('miniPlayer').classList.add('active');
+            document.getElementById('miniLoading').style.display = 'flex';
+            document.getElementById('miniError').style.display = 'none';
+
+            // Apply saved volume
+            const video = document.getElementById('miniVideo');
+            video.volume = savedVolume;
+            document.getElementById('miniVolumeSlider').value = savedVolume * 100;
+            updateVolumeIcon();
+
+            playStreamMini(channel.url);
+        }
+
+        function playStreamMini(url) {
+            const video = document.getElementById('miniVideo');
+            const loadingEl = document.getElementById('miniLoading');
+            const errorEl = document.getElementById('miniError');
+            const errorTextEl = document.getElementById('miniErrorText');
+
+            console.log('Playing stream URL:', url);
+
+            if (hlsPlayer) {
+                hlsPlayer.destroy();
+                hlsPlayer = null;
+            }
+
+            const isHLS = url.includes('.m3u8');
+
+            if (isHLS && Hls.isSupported()) {
+                hlsPlayer = new Hls({
+                    enableWorker: true,
+                    lowLatencyMode: true,
+                    maxBufferLength: 30
+                });
+
+                hlsPlayer.loadSource(url);
+                hlsPlayer.attachMedia(video);
+
+                hlsPlayer.on(Hls.Events.MANIFEST_PARSED, () => {
+                    loadingEl.style.display = 'none';
+                    video.play().catch(console.error);
+                });
+
+                hlsPlayer.on(Hls.Events.ERROR, (event, data) => {
+                    if (data.fatal) {
+                        loadingEl.style.display = 'none';
+                        errorEl.style.display = 'flex';
+                        errorTextEl.textContent = 'Stream error: ' + (data.details || 'Unknown');
+                    }
+                });
+
+            } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                video.src = url;
+                video.addEventListener('loadedmetadata', () => {
+                    loadingEl.style.display = 'none';
+                    video.play().catch(console.error);
+                }, { once: true });
+
+                video.addEventListener('error', () => {
+                    loadingEl.style.display = 'none';
+                    errorEl.style.display = 'flex';
+                }, { once: true });
+
+            } else {
+                video.src = url;
+                video.addEventListener('loadedmetadata', () => {
+                    loadingEl.style.display = 'none';
+                    video.play().catch(console.error);
+                }, { once: true });
+
+                video.addEventListener('error', () => {
+                    loadingEl.style.display = 'none';
+                    errorEl.style.display = 'flex';
+                    errorTextEl.textContent = 'Stream format may not be supported';
+                }, { once: true });
+            }
+        }
+
+        function closeMiniPlayer() {
+            const video = document.getElementById('miniVideo');
+            video.pause();
+            video.src = '';
+
+            if (hlsPlayer) {
+                hlsPlayer.destroy();
+                hlsPlayer = null;
+            }
+
+            document.getElementById('miniPlayer').classList.remove('active');
+            currentChannel = null;
+        }
+
+        function toggleMiniPlayerSize() {
+            const miniPlayer = document.getElementById('miniPlayer');
+            const icon = document.getElementById('miniResizeIcon');
+
+            miniPlayerExpanded = !miniPlayerExpanded;
+
+            if (miniPlayerExpanded) {
+                miniPlayer.style.width = '400px';
+                icon.className = 'fas fa-compress-alt';
+            } else {
+                miniPlayer.style.width = '280px';
+                icon.className = 'fas fa-expand-alt';
+            }
+        }
+
+        function toggleMiniMute() {
+            const video = document.getElementById('miniVideo');
+            video.muted = !video.muted;
+            updateVolumeIcon();
+        }
+
+        function setMiniVolume(value) {
+            const video = document.getElementById('miniVideo');
+            const volume = value / 100;
+            video.volume = volume;
+            video.muted = false;
+            savedVolume = volume;
+            localStorage.setItem('iptv_volume', volume.toString());
+            updateVolumeIcon();
+        }
+
+        function updateVolumeIcon() {
+            const video = document.getElementById('miniVideo');
+            const icon = document.getElementById('miniVolumeIcon');
+
+            if (video.muted || video.volume === 0) {
+                icon.className = 'fas fa-volume-mute';
+            } else if (video.volume < 0.5) {
+                icon.className = 'fas fa-volume-down';
+            } else {
+                icon.className = 'fas fa-volume-up';
+            }
+        }
+
+        // Keep old functions for compatibility but redirect to mini player
+        function closePreview(event) {
+            if (event && event.target !== document.getElementById('previewModal')) return;
+            document.getElementById('previewModal').classList.remove('active');
+            closeMiniPlayer();
+        }
+
+        function openFullPlayer() {
+            if (!currentChannel) return;
+
+            // Save current volume before navigating
+            const video = document.getElementById('miniVideo');
+            if (video) {
+                localStorage.setItem('iptv_volume', video.volume.toString());
+            }
+
+            const url = encodeURIComponent(currentChannel.url);
+            const name = encodeURIComponent(currentChannel.name);
+            const volume = savedVolume;
+
+            // Don't close mini player - just navigate with volume param
+            window.location.href = `player.html?url=${url}&name=${name}&volume=${volume}`;
+        }
+
+        function updateSourceButtons() {
+            const editorBtn = document.getElementById('sourceEditor');
+            const directBtn = document.getElementById('sourceDirect');
+
+            editorBtn.classList.toggle('active', currentSource === 'editor');
+            directBtn.classList.toggle('active', currentSource === 'direct');
+        }
+
+        async function switchSource(source) {
+            if (source === currentSource) return;
+
+            currentSource = source;
+            updateSourceButtons();
+            allChannelsCache = []; // Clear cache when switching sources
+            epgCache = {}; // Clear EPG cache when switching sources
+            showingGlobalSearchResults = false; // Reset global search flag
+
+            // Show loading state
+            document.getElementById('epgContainer').innerHTML = `
+                <div class="loading">
+                    <i class="fas fa-spinner"></i>
+                    <span>Switching to ${source === 'editor' ? 'Primary' : 'Backup'}...</span>
+                </div>
+            `;
+            document.getElementById('categoriesList').innerHTML = `
+                <div class="loading"><i class="fas fa-spinner"></i></div>
+            `;
+
+            await loadGuide();
+        }
+
+        async function refreshGuide() {
+            document.getElementById('epgContainer').innerHTML = `
+                <div class="loading">
+                    <i class="fas fa-spinner"></i>
+                    <span>Loading guide...</span>
+                </div>
+            `;
+            document.getElementById('categoriesList').innerHTML = `
+                <div class="loading"><i class="fas fa-spinner"></i></div>
+            `;
+            await loadGuide();
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeMiniPlayer();
+        });
+
+        // Check if we need to continue playing a stream (coming from player.html)
+        function checkForContinuedPlayback() {
+            const params = new URLSearchParams(window.location.search);
+            const playUrl = params.get('play_url');
+            const playName = params.get('play_name');
+
+            if (playUrl && playName) {
+                // Create a virtual channel object and start playing
+                currentChannel = {
+                    url: decodeURIComponent(playUrl),
+                    name: decodeURIComponent(playName)
+                };
+
+                document.getElementById('miniPlayerTitle').textContent = currentChannel.name;
+                document.getElementById('miniPlayer').classList.add('active');
+                document.getElementById('miniLoading').style.display = 'flex';
+                document.getElementById('miniError').style.display = 'none';
+
+                // Apply saved volume
+                const video = document.getElementById('miniVideo');
+                video.volume = savedVolume;
+                document.getElementById('miniVolumeSlider').value = savedVolume * 100;
+                updateVolumeIcon();
+
+                playStreamMini(currentChannel.url);
+
+                // Clean up URL without reloading
+                const cleanUrl = window.location.pathname;
+                window.history.replaceState({}, document.title, cleanUrl);
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            loadGuide();
+            // Check after a short delay to ensure guide is loaded
+            setTimeout(checkForContinuedPlayback, 100);
+
+            // Initialize mini-player drag and resize
+            initMiniPlayerDrag();
+            initMiniPlayerResize();
+
+            // Initialize mobile player control hide timeout
+            initMobilePlayerControls();
+        });
+
+        // =====================================================
+        // MOBILE GUIDE FUNCTIONS
+        // =====================================================
+
+        let mobileHlsPlayer = null;
+        let mobileCurrentCategory = 'all';
+        let mobileControlsTimeout = null;
+        let mobileControlsVisible = true;
+        let mobileTimeOffset = 0; // Hours offset from now
+        let mobileSwipeHintShown = false;
+
+        // Render mobile categories
+        function renderMobileCategories() {
+            const container = document.getElementById('mobileCategories');
+            if (!container || !categories.length) return;
+
+            let html = categories.map(cat => `
+                <button class="mobile-cat-btn ${mobileCurrentCategory === cat.category_id ? 'active' : ''}"
+                        onclick="selectMobileCategory('${cat.category_id}')">
+                    ${escapeHtml(cat.category_name)}
+                </button>
+            `).join('');
+
+            container.innerHTML = html;
+        }
+
+        // Select mobile category
+        async function selectMobileCategory(categoryId) {
+            mobileCurrentCategory = categoryId;
+            renderMobileCategories();
+
+            // Show loading
+            document.getElementById('mobileEpgTable').innerHTML = `
+                <div class="mobile-empty-state">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    <h3>Loading...</h3>
+                </div>
+            `;
+
+            // Fetch channels for this category
+            if (categoryId && categoryId !== 'all') {
+                try {
+                    const result = await api(`/portal/iptv/guide?source=${currentSource}&category_id=${categoryId}`);
+                    if (result.success) {
+                        allChannels = result.channels || [];
+                        epgData = result.epg || {};
+                        Object.assign(epgCache, epgData);
+                    }
+                } catch (error) {
+                    console.error('Error loading category:', error);
+                }
+            }
+
+            renderMobileEpgGrid();
+        }
+
+        // Navigate time for mobile EPG
+        function mobileNavigateTime(hours) {
+            mobileTimeOffset += hours;
+            // Limit to -24 hours in past and 7 days in future
+            mobileTimeOffset = Math.max(-24, Math.min(168, mobileTimeOffset));
+            renderMobileEpgGrid();
+        }
+
+        // Go to now
+        function mobileGoToNow() {
+            mobileTimeOffset = 0;
+            renderMobileEpgGrid();
+        }
+
+        // Get time slots for mobile EPG (4-hour window)
+        function getMobileTimeSlots() {
+            const slots = [];
+            const now = new Date();
+            const startTime = new Date(now.getTime() + (mobileTimeOffset * 60 * 60 * 1000));
+
+            // Round down to nearest 30 minutes
+            startTime.setMinutes(Math.floor(startTime.getMinutes() / 30) * 30, 0, 0);
+
+            // Create 4-hour worth of 30-minute slots
+            for (let i = 0; i < 8; i++) {
+                const slotTime = new Date(startTime.getTime() + (i * 30 * 60 * 1000));
+                const isCurrent = Math.abs(slotTime.getTime() - now.getTime()) < 30 * 60 * 1000;
+                slots.push({
+                    time: slotTime,
+                    label: slotTime.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
+                    isCurrent
+                });
+            }
+            return slots;
+        }
+
+        // Render mobile EPG grid
+        function renderMobileEpgGrid() {
+            const timeSlots = getMobileTimeSlots();
+            const container = document.getElementById('mobileEpgTable');
+            const timelineContainer = document.getElementById('mobileTimelineSlots');
+            const currentTimeEl = document.getElementById('mobileCurrentTime');
+
+            // Update current time display
+            const displayDate = new Date(Date.now() + (mobileTimeOffset * 60 * 60 * 1000));
+            const isToday = new Date().toDateString() === displayDate.toDateString();
+            currentTimeEl.textContent = isToday ? 'Today' : displayDate.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+
+            // Render timeline slots
+            timelineContainer.innerHTML = timeSlots.map(slot => `
+                <div class="mobile-time-slot ${slot.isCurrent ? 'current' : ''}">${slot.label}</div>
+            `).join('');
+
+            // Filter channels by category
+            let filtered = mobileCurrentCategory === 'all'
+                ? allChannels
+                : allChannels.filter(ch => String(ch.category_id) === String(mobileCurrentCategory));
+
+            if (filtered.length === 0) {
+                container.innerHTML = `
+                    <div class="mobile-empty-state">
+                        <i class="fas fa-tv"></i>
+                        <h3>No Channels</h3>
+                        <p>No channels in this category</p>
+                    </div>
+                `;
+                return;
+            }
+
+            const now = new Date();
+            const windowStart = timeSlots[0].time;
+            const windowEnd = new Date(timeSlots[timeSlots.length - 1].time.getTime() + 30 * 60 * 1000);
+
+            container.innerHTML = filtered.map(channel => {
+                const logo = channel.stream_icon
+                    ? `<img src="${escapeHtml(channel.stream_icon)}" onerror="this.parentNode.innerHTML='<i class=\\'fas fa-tv\\'></i>'" alt="">`
+                    : '<i class="fas fa-tv"></i>';
+
+                // Get programs for this channel in the time window
+                const channelEpg = epgData[channel.epg_channel_id] || epgCache[channel.epg_channel_id] || [];
+                const programs = channelEpg.filter(p => {
+                    const pStart = new Date(p.start);
+                    const pEnd = new Date(p.stop);
+                    return pEnd > windowStart && pStart < windowEnd;
+                }).sort((a, b) => new Date(a.start) - new Date(b.start));
+
+                let programsHtml = '';
+                if (programs.length > 0) {
+                    programsHtml = programs.map(program => {
+                        const pStart = new Date(program.start);
+                        const pEnd = new Date(program.stop);
+                        const isNowPlaying = now >= pStart && now < pEnd;
+
+                        // Calculate width based on duration (120px per 30 min)
+                        const durationMinutes = (pEnd - pStart) / (60 * 1000);
+                        const width = Math.max(120, (durationMinutes / 30) * 120);
+
+                        const startStr = pStart.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+                        const endStr = pEnd.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+
+                        return `
+                            <div class="mobile-epg-program ${isNowPlaying ? 'now-playing' : ''}"
+                                 style="min-width: ${width}px; width: ${width}px;"
+                                 onclick="openMobilePlayer(${channel.stream_id})">
+                                <div class="mobile-program-title">${escapeHtml(program.title)}</div>
+                                <div class="mobile-program-time">
+                                    ${isNowPlaying ? '<span class="live-tag">Live</span>' : ''}
+                                    ${startStr} - ${endStr}
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                } else {
+                    // No guide data - show placeholder spanning full width
+                    programsHtml = `<div class="mobile-epg-nodata" style="min-width: 960px;">No guide data available</div>`;
+                }
+
+                return `
+                    <div class="mobile-epg-row">
+                        <div class="mobile-epg-channel" onclick="openMobilePlayer(${channel.stream_id})">
+                            <div class="mobile-epg-logo">${logo}</div>
+                            <div class="mobile-epg-name">${escapeHtml(channel.name)}</div>
+                        </div>
+                        <div class="mobile-epg-programs">${programsHtml}</div>
+                    </div>
+                `;
+            }).join('');
+
+            // Show swipe hint once
+            if (!mobileSwipeHintShown) {
+                mobileSwipeHintShown = true;
+                setTimeout(() => {
+                    const hint = document.getElementById('mobileSwipeHint');
+                    if (hint) hint.classList.add('hidden');
+                }, 3000);
+            }
+
+            // Sync scroll between timeline and EPG
+            setupMobileScrollSync();
+        }
+
+        // Sync horizontal scroll between timeline and EPG content
+        function setupMobileScrollSync() {
+            const epgScroll = document.getElementById('mobileEpgScroll');
+            const timelineScroll = document.getElementById('mobileTimelineSlots');
+
+            if (epgScroll && timelineScroll) {
+                epgScroll.onscroll = () => {
+                    timelineScroll.scrollLeft = epgScroll.scrollLeft;
+                };
+            }
+        }
+
+        // Open mobile fullscreen player
+        function openMobilePlayer(streamId) {
+            const channel = allChannels.find(ch => ch.stream_id === streamId);
+            if (!channel) return;
+
+            currentChannel = channel;
+
+            // Update UI
+            document.getElementById('mobilePlayerTitle').textContent = channel.name;
+            document.getElementById('mobilePlayer').classList.add('active');
+            document.getElementById('mobilePlayerLoading').style.display = 'flex';
+            document.getElementById('mobilePlayerError').style.display = 'none';
+
+            // Apply saved volume
+            const video = document.getElementById('mobileVideo');
+            video.volume = savedVolume;
+            document.getElementById('mobileVolumeSlider').value = savedVolume * 100;
+            updateMobileVolumeIcon();
+
+            // Play stream
+            playMobileStream(channel.url);
+
+            // Show controls initially
+            showMobileControls();
+
+            // Lock to landscape on mobile if supported
+            if (screen.orientation && screen.orientation.lock) {
+                screen.orientation.lock('landscape').catch(() => {});
+            }
+        }
+
+        // Play stream in mobile player
+        function playMobileStream(url) {
+            const video = document.getElementById('mobileVideo');
+            const loadingEl = document.getElementById('mobilePlayerLoading');
+            const errorEl = document.getElementById('mobilePlayerError');
+            const errorTextEl = document.getElementById('mobilePlayerErrorText');
+
+            // Destroy existing player
+            if (mobileHlsPlayer) {
+                mobileHlsPlayer.destroy();
+                mobileHlsPlayer = null;
+            }
+
+            const isHLS = url.includes('.m3u8');
+
+            if (isHLS && Hls.isSupported()) {
+                mobileHlsPlayer = new Hls({
+                    enableWorker: true,
+                    lowLatencyMode: true,
+                    maxBufferLength: 30
+                });
+
+                mobileHlsPlayer.loadSource(url);
+                mobileHlsPlayer.attachMedia(video);
+
+                mobileHlsPlayer.on(Hls.Events.MANIFEST_PARSED, () => {
+                    loadingEl.style.display = 'none';
+                    video.play().catch(console.error);
+                    document.getElementById('mobilePlayIcon').className = 'fas fa-pause';
+                });
+
+                mobileHlsPlayer.on(Hls.Events.ERROR, (event, data) => {
+                    if (data.fatal) {
+                        loadingEl.style.display = 'none';
+                        errorEl.style.display = 'flex';
+                        errorTextEl.textContent = 'Stream error: ' + (data.details || 'Unknown');
+                    }
+                });
+
+            } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                // Native HLS (Safari/iOS)
+                video.src = url;
+                video.addEventListener('loadedmetadata', () => {
+                    loadingEl.style.display = 'none';
+                    video.play().catch(console.error);
+                    document.getElementById('mobilePlayIcon').className = 'fas fa-pause';
+                }, { once: true });
+
+                video.addEventListener('error', () => {
+                    loadingEl.style.display = 'none';
+                    errorEl.style.display = 'flex';
+                }, { once: true });
+
+            } else {
+                // Fallback
+                video.src = url;
+                video.onloadeddata = () => {
+                    loadingEl.style.display = 'none';
+                    video.play().catch(console.error);
+                    document.getElementById('mobilePlayIcon').className = 'fas fa-pause';
+                };
+
+                video.onerror = () => {
+                    loadingEl.style.display = 'none';
+                    errorEl.style.display = 'flex';
+                    errorTextEl.textContent = 'Stream format not supported';
+                };
+            }
+        }
+
+        // Close mobile player
+        function closeMobilePlayer() {
+            const video = document.getElementById('mobileVideo');
+            video.pause();
+            video.src = '';
+
+            if (mobileHlsPlayer) {
+                mobileHlsPlayer.destroy();
+                mobileHlsPlayer = null;
+            }
+
+            document.getElementById('mobilePlayer').classList.remove('active');
+            currentChannel = null;
+
+            // Unlock orientation
+            if (screen.orientation && screen.orientation.unlock) {
+                screen.orientation.unlock();
+            }
+        }
+
+        // Toggle mobile controls visibility
+        function toggleMobileControls() {
+            const header = document.getElementById('mobilePlayerHeader');
+            const controls = document.getElementById('mobilePlayerControls');
+
+            if (mobileControlsVisible) {
+                header.classList.add('hidden');
+                controls.classList.add('hidden');
+                mobileControlsVisible = false;
+            } else {
+                showMobileControls();
+            }
+        }
+
+        // Show mobile controls with auto-hide
+        function showMobileControls() {
+            const header = document.getElementById('mobilePlayerHeader');
+            const controls = document.getElementById('mobilePlayerControls');
+
+            header.classList.remove('hidden');
+            controls.classList.remove('hidden');
+            mobileControlsVisible = true;
+
+            // Clear existing timeout
+            if (mobileControlsTimeout) {
+                clearTimeout(mobileControlsTimeout);
+            }
+
+            // Auto-hide after 4 seconds
+            mobileControlsTimeout = setTimeout(() => {
+                header.classList.add('hidden');
+                controls.classList.add('hidden');
+                mobileControlsVisible = false;
+            }, 4000);
+        }
+
+        // Initialize mobile player controls
+        function initMobilePlayerControls() {
+            const video = document.getElementById('mobileVideo');
+            if (video) {
+                // Show controls on touch
+                video.addEventListener('touchstart', () => {
+                    if (!mobileControlsVisible) {
+                        showMobileControls();
+                    }
+                });
+            }
+        }
+
+        // Toggle mobile play/pause
+        function toggleMobilePlayPause() {
+            const video = document.getElementById('mobileVideo');
+            const icon = document.getElementById('mobilePlayIcon');
+
+            if (video.paused) {
+                video.play();
+                icon.className = 'fas fa-pause';
+            } else {
+                video.pause();
+                icon.className = 'fas fa-play';
+            }
+
+            showMobileControls();
+        }
+
+        // Toggle mobile mute
+        function toggleMobileMute() {
+            const video = document.getElementById('mobileVideo');
+            video.muted = !video.muted;
+            updateMobileVolumeIcon();
+            showMobileControls();
+        }
+
+        // Set mobile volume
+        function setMobileVolume(value) {
+            const video = document.getElementById('mobileVideo');
+            const volume = value / 100;
+            video.volume = volume;
+            video.muted = false;
+            savedVolume = volume;
+            localStorage.setItem('iptv_volume', volume.toString());
+            updateMobileVolumeIcon();
+            showMobileControls();
+        }
+
+        // Update mobile volume icon
+        function updateMobileVolumeIcon() {
+            const video = document.getElementById('mobileVideo');
+            const icon = document.getElementById('mobileVolumeIcon');
+
+            if (video.muted || video.volume === 0) {
+                icon.className = 'fas fa-volume-mute';
+            } else if (video.volume < 0.5) {
+                icon.className = 'fas fa-volume-down';
+            } else {
+                icon.className = 'fas fa-volume-up';
+            }
+        }
+
+        // Override loadGuide to also render mobile views
+        const originalLoadGuide = loadGuide;
+        loadGuide = async function() {
+            await originalLoadGuide();
+            // After loading, render mobile views
+            renderMobileCategories();
+            renderMobileEpgGrid();
+        };
+
+        // Mini-player drag functionality
+        function initMiniPlayerDrag() {
+            const miniPlayer = document.getElementById('miniPlayer');
+            const header = document.getElementById('miniPlayerHeader');
+
+            let isDragging = false;
+            let startX, startY, startLeft, startTop;
+
+            header.addEventListener('mousedown', (e) => {
+                // Don't drag if clicking on buttons
+                if (e.target.tagName === 'BUTTON' || e.target.closest('button')) return;
+
+                isDragging = true;
+                startX = e.clientX;
+                startY = e.clientY;
+
+                const rect = miniPlayer.getBoundingClientRect();
+                startLeft = rect.left;
+                startTop = rect.top;
+
+                miniPlayer.style.transition = 'none';
+                document.body.style.userSelect = 'none';
+            });
+
+            document.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+
+                const deltaX = e.clientX - startX;
+                const deltaY = e.clientY - startY;
+
+                let newLeft = startLeft + deltaX;
+                let newTop = startTop + deltaY;
+
+                // Keep within viewport bounds
+                const rect = miniPlayer.getBoundingClientRect();
+                const maxLeft = window.innerWidth - rect.width;
+                const maxTop = window.innerHeight - rect.height;
+
+                newLeft = Math.max(0, Math.min(newLeft, maxLeft));
+                newTop = Math.max(0, Math.min(newTop, maxTop));
+
+                miniPlayer.style.left = newLeft + 'px';
+                miniPlayer.style.top = newTop + 'px';
+                miniPlayer.style.right = 'auto';
+            });
+
+            document.addEventListener('mouseup', () => {
+                if (isDragging) {
+                    isDragging = false;
+                    miniPlayer.style.transition = '';
+                    document.body.style.userSelect = '';
+                }
+            });
+        }
+
+        // Mini-player resize functionality
+        function initMiniPlayerResize() {
+            const miniPlayer = document.getElementById('miniPlayer');
+            const resizeHandleRight = document.getElementById('miniPlayerResizeRight');
+            const resizeHandleLeft = document.getElementById('miniPlayerResizeLeft');
+
+            let isResizing = false;
+            let resizeDirection = null;
+            let startX, startWidth, startLeft;
+
+            function startResize(e, direction) {
+                e.preventDefault();
+                e.stopPropagation();
+
+                isResizing = true;
+                resizeDirection = direction;
+                startX = e.clientX;
+
+                const rect = miniPlayer.getBoundingClientRect();
+                startWidth = rect.width;
+                startLeft = rect.left;
+
+                miniPlayer.style.transition = 'none';
+                document.body.style.userSelect = 'none';
+            }
+
+            resizeHandleRight.addEventListener('mousedown', (e) => startResize(e, 'right'));
+            resizeHandleLeft.addEventListener('mousedown', (e) => startResize(e, 'left'));
+
+            document.addEventListener('mousemove', (e) => {
+                if (!isResizing) return;
+
+                const deltaX = e.clientX - startX;
+
+                if (resizeDirection === 'right') {
+                    // Resize from right - just change width
+                    let newWidth = Math.max(280, Math.min(800, startWidth + deltaX));
+                    miniPlayer.style.width = newWidth + 'px';
+                } else if (resizeDirection === 'left') {
+                    // Resize from left - change width and position
+                    let newWidth = Math.max(280, Math.min(800, startWidth - deltaX));
+                    let newLeft = startLeft + (startWidth - newWidth);
+
+                    // Keep within viewport
+                    if (newLeft < 0) {
+                        newLeft = 0;
+                        newWidth = startLeft + startWidth;
+                    }
+
+                    miniPlayer.style.width = newWidth + 'px';
+                    miniPlayer.style.left = newLeft + 'px';
+                    miniPlayer.style.right = 'auto';
+                }
+            });
+
+            document.addEventListener('mouseup', () => {
+                if (isResizing) {
+                    isResizing = false;
+                    resizeDirection = null;
+                    miniPlayer.style.transition = '';
+                    document.body.style.userSelect = '';
+                }
+            });
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,3309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web Player - User Portal</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mpegts.js@latest"></script>
+    <style>
+        :root {
+            --bg-primary: #0f0f0f;
+            --bg-secondary: #1a1a1a;
+            --bg-tertiary: #2a2a2a;
+            --border-color: #333;
+            --text-primary: #fff;
+            --text-secondary: #aaa;
+            --text-tertiary: #666;
+            --primary-color: #8b5cf6;
+            --primary-hover: #7c3aed;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        /* App Container */
+        .app-container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        /* Header */
+        .header {
+            background: var(--bg-secondary);
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            border-bottom: 1px solid var(--border-color);
+            flex-shrink: 0;
+            z-index: 100;
+        }
+
+        .header.hidden {
+            display: none;
+        }
+
+        .back-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            background: var(--bg-tertiary);
+            border: none;
+            border-radius: 6px;
+            color: var(--text-secondary);
+            font-size: 13px;
+            cursor: pointer;
+            text-decoration: none;
+        }
+
+        .back-btn:hover {
+            background: var(--border-color);
+            color: var(--text-primary);
+        }
+
+        .header-title {
+            flex: 1;
+            font-size: 16px;
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn-icon {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--bg-tertiary);
+            border: none;
+            border-radius: 8px;
+            color: var(--text-secondary);
+            cursor: pointer;
+        }
+
+        .btn-icon:hover {
+            background: var(--border-color);
+            color: var(--text-primary);
+        }
+
+        .btn-icon.active {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+            min-height: 0; /* Fix for flexbox children overflow */
+        }
+
+        /* Player Area */
+        .player-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: #000;
+            min-height: 0; /* Fix for flexbox children overflow */
+            position: relative;
+        }
+
+        /* Single Player View */
+        .single-player {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        .single-player video {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            background: #000;
+        }
+
+        /* Multiview Grid */
+        .multiview-grid {
+            flex: 1;
+            display: grid;
+            gap: 4px;
+            padding: 4px;
+            background: var(--bg-primary);
+            min-height: 0; /* Fix for flexbox children overflow */
+            height: 100%;
+            overflow: hidden;
+        }
+
+        /* Even layout - all same size */
+        .multiview-grid.layout-even.screens-1 {
+            grid-template-columns: 1fr;
+            grid-template-rows: 1fr;
+        }
+
+        .multiview-grid.layout-even.screens-2 {
+            grid-template-columns: repeat(2, 1fr);
+            grid-template-rows: 1fr;
+        }
+
+        .multiview-grid.layout-even.screens-3 {
+            grid-template-columns: repeat(2, 1fr);
+            grid-template-rows: repeat(2, 1fr);
+        }
+
+        .multiview-grid.layout-even.screens-3 .player-cell:nth-child(3) {
+            grid-column: 1 / -1;
+            max-width: 50%;
+            justify-self: center;
+        }
+
+        .multiview-grid.layout-even.screens-4 {
+            grid-template-columns: repeat(2, 1fr);
+            grid-template-rows: repeat(2, 1fr);
+        }
+
+        .multiview-grid.layout-even.screens-5,
+        .multiview-grid.layout-even.screens-6 {
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(2, 1fr);
+        }
+
+        /* Focused layout - one large, others smaller below */
+        .multiview-grid.layout-focused {
+            grid-template-columns: repeat(4, 1fr);
+            grid-template-rows: 4fr 1fr;
+            grid-template-areas:
+                "main main main main"
+                "sub1 sub2 sub3 sub4";
+        }
+
+        .multiview-grid.layout-focused .player-cell.focused {
+            grid-area: main;
+        }
+
+        .multiview-grid.layout-focused .player-cell:not(.focused):nth-of-type(2) {
+            grid-area: sub1;
+        }
+
+        .multiview-grid.layout-focused .player-cell:not(.focused):nth-of-type(3) {
+            grid-area: sub2;
+        }
+
+        .multiview-grid.layout-focused .player-cell:not(.focused):nth-of-type(4) {
+            grid-area: sub3;
+        }
+
+        .multiview-grid.layout-focused .player-cell:not(.focused):nth-of-type(5) {
+            grid-area: sub4;
+        }
+
+        /* Focused mode - 2 screens: main large, 1 small centered below */
+        .multiview-grid.layout-focused.screens-2 {
+            grid-template-columns: 1fr 2fr 1fr;
+            grid-template-areas:
+                "main main main"
+                ". sub1 .";
+        }
+
+        /* Focused mode - 3 screens: main large, 2 smaller centered below */
+        .multiview-grid.layout-focused.screens-3 {
+            grid-template-columns: 1fr 1fr 1fr 1fr;
+            grid-template-areas:
+                "main main main main"
+                ". sub1 sub2 .";
+        }
+
+        /* Focused mode - 4 screens: main large, 3 smaller below */
+        .multiview-grid.layout-focused.screens-4 {
+            grid-template-columns: repeat(6, 1fr);
+            grid-template-areas:
+                "main main main main main main"
+                ". sub1 sub2 sub3 . .";
+        }
+
+        /* Focused mode - 5 screens: main large, 4 smaller below */
+        .multiview-grid.layout-focused.screens-5 {
+            grid-template-columns: repeat(4, 1fr);
+            grid-template-areas:
+                "main main main main"
+                "sub1 sub2 sub3 sub4";
+        }
+
+        /* Focused mode - 6 screens: main large, 5 smaller below */
+        .multiview-grid.layout-focused.screens-6 {
+            grid-template-columns: repeat(5, 1fr);
+            grid-template-areas:
+                "main main main main main"
+                "sub1 sub2 sub3 sub4 sub5";
+        }
+
+        .multiview-grid.layout-focused .player-cell:not(.focused):nth-of-type(6) {
+            grid-area: sub5;
+        }
+
+        .player-cell {
+            background: var(--bg-secondary);
+            border-radius: 4px;
+            overflow: hidden;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: box-shadow 0.2s;
+        }
+
+        .player-cell.active-audio {
+            box-shadow: 0 0 0 3px var(--primary-color);
+        }
+
+        .player-cell video {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .player-cell .audio-indicator {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            padding: 4px 8px;
+            background: var(--primary-color);
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            z-index: 5;
+        }
+
+        .player-cell:not(.active-audio) .audio-indicator {
+            display: none;
+        }
+
+        .player-cell .cell-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(180deg, rgba(0,0,0,0.7) 0%, transparent 30%, transparent 70%, rgba(0,0,0,0.7) 100%);
+            opacity: 0;
+            transition: opacity 0.3s;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 12px;
+        }
+
+        .player-cell:hover .cell-overlay {
+            opacity: 1;
+        }
+
+        .cell-title {
+            font-size: 13px;
+            font-weight: 500;
+            text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+        }
+
+        .cell-actions {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+        }
+
+        .cell-btn {
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255,255,255,0.2);
+            border: none;
+            border-radius: 50%;
+            color: white;
+            cursor: pointer;
+            backdrop-filter: blur(4px);
+        }
+
+        .cell-btn:hover {
+            background: rgba(255,255,255,0.3);
+        }
+
+        .empty-cell {
+            color: var(--text-tertiary);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+        }
+
+        .empty-cell i {
+            font-size: 32px;
+        }
+
+        .empty-cell span {
+            font-size: 12px;
+        }
+
+        .empty-cell:hover {
+            color: var(--text-secondary);
+        }
+
+        /* Sidebar - Channel List */
+        .sidebar {
+            width: 320px;
+            background: var(--bg-secondary);
+            border-left: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+        }
+
+        .sidebar.hidden {
+            display: none;
+        }
+
+        .sidebar-header {
+            padding: 16px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .sidebar-search {
+            position: relative;
+        }
+
+        .sidebar-search input {
+            width: 100%;
+            padding: 10px 16px 10px 40px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 14px;
+        }
+
+        .sidebar-search input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+
+        .sidebar-search i {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-tertiary);
+        }
+
+        .sidebar-tabs {
+            display: flex;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .sidebar-tab {
+            flex: 1;
+            padding: 12px;
+            text-align: center;
+            font-size: 13px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .sidebar-tab:hover {
+            color: var(--text-primary);
+            background: var(--bg-tertiary);
+        }
+
+        .sidebar-tab.active {
+            color: var(--primary-color);
+            border-bottom-color: var(--primary-color);
+        }
+
+        .channel-list {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        /* Category List */
+        .category-list {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .category-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 14px 16px;
+            cursor: pointer;
+            border-bottom: 1px solid var(--border-color);
+            transition: background 0.2s;
+        }
+
+        .category-item:hover {
+            background: var(--bg-tertiary);
+        }
+
+        .category-item i {
+            color: var(--primary-color);
+            font-size: 16px;
+            width: 24px;
+            text-align: center;
+        }
+
+        .category-item .category-name {
+            flex: 1;
+            font-size: 14px;
+        }
+
+        .category-item .category-count {
+            font-size: 12px;
+            color: var(--text-tertiary);
+            background: var(--bg-tertiary);
+            padding: 2px 8px;
+            border-radius: 10px;
+        }
+
+        .category-item .chevron {
+            color: var(--text-tertiary);
+            font-size: 12px;
+        }
+
+        /* Sidebar back button */
+        .sidebar-back {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 16px;
+            background: var(--bg-tertiary);
+            border-bottom: 1px solid var(--border-color);
+            cursor: pointer;
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .sidebar-back:hover {
+            background: var(--border-color);
+            color: var(--text-primary);
+        }
+
+        .sidebar-back i {
+            font-size: 12px;
+        }
+
+        .sidebar-title {
+            flex: 1;
+            font-weight: 500;
+        }
+
+        /* Layout selector */
+        .layout-selector {
+            display: flex;
+            gap: 8px;
+            padding: 8px 16px;
+            border-bottom: 1px solid var(--border-color);
+            background: var(--bg-tertiary);
+        }
+
+        .layout-btn {
+            flex: 1;
+            padding: 8px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-secondary);
+            font-size: 12px;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .layout-btn:hover {
+            background: var(--border-color);
+            color: var(--text-primary);
+        }
+
+        .layout-btn.active {
+            background: var(--primary-color);
+            border-color: var(--primary-color);
+            color: white;
+        }
+
+        .layout-btn i {
+            font-size: 16px;
+        }
+
+        .channel-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            cursor: pointer;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .channel-item:hover {
+            background: var(--bg-tertiary);
+        }
+
+        .channel-item.active {
+            background: rgba(139, 92, 246, 0.15);
+        }
+
+        .channel-logo {
+            width: 48px;
+            height: 36px;
+            background: var(--bg-tertiary);
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .channel-logo img {
+            max-width: 100%;
+            max-height: 100%;
+        }
+
+        .channel-logo i {
+            color: var(--text-tertiary);
+        }
+
+        .channel-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .channel-name {
+            font-size: 14px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .channel-group {
+            font-size: 12px;
+            color: var(--text-tertiary);
+        }
+
+        /* Controls Overlay */
+        .controls-overlay {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(transparent, rgba(0,0,0,0.8));
+            padding: 20px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .single-player:hover .controls-overlay {
+            opacity: 1;
+        }
+
+        .controls-bar {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .ctrl-btn {
+            width: 44px;
+            height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255,255,255,0.1);
+            border: none;
+            border-radius: 50%;
+            color: white;
+            cursor: pointer;
+            font-size: 18px;
+        }
+
+        .ctrl-btn:hover {
+            background: rgba(255,255,255,0.2);
+        }
+
+        .ctrl-btn.large {
+            width: 56px;
+            height: 56px;
+            font-size: 24px;
+        }
+
+        .volume-control {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .volume-slider {
+            width: 100px;
+            height: 4px;
+            -webkit-appearance: none;
+            background: rgba(255,255,255,0.3);
+            border-radius: 2px;
+            cursor: pointer;
+        }
+
+        .volume-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 14px;
+            height: 14px;
+            background: white;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        .spacer {
+            flex: 1;
+        }
+
+        .now-playing {
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        /* Empty State */
+        .empty-state {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-tertiary);
+            text-align: center;
+            padding: 40px;
+        }
+
+        .empty-state i {
+            font-size: 64px;
+            margin-bottom: 20px;
+        }
+
+        .empty-state h2 {
+            font-size: 20px;
+            margin-bottom: 10px;
+            color: var(--text-secondary);
+        }
+
+        .empty-state p {
+            font-size: 14px;
+            margin-bottom: 20px;
+        }
+
+        .empty-state .btn {
+            padding: 12px 24px;
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        .empty-state .btn:hover {
+            background: var(--primary-hover);
+        }
+
+        /* Loading */
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+        }
+
+        .loading-overlay i {
+            font-size: 48px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        /* Fullscreen */
+        .fullscreen .header {
+            display: none;
+        }
+
+        .fullscreen .sidebar {
+            position: absolute;
+            right: 0;
+            top: 0;
+            bottom: 0;
+            z-index: 1000;
+            transform: translateX(100%);
+            transition: transform 0.3s;
+        }
+
+        .fullscreen .sidebar.visible {
+            transform: translateX(0);
+        }
+
+        /* Expanded Video Overlay (single stream fullscreen within page) */
+        .expanded-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: #000;
+            z-index: 2000;
+            display: none;
+        }
+
+        .expanded-overlay.visible {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .expanded-overlay video {
+            flex: 1;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .expanded-controls {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(transparent, rgba(0,0,0,0.9));
+            padding: 20px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .expanded-overlay:hover .expanded-controls {
+            opacity: 1;
+        }
+
+        .expanded-controls-bar {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .expanded-title {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            font-size: 18px;
+            font-weight: 500;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .expanded-overlay:hover .expanded-title {
+            opacity: 1;
+        }
+
+        .expanded-close {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 44px;
+            height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255,255,255,0.2);
+            border: none;
+            border-radius: 50%;
+            color: white;
+            cursor: pointer;
+            font-size: 18px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .expanded-overlay:hover .expanded-close {
+            opacity: 1;
+        }
+
+        .expanded-close:hover {
+            background: rgba(255,255,255,0.3);
+        }
+
+        /* Cell controls styling */
+        .cell-controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .cell-volume-control {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .cell-volume-slider {
+            width: 60px;
+            height: 3px;
+            -webkit-appearance: none;
+            background: rgba(255,255,255,0.3);
+            border-radius: 2px;
+            cursor: pointer;
+        }
+
+        .cell-volume-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 10px;
+            height: 10px;
+            background: white;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        .cell-btn-small {
+            width: 28px;
+            height: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255,255,255,0.2);
+            border: none;
+            border-radius: 50%;
+            color: white;
+            cursor: pointer;
+            font-size: 12px;
+            backdrop-filter: blur(4px);
+        }
+
+        .cell-btn-small:hover {
+            background: rgba(255,255,255,0.3);
+        }
+
+        .cell-overlay .cell-actions {
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .cell-actions-row {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+        }
+
+        /* Loading spinner for cells */
+        .cell-loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 5;
+        }
+
+        .cell-loading i {
+            font-size: 32px;
+            animation: spin 1s linear infinite;
+        }
+
+        /* Responsive - Desktop stays the same */
+        @media (max-width: 768px) {
+            /* Hide desktop layout on mobile */
+            .header { display: none !important; }
+            .main-content { display: none !important; }
+
+            /* Show mobile layout */
+            .mobile-player-layout { display: flex !important; }
+        }
+
+        /* Mobile Player Layout */
+        .mobile-player-layout {
+            display: none;
+            flex-direction: column;
+            height: 100vh;
+            background: var(--bg-primary);
+        }
+
+        /* Mobile Header */
+        .mobile-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            flex-shrink: 0;
+        }
+
+        .mobile-header-back {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--bg-tertiary);
+            border: none;
+            border-radius: 8px;
+            color: var(--text-secondary);
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        .mobile-header-title {
+            flex: 1;
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .mobile-header-guide {
+            padding: 8px 16px;
+            background: var(--primary-color);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        /* Mobile Search */
+        .mobile-player-search {
+            padding: 12px 16px;
+            background: var(--bg-secondary);
+        }
+
+        .mobile-player-search-wrapper {
+            position: relative;
+        }
+
+        .mobile-player-search input {
+            width: 100%;
+            padding: 12px 16px 12px 44px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            color: var(--text-primary);
+            font-size: 16px;
+        }
+
+        .mobile-player-search input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+
+        .mobile-player-search i {
+            position: absolute;
+            left: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-tertiary);
+        }
+
+        /* Mobile Category/Channel Views */
+        .mobile-view-container {
+            flex: 1;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        /* Mobile Category List */
+        .mobile-category-list {
+            display: block;
+        }
+
+        .mobile-category-item {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 16px;
+            border-bottom: 1px solid var(--border-color);
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .mobile-category-item:active {
+            background: var(--bg-tertiary);
+        }
+
+        .mobile-category-icon {
+            width: 44px;
+            height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--bg-tertiary);
+            border-radius: 10px;
+            color: var(--primary-color);
+            font-size: 18px;
+        }
+
+        .mobile-category-info {
+            flex: 1;
+        }
+
+        .mobile-category-name {
+            font-size: 16px;
+            font-weight: 500;
+            margin-bottom: 2px;
+        }
+
+        .mobile-category-count {
+            font-size: 13px;
+            color: var(--text-tertiary);
+        }
+
+        .mobile-category-arrow {
+            color: var(--text-tertiary);
+            font-size: 14px;
+        }
+
+        /* Mobile Channel List */
+        .mobile-channel-list-view {
+            display: none;
+        }
+
+        .mobile-channel-list-view.active {
+            display: block;
+        }
+
+        .mobile-channel-back {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 14px 16px;
+            background: var(--bg-tertiary);
+            border-bottom: 1px solid var(--border-color);
+            cursor: pointer;
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .mobile-channel-back:active {
+            background: var(--border-color);
+        }
+
+        .mobile-channel-back i {
+            font-size: 12px;
+        }
+
+        .mobile-channel-category-name {
+            flex: 1;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .mobile-channel-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--border-color);
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .mobile-channel-row:active {
+            background: var(--bg-tertiary);
+        }
+
+        .mobile-channel-logo {
+            width: 52px;
+            height: 52px;
+            border-radius: 8px;
+            background: var(--bg-tertiary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+
+        .mobile-channel-logo img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .mobile-channel-logo i {
+            font-size: 22px;
+            color: var(--text-tertiary);
+        }
+
+        .mobile-channel-details {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .mobile-channel-title {
+            font-size: 15px;
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-bottom: 3px;
+        }
+
+        .mobile-channel-subtitle {
+            font-size: 12px;
+            color: var(--text-tertiary);
+        }
+
+        .mobile-channel-play {
+            width: 46px;
+            height: 46px;
+            border-radius: 50%;
+            background: var(--primary-color);
+            border: none;
+            color: white;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            cursor: pointer;
+        }
+
+        .mobile-channel-play:active {
+            background: var(--primary-hover);
+            transform: scale(0.95);
+        }
+
+        /* Mobile Fullscreen Video Player */
+        .mobile-fullscreen-video {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: #000;
+            z-index: 2000;
+            display: none;
+            flex-direction: column;
+        }
+
+        .mobile-fullscreen-video.active {
+            display: flex;
+        }
+
+        .mobile-video-header {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            padding: 16px;
+            padding-top: max(16px, env(safe-area-inset-top));
+            background: linear-gradient(180deg, rgba(0,0,0,0.8) 0%, transparent 100%);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            z-index: 10;
+            opacity: 1;
+            transition: opacity 0.3s;
+        }
+
+        .mobile-video-header.hidden { opacity: 0; pointer-events: none; }
+
+        .mobile-video-close {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.2);
+            border: none;
+            color: white;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+
+        .mobile-video-title {
+            flex: 1;
+            font-size: 16px;
+            font-weight: 500;
+            color: white;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .mobile-video-live {
+            background: #ef4444;
+            color: white;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .mobile-video-container {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .mobile-video-container video {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .mobile-video-loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .mobile-video-loading i {
+            font-size: 44px;
+            animation: spin 1s linear infinite;
+        }
+
+        .mobile-video-error {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #ef4444;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .mobile-video-error i { font-size: 44px; }
+
+        .mobile-video-controls {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 20px 16px;
+            padding-bottom: max(20px, env(safe-area-inset-bottom));
+            background: linear-gradient(0deg, rgba(0,0,0,0.8) 0%, transparent 100%);
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            z-index: 10;
+            opacity: 1;
+            transition: opacity 0.3s;
+        }
+
+        .mobile-video-controls.hidden { opacity: 0; pointer-events: none; }
+
+        .mobile-video-btn {
+            width: 52px;
+            height: 52px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.2);
+            border: none;
+            color: white;
+            font-size: 22px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+
+        .mobile-video-btn:active {
+            background: rgba(255,255,255,0.3);
+        }
+
+        .mobile-video-volume {
+            flex: 1;
+            height: 6px;
+            -webkit-appearance: none;
+            background: rgba(255,255,255,0.3);
+            border-radius: 3px;
+            cursor: pointer;
+        }
+
+        .mobile-video-volume::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 22px;
+            height: 22px;
+            background: white;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        /* Mobile Empty State */
+        .mobile-empty {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 40px 20px;
+            color: var(--text-tertiary);
+            text-align: center;
+        }
+
+        .mobile-empty i { font-size: 52px; margin-bottom: 16px; }
+        .mobile-empty h3 { font-size: 18px; color: var(--text-secondary); margin-bottom: 8px; }
+        .mobile-empty p { font-size: 14px; }
+    </style>
+</head>
+<body>
+    <div class="app-container" id="appContainer">
+        <header class="header" id="header">
+            <a href="iptv.html" class="back-btn">
+                <i class="fas fa-arrow-left"></i>
+                Back
+            </a>
+            <a href="#" class="back-btn" id="guideBtn" onclick="goToGuide(event)" style="background: var(--primary-color);">
+                <i class="fas fa-tv"></i>
+                Guide
+            </a>
+            <div class="header-title" id="headerTitle">Web Player</div>
+            <div class="header-actions">
+                <button class="btn-icon" onclick="addScreen()" title="Add Screen" id="addScreenBtn">
+                    <i class="fas fa-plus"></i>
+                </button>
+                <button class="btn-icon" onclick="toggleSidebar()" title="Toggle Channel List" id="sidebarBtn">
+                    <i class="fas fa-list"></i>
+                </button>
+                <button class="btn-icon" onclick="toggleFullscreen()" title="Fullscreen">
+                    <i class="fas fa-expand"></i>
+                </button>
+            </div>
+        </header>
+
+        <div class="main-content">
+            <div class="player-area" id="playerArea">
+                <!-- Single Player View -->
+                <div class="single-player" id="singlePlayer">
+                    <div class="empty-state" id="emptyState">
+                        <i class="fas fa-play-circle"></i>
+                        <h2>Ready to Watch</h2>
+                        <p>Select a channel from the list to start watching</p>
+                        <button class="btn" onclick="toggleSidebar()">
+                            <i class="fas fa-list"></i> Browse Channels
+                        </button>
+                    </div>
+                    <video id="mainVideo" style="display: none;"></video>
+                    <div class="loading-overlay" id="loadingOverlay" style="display: none;">
+                        <i class="fas fa-spinner"></i>
+                    </div>
+                    <div class="controls-overlay" id="controlsOverlay" style="display: none;">
+                        <div class="controls-bar">
+                            <button class="ctrl-btn large" onclick="togglePlay()">
+                                <i class="fas fa-pause" id="playIcon"></i>
+                            </button>
+                            <div class="volume-control">
+                                <button class="ctrl-btn" onclick="toggleMute()">
+                                    <i class="fas fa-volume-up" id="volumeIcon"></i>
+                                </button>
+                                <input type="range" class="volume-slider" id="volumeSlider" min="0" max="100" value="100" oninput="setVolume(this.value)">
+                            </div>
+                            <div class="spacer"></div>
+                            <span class="now-playing" id="nowPlaying"></span>
+                            <button class="ctrl-btn" onclick="toggleFullscreen()">
+                                <i class="fas fa-expand"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Multiview Grid (hidden by default) -->
+                <div class="multiview-grid layout-even screens-1" id="multiviewGrid" style="display: none;">
+                    <!-- Cells are dynamically added -->
+                </div>
+
+                <!-- Expanded Video Overlay (single stream fullscreen within page) -->
+                <div class="expanded-overlay" id="expandedOverlay">
+                    <div class="expanded-title" id="expandedTitle">Channel Name</div>
+                    <button class="expanded-close" onclick="closeExpandedView()">
+                        <i class="fas fa-compress"></i>
+                    </button>
+                    <video id="expandedVideo"></video>
+                    <div class="expanded-controls">
+                        <div class="expanded-controls-bar">
+                            <button class="ctrl-btn large" onclick="toggleExpandedPlay()">
+                                <i class="fas fa-pause" id="expandedPlayIcon"></i>
+                            </button>
+                            <div class="volume-control">
+                                <button class="ctrl-btn" onclick="toggleExpandedMute()">
+                                    <i class="fas fa-volume-up" id="expandedVolumeIcon"></i>
+                                </button>
+                                <input type="range" class="volume-slider" id="expandedVolumeSlider" min="0" max="100" value="100" oninput="setExpandedVolume(this.value)">
+                            </div>
+                            <div class="spacer"></div>
+                            <span class="now-playing" id="expandedNowPlaying"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <aside class="sidebar visible" id="sidebar">
+                <div class="sidebar-header">
+                    <div class="sidebar-search">
+                        <i class="fas fa-search"></i>
+                        <input type="text" id="searchInput" placeholder="Search channels..." oninput="filterChannels()">
+                    </div>
+                </div>
+
+                <!-- Layout Selector (visible only in multiview mode) -->
+                <div class="layout-selector" id="layoutSelector" style="display: none;">
+                    <button class="layout-btn active" onclick="setLayoutMode('even')" id="layoutEvenBtn">
+                        <i class="fas fa-th"></i>
+                        Even
+                    </button>
+                    <button class="layout-btn" onclick="setLayoutMode('focused')" id="layoutFocusedBtn">
+                        <i class="fas fa-window-maximize"></i>
+                        Focused
+                    </button>
+                </div>
+
+                <!-- Category Back Button (hidden when viewing categories) -->
+                <div class="sidebar-back" id="sidebarBack" style="display: none;" onclick="showCategories()">
+                    <i class="fas fa-arrow-left"></i>
+                    <span class="sidebar-title" id="currentCategoryName">Back to Categories</span>
+                </div>
+
+                <!-- Category List -->
+                <div class="category-list" id="categoryList">
+                    <div class="empty-state" style="padding: 40px;">
+                        <i class="fas fa-spinner fa-spin" style="font-size: 32px;"></i>
+                        <p style="margin-top: 16px;">Loading categories...</p>
+                    </div>
+                </div>
+
+                <!-- Channel List (hidden initially) -->
+                <div class="channel-list" id="channelList" style="display: none;">
+                </div>
+            </aside>
+        </div>
+
+        <!-- Mobile Player Layout (hidden on desktop) -->
+        <div class="mobile-player-layout" id="mobilePlayerLayout">
+            <!-- Mobile Header -->
+            <div class="mobile-header">
+                <a href="iptv.html" class="mobile-header-back">
+                    <i class="fas fa-arrow-left"></i>
+                </a>
+                <div class="mobile-header-title">Web Player</div>
+                <a href="guide.html" class="mobile-header-guide">
+                    <i class="fas fa-tv"></i>
+                    Guide
+                </a>
+            </div>
+
+            <!-- Mobile Search -->
+            <div class="mobile-player-search">
+                <div class="mobile-player-search-wrapper">
+                    <i class="fas fa-search"></i>
+                    <input type="text" id="mobilePlayerSearch" placeholder="Search channels..." oninput="mobileSearchChannels()">
+                </div>
+            </div>
+
+            <!-- Mobile View Container -->
+            <div class="mobile-view-container" id="mobileViewContainer">
+                <!-- Category List (default view) -->
+                <div class="mobile-category-list" id="mobileCategoryList">
+                    <div class="mobile-empty">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        <h3>Loading...</h3>
+                    </div>
+                </div>
+
+                <!-- Channel List (shows when category selected) -->
+                <div class="mobile-channel-list-view" id="mobileChannelListView">
+                    <div class="mobile-channel-back" onclick="mobileShowCategories()">
+                        <i class="fas fa-arrow-left"></i>
+                        <span class="mobile-channel-category-name" id="mobileSelectedCategoryName">Category</span>
+                    </div>
+                    <div id="mobileChannelListContent"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mobile Fullscreen Video Player -->
+    <div class="mobile-fullscreen-video" id="mobileFullscreenVideo">
+        <div class="mobile-video-header" id="mobileVideoHeader">
+            <button class="mobile-video-close" onclick="closeMobileVideo()">
+                <i class="fas fa-times"></i>
+            </button>
+            <div class="mobile-video-title" id="mobileVideoTitle">Channel Name</div>
+            <span class="mobile-video-live">LIVE</span>
+        </div>
+        <div class="mobile-video-container" onclick="toggleMobileVideoControls()">
+            <video id="mobileVideoElement" playsinline webkit-playsinline></video>
+            <div class="mobile-video-loading" id="mobileVideoLoading">
+                <i class="fas fa-spinner"></i>
+                <span>Loading stream...</span>
+            </div>
+            <div class="mobile-video-error" id="mobileVideoError">
+                <i class="fas fa-exclamation-circle"></i>
+                <span id="mobileVideoErrorText">Stream unavailable</span>
+            </div>
+        </div>
+        <div class="mobile-video-controls" id="mobileVideoControls">
+            <button class="mobile-video-btn" onclick="toggleMobileVideoPlay()">
+                <i class="fas fa-pause" id="mobileVideoPlayIcon"></i>
+            </button>
+            <button class="mobile-video-btn" onclick="toggleMobileVideoMute()">
+                <i class="fas fa-volume-up" id="mobileVideoVolumeIcon"></i>
+            </button>
+            <input type="range" class="mobile-video-volume" id="mobileVideoVolumeSlider" min="0" max="100" value="100" oninput="setMobileVideoVolume(this.value)">
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '/api/v2';
+
+        // Load favicon from settings
+        (async function loadFavicon() {
+            try {
+                const response = await fetch();
+                const data = await response.json();
+                if (data.value) {
+                    let link = document.querySelector("link[rel~='icon']");
+                    if (!link) {
+                        link = document.createElement('link');
+                        link.rel = 'icon';
+                        document.head.appendChild(link);
+                    }
+                    link.href = data.value;
+                }
+            } catch (error) {
+                console.error('Error loading favicon:', error);
+            }
+        })();
+
+
+        // State
+        let channels = [];
+        let categories = [];
+        let currentCategory = null;
+        let favorites = JSON.parse(localStorage.getItem('iptv_favorites') || '[]');
+        let isMultiview = false;
+        let selectedCell = -1;
+        let screens = []; // Dynamic array of screen objects { player, channel, element }
+        let activeAudioScreen = 0; // Which screen has audio
+        let layoutMode = 'even'; // 'even' or 'focused'
+        let mainPlayer = null;
+        let currentChannel = null;
+        let expandedScreenIndex = -1; // Which screen is currently expanded (-1 = none)
+        let expandedPlayer = null; // Player for expanded view
+
+        // Get auth token
+        function getToken() {
+            return localStorage.getItem('portal_token');
+        }
+
+        // API helper
+        async function api(endpoint) {
+            const token = getToken();
+            if (!token) {
+                window.location.href = '/login.html';
+                return;
+            }
+
+            const response = await fetch(`${API_BASE}${endpoint}`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            if (response.status === 401) {
+                localStorage.removeItem('portal_token');
+                window.location.href = '/login.html';
+                return;
+            }
+
+            return response.json();
+        }
+
+        // Load channels and categories from guide API
+        async function loadChannels() {
+            try {
+                // Load from guide API which has categories
+                const result = await api('/portal/iptv/guide');
+                if (result.success) {
+                    categories = result.categories || [];
+                    channels = result.channels || [];
+                    renderCategories();
+
+                    // Check for URL parameters
+                    const params = new URLSearchParams(window.location.search);
+                    const urlParam = params.get('url');
+                    const nameParam = params.get('name');
+
+                    if (urlParam) {
+                        const channel = {
+                            name: nameParam || 'Stream',
+                            url: decodeURIComponent(urlParam)
+                        };
+                        playChannel(channel);
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to load channels:', error);
+                // Fallback to old channels API
+                const result = await api('/portal/iptv/channels');
+                if (result.success) {
+                    channels = result.channels;
+                    // Create a single "All Channels" category
+                    categories = [{ category_id: 'all', category_name: 'All Channels' }];
+                    renderCategories();
+                }
+            }
+        }
+
+        // Render categories
+        function renderCategories() {
+            const container = document.getElementById('categoryList');
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+
+            // If searching, show channels instead
+            if (searchTerm) {
+                showFilteredChannels(searchTerm);
+                return;
+            }
+
+            // Group channels by category to get counts
+            const categoryCounts = {};
+            channels.forEach(ch => {
+                const catId = ch.category_id || 'uncategorized';
+                categoryCounts[catId] = (categoryCounts[catId] || 0) + 1;
+            });
+
+            // Filter categories that have channels
+            const filteredCategories = categories.filter(cat =>
+                cat.category_id === 'all' || categoryCounts[cat.category_id]
+            );
+
+            if (filteredCategories.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state" style="padding: 40px;">
+                        <i class="fas fa-folder-open" style="font-size: 32px;"></i>
+                        <p style="margin-top: 16px;">No categories found</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = filteredCategories.map(cat => {
+                const count = cat.category_id === 'all'
+                    ? channels.length
+                    : (categoryCounts[cat.category_id] || 0);
+                return `
+                    <div class="category-item" onclick="selectCategory('${cat.category_id}', '${escapeHtml(cat.category_name)}')">
+                        <i class="fas fa-folder"></i>
+                        <span class="category-name">${cat.category_name}</span>
+                        <span class="category-count">${count}</span>
+                        <i class="fas fa-chevron-right chevron"></i>
+                    </div>
+                `;
+            }).join('');
+
+            // Show category list, hide channel list
+            container.style.display = 'block';
+            document.getElementById('channelList').style.display = 'none';
+            document.getElementById('sidebarBack').style.display = 'none';
+        }
+
+        // Escape HTML
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Select a category
+        function selectCategory(categoryId, categoryName) {
+            currentCategory = categoryId;
+            document.getElementById('currentCategoryName').textContent = categoryName;
+            document.getElementById('sidebarBack').style.display = 'flex';
+            document.getElementById('categoryList').style.display = 'none';
+            document.getElementById('channelList').style.display = 'block';
+            renderChannels();
+        }
+
+        // Show categories (back button)
+        function showCategories() {
+            currentCategory = null;
+            document.getElementById('searchInput').value = '';
+            renderCategories();
+        }
+
+        // Show filtered channels (search results)
+        function showFilteredChannels(searchTerm) {
+            document.getElementById('categoryList').style.display = 'none';
+            document.getElementById('channelList').style.display = 'block';
+            document.getElementById('sidebarBack').style.display = 'flex';
+            document.getElementById('currentCategoryName').textContent = 'Search Results';
+
+            const filtered = channels.filter(ch =>
+                ch.name.toLowerCase().includes(searchTerm)
+            );
+
+            renderChannelList(filtered);
+        }
+
+        // Render channels based on current category
+        function renderChannels() {
+            let filtered = channels;
+
+            // Filter by category
+            if (currentCategory && currentCategory !== 'all') {
+                filtered = filtered.filter(ch =>
+                    String(ch.category_id) === String(currentCategory)
+                );
+            }
+
+            renderChannelList(filtered);
+        }
+
+        // Render channel list
+        function renderChannelList(channelsList) {
+            const container = document.getElementById('channelList');
+
+            if (channelsList.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state" style="padding: 40px;">
+                        <i class="fas fa-tv" style="font-size: 32px;"></i>
+                        <p style="margin-top: 16px;">No channels found</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = channelsList.map((channel, index) => {
+                const isActive = currentChannel && currentChannel.name === channel.name;
+                const channelIndex = channels.indexOf(channel);
+                return `
+                    <div class="channel-item ${isActive ? 'active' : ''}"
+                         onclick="playChannel(channels[${channelIndex}])">
+                        <div class="channel-logo">
+                            ${channel.stream_icon || channel.logo
+                                ? `<img src="${channel.stream_icon || channel.logo}" onerror="this.parentNode.innerHTML='<i class=\\'fas fa-tv\\'></i>'">`
+                                : '<i class="fas fa-tv"></i>'}
+                        </div>
+                        <div class="channel-info">
+                            <div class="channel-name">${channel.name}</div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Filter channels (search)
+        function filterChannels() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            if (searchTerm) {
+                showFilteredChannels(searchTerm);
+            } else {
+                renderCategories();
+            }
+        }
+
+        // Play channel
+        function playChannel(channel) {
+            currentChannel = channel;
+            document.getElementById('headerTitle').textContent = channel.name;
+            document.getElementById('nowPlaying').textContent = channel.name;
+
+            if (isMultiview) {
+                if (selectedCell >= 0 && selectedCell < screens.length) {
+                    // Play in selected cell
+                    playInScreen(selectedCell, channel);
+                    selectedCell = -1;
+                } else {
+                    // Play in active audio screen, or add new screen
+                    if (screens.length > 0) {
+                        playInScreen(activeAudioScreen, channel);
+                    } else {
+                        addScreen();
+                        playInScreen(0, channel);
+                    }
+                }
+            } else {
+                playInMain(channel);
+            }
+
+            if (currentCategory) {
+                renderChannels();
+            }
+        }
+
+        // Determine stream type from URL
+        function getStreamType(url) {
+            if (!url) return 'unknown';
+            if (url.endsWith('.m3u8')) return 'hls';
+            if (url.endsWith('.ts')) return 'mpegts';
+            if (url.endsWith('.flv')) return 'flv';
+            return 'unknown';
+        }
+
+        // Play in main player
+        function playInMain(channel) {
+            const video = document.getElementById('mainVideo');
+            const empty = document.getElementById('emptyState');
+            const loading = document.getElementById('loadingOverlay');
+            const controls = document.getElementById('controlsOverlay');
+
+            empty.style.display = 'none';
+            video.style.display = 'block';
+            loading.style.display = 'flex';
+            controls.style.display = 'block';
+
+            // Apply saved volume
+            applySavedVolume(video);
+
+            // Destroy existing player
+            if (mainPlayer) {
+                if (mainPlayer.destroy) mainPlayer.destroy();
+                if (mainPlayer.unload) mainPlayer.unload();
+                mainPlayer = null;
+            }
+
+            const streamUrl = channel.url;
+            const streamType = getStreamType(streamUrl);
+
+            console.log(`Playing stream: ${streamUrl} (type: ${streamType})`);
+
+            // Use mpegts.js for .ts streams (IPTV Editor)
+            if (streamType === 'mpegts' && mpegts && mpegts.isSupported()) {
+                console.log('Using mpegts.js for MPEG-TS stream');
+                mainPlayer = mpegts.createPlayer({
+                    type: 'mpegts',
+                    url: streamUrl,
+                    isLive: true
+                }, {
+                    enableWorker: true,
+                    enableStashBuffer: false,
+                    stashInitialSize: 128 * 1024,
+                    liveBufferLatencyChasing: true,
+                    liveBufferLatencyMaxLatency: 1.5,
+                    liveBufferLatencyMinRemain: 0.3
+                });
+
+                mainPlayer.attachMediaElement(video);
+                mainPlayer.load();
+
+                mainPlayer.on(mpegts.Events.LOADING_COMPLETE, () => {
+                    console.log('MPEG-TS loading complete');
+                });
+
+                mainPlayer.on(mpegts.Events.ERROR, (errorType, errorDetail, errorInfo) => {
+                    console.error('MPEG-TS Error:', errorType, errorDetail, errorInfo);
+                    loading.style.display = 'none';
+                });
+
+                video.onloadeddata = () => {
+                    loading.style.display = 'none';
+                    video.play().catch(e => console.error('Play failed:', e));
+                };
+
+                video.onerror = (e) => {
+                    console.error('Video error:', e);
+                    loading.style.display = 'none';
+                };
+
+            // Use HLS.js for .m3u8 streams
+            } else if (streamType === 'hls' && Hls.isSupported()) {
+                console.log('Using HLS.js for HLS stream');
+                mainPlayer = new Hls({
+                    enableWorker: true,
+                    lowLatencyMode: true,
+                    backBufferLength: 90
+                });
+
+                mainPlayer.loadSource(streamUrl);
+                mainPlayer.attachMedia(video);
+
+                mainPlayer.on(Hls.Events.MANIFEST_PARSED, () => {
+                    video.play();
+                    loading.style.display = 'none';
+                });
+
+                mainPlayer.on(Hls.Events.ERROR, (event, data) => {
+                    console.log('HLS Error:', data);
+                    if (data.fatal) {
+                        switch (data.type) {
+                            case Hls.ErrorTypes.NETWORK_ERROR:
+                                console.log('Network error, trying to recover...');
+                                mainPlayer.startLoad();
+                                break;
+                            case Hls.ErrorTypes.MEDIA_ERROR:
+                                console.log('Media error, trying to recover...');
+                                mainPlayer.recoverMediaError();
+                                break;
+                            default:
+                                console.log('Fatal error, cannot recover');
+                                loading.style.display = 'none';
+                                break;
+                        }
+                    } else if (data.details === 'bufferStalledError') {
+                        // Non-fatal buffer stall - try to recover
+                        console.log('Buffer stalled, attempting recovery...');
+                        mainPlayer.startLoad();
+                    }
+                });
+
+            // Safari native HLS
+            } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                console.log('Using native HLS playback');
+                video.src = streamUrl;
+                video.addEventListener('loadedmetadata', () => {
+                    video.play();
+                    loading.style.display = 'none';
+                });
+
+            // Fallback to native video element
+            } else {
+                console.log('Falling back to native video element');
+                video.src = streamUrl;
+                video.onloadeddata = () => {
+                    loading.style.display = 'none';
+                    video.play().catch(e => console.error('Native playback failed:', e));
+                };
+            }
+        }
+
+        // Add a new screen
+        function addScreen() {
+            const MAX_SCREENS = 6;
+            if (screens.length >= MAX_SCREENS) {
+                alert(`Maximum ${MAX_SCREENS} screens allowed`);
+                return;
+            }
+
+            const grid = document.getElementById('multiviewGrid');
+
+            // If switching from single player to multiview, transfer the current video first
+            if (screens.length === 0 && currentChannel && mainPlayer) {
+                isMultiview = true;
+                document.getElementById('singlePlayer').style.display = 'none';
+                document.getElementById('multiviewGrid').style.display = 'grid';
+                document.getElementById('layoutSelector').style.display = 'flex';
+
+                // Create first cell for the existing video
+                const firstCell = document.createElement('div');
+                firstCell.className = 'player-cell';
+                firstCell.id = 'screen0';
+                firstCell.onclick = () => selectScreen(0);
+
+                // Move the video element from single player to multiview
+                const existingVideo = document.getElementById('mainVideo');
+                existingVideo.removeAttribute('id');
+                existingVideo.style.display = 'block';
+
+                firstCell.innerHTML = `
+                    <div class="audio-indicator">
+                        <i class="fas fa-volume-up"></i>
+                        Audio
+                    </div>
+                    <div class="cell-overlay">
+                        <div class="cell-title">${currentChannel.name || 'Unknown'}</div>
+                        <div class="cell-actions">
+                            <div class="cell-controls">
+                                <button class="cell-btn-small" onclick="event.stopPropagation(); toggleCellPlay(0)" title="Play/Pause">
+                                    <i class="fas fa-pause" id="cellPlayIcon0"></i>
+                                </button>
+                                <button class="cell-btn-small" onclick="event.stopPropagation(); reloadCellStream(0)" title="Reload stream (fix frozen)">
+                                    <i class="fas fa-redo"></i>
+                                </button>
+                                <div class="cell-volume-control">
+                                    <button class="cell-btn-small" onclick="event.stopPropagation(); toggleCellMute(0)" title="Mute">
+                                        <i class="fas fa-volume-up" id="cellVolumeIcon0"></i>
+                                    </button>
+                                    <input type="range" class="cell-volume-slider" id="cellVolumeSlider0"
+                                        min="0" max="100" value="100"
+                                        onclick="event.stopPropagation()"
+                                        oninput="event.stopPropagation(); setCellVolume(0, this.value)">
+                                </div>
+                            </div>
+                            <div class="cell-actions-row">
+                                <button class="cell-btn" onclick="event.stopPropagation(); focusScreen(0)" title="Focus (make main view)">
+                                    <i class="fas fa-window-maximize"></i>
+                                </button>
+                                <button class="cell-btn" onclick="event.stopPropagation(); expandScreen(0)" title="Fullscreen in page">
+                                    <i class="fas fa-expand"></i>
+                                </button>
+                                <button class="cell-btn" onclick="event.stopPropagation(); removeScreen(0)" title="Remove">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                firstCell.insertBefore(existingVideo, firstCell.firstChild);
+
+                grid.appendChild(firstCell);
+
+                // Add first screen to array with existing player/channel
+                screens.push({
+                    element: firstCell,
+                    player: mainPlayer,
+                    channel: currentChannel
+                });
+
+                // Clear the single player references
+                mainPlayer = null;
+                currentChannel = null;
+
+                setActiveAudioScreen(0);
+                updateGridLayout();
+
+                // Now add the second (empty) screen for the new channel
+            }
+
+            // If this is the first screen and no video is playing
+            if (screens.length === 0) {
+                isMultiview = true;
+                document.getElementById('singlePlayer').style.display = 'none';
+                document.getElementById('multiviewGrid').style.display = 'grid';
+                document.getElementById('layoutSelector').style.display = 'flex';
+            }
+
+            const screenIndex = screens.length;
+
+            // Create cell element
+            const cell = document.createElement('div');
+            cell.className = 'player-cell';
+            cell.id = `screen${screenIndex}`;
+            cell.onclick = () => selectScreen(screenIndex);
+            cell.innerHTML = `
+                <div class="audio-indicator">
+                    <i class="fas fa-volume-up"></i>
+                    Audio
+                </div>
+                <div class="empty-cell">
+                    <i class="fas fa-plus"></i>
+                    <span>Select Channel</span>
+                </div>
+            `;
+
+            grid.appendChild(cell);
+
+            // Add to screens array
+            screens.push({
+                element: cell,
+                player: null,
+                channel: null
+            });
+
+            // Update grid layout
+            updateGridLayout();
+
+            // Mark for adding channel
+            selectedCell = screenIndex;
+            document.getElementById('sidebar').classList.add('visible');
+
+            // Set first screen as active audio if this is the only screen
+            if (screens.length === 1) {
+                setActiveAudioScreen(0);
+            }
+        }
+
+        // Play in screen
+        function playInScreen(screenIndex, channel) {
+            if (screenIndex < 0 || screenIndex >= screens.length) return;
+
+            const screen = screens[screenIndex];
+            const cell = screen.element;
+
+            // Destroy existing player
+            if (screen.player) {
+                if (screen.player.destroy) screen.player.destroy();
+                if (screen.player.unload) screen.player.unload();
+                screen.player = null;
+            }
+
+            // Create video element
+            const video = document.createElement('video');
+            video.style.width = '100%';
+            video.style.height = '100%';
+            video.muted = screenIndex !== activeAudioScreen;
+
+            // Clear and rebuild cell
+            cell.innerHTML = '';
+            cell.appendChild(video);
+
+            // Add audio indicator
+            const audioIndicator = document.createElement('div');
+            audioIndicator.className = 'audio-indicator';
+            audioIndicator.innerHTML = '<i class="fas fa-volume-up"></i> Audio';
+            cell.appendChild(audioIndicator);
+
+            // Add overlay with controls
+            const overlay = document.createElement('div');
+            overlay.className = 'cell-overlay';
+            overlay.innerHTML = `
+                <div class="cell-title">${channel.name}</div>
+                <div class="cell-actions">
+                    <div class="cell-controls">
+                        <button class="cell-btn-small" onclick="event.stopPropagation(); toggleCellPlay(${screenIndex})" title="Play/Pause">
+                            <i class="fas fa-pause" id="cellPlayIcon${screenIndex}"></i>
+                        </button>
+                        <button class="cell-btn-small" onclick="event.stopPropagation(); reloadCellStream(${screenIndex})" title="Reload stream (fix frozen)">
+                            <i class="fas fa-redo"></i>
+                        </button>
+                        <div class="cell-volume-control">
+                            <button class="cell-btn-small" onclick="event.stopPropagation(); toggleCellMute(${screenIndex})" title="Mute">
+                                <i class="fas fa-volume-up" id="cellVolumeIcon${screenIndex}"></i>
+                            </button>
+                            <input type="range" class="cell-volume-slider" id="cellVolumeSlider${screenIndex}"
+                                min="0" max="100" value="100"
+                                onclick="event.stopPropagation()"
+                                oninput="event.stopPropagation(); setCellVolume(${screenIndex}, this.value)">
+                        </div>
+                    </div>
+                    <div class="cell-actions-row">
+                        <button class="cell-btn" onclick="event.stopPropagation(); focusScreen(${screenIndex})" title="Focus (make main view)">
+                            <i class="fas fa-window-maximize"></i>
+                        </button>
+                        <button class="cell-btn" onclick="event.stopPropagation(); expandScreen(${screenIndex})" title="Fullscreen in page">
+                            <i class="fas fa-expand"></i>
+                        </button>
+                        <button class="cell-btn" onclick="event.stopPropagation(); removeScreen(${screenIndex})" title="Remove">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+            `;
+            cell.appendChild(overlay);
+
+            // Play stream
+            const streamUrl = channel.url;
+            const streamType = getStreamType(streamUrl);
+
+            if (streamType === 'mpegts' && mpegts && mpegts.isSupported()) {
+                screen.player = mpegts.createPlayer({
+                    type: 'mpegts',
+                    url: streamUrl,
+                    isLive: true
+                }, {
+                    enableWorker: true,
+                    enableStashBuffer: false,
+                    liveBufferLatencyChasing: true
+                });
+
+                screen.player.attachMediaElement(video);
+                screen.player.load();
+                video.onloadeddata = () => video.play().catch(e => console.error('Screen play failed:', e));
+
+            } else if (streamType === 'hls' && Hls.isSupported()) {
+                screen.player = new Hls({
+                    enableWorker: true,
+                    lowLatencyMode: true,
+                    backBufferLength: 90
+                });
+                screen.player.loadSource(streamUrl);
+                screen.player.attachMedia(video);
+
+                screen.player.on(Hls.Events.MANIFEST_PARSED, () => {
+                    video.play();
+                });
+
+                // Handle HLS errors with recovery
+                screen.player.on(Hls.Events.ERROR, (event, data) => {
+                    console.log('HLS Error:', data);
+                    if (data.fatal) {
+                        switch (data.type) {
+                            case Hls.ErrorTypes.NETWORK_ERROR:
+                                console.log('Network error, trying to recover...');
+                                screen.player.startLoad();
+                                break;
+                            case Hls.ErrorTypes.MEDIA_ERROR:
+                                console.log('Media error, trying to recover...');
+                                screen.player.recoverMediaError();
+                                break;
+                            default:
+                                console.log('Fatal error, reloading stream...');
+                                reloadCellStream(screenIndex);
+                                break;
+                        }
+                    } else if (data.details === 'bufferStalledError') {
+                        // Non-fatal buffer stall - try to recover
+                        console.log('Buffer stalled, attempting recovery...');
+                        screen.player.startLoad();
+                    }
+                });
+
+            } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                video.src = streamUrl;
+                video.play();
+            } else {
+                video.src = streamUrl;
+                video.play().catch(e => console.error('Native screen playback failed:', e));
+            }
+
+            screen.channel = channel;
+            updateAudioIndicators();
+        }
+
+        // Select a screen (for audio or adding channel)
+        function selectScreen(index) {
+            const screen = screens[index];
+            if (screen && screen.channel) {
+                // Screen has content, switch audio to it
+                setActiveAudioScreen(index);
+            } else {
+                // Empty screen, mark for adding
+                selectedCell = index;
+                document.getElementById('sidebar').classList.add('visible');
+            }
+        }
+
+        // Set active audio screen (only changes audio, not focus/layout)
+        function setActiveAudioScreen(index) {
+            activeAudioScreen = index;
+
+            // Mute all screens except active
+            screens.forEach((screen, i) => {
+                const video = screen.element.querySelector('video');
+                if (video) {
+                    video.muted = i !== index;
+                }
+            });
+
+            updateAudioIndicators();
+            // Note: We no longer change the focused class here
+            // The focused class is only changed when user clicks the focus button
+        }
+
+        // Update audio indicators
+        function updateAudioIndicators() {
+            screens.forEach((screen, i) => {
+                screen.element.classList.toggle('active-audio', i === activeAudioScreen);
+            });
+        }
+
+        // Remove a screen
+        function removeScreen(index) {
+            if (index < 0 || index >= screens.length) return;
+
+            const screen = screens[index];
+
+            // Destroy player
+            if (screen.player) {
+                if (screen.player.destroy) screen.player.destroy();
+                if (screen.player.unload) screen.player.unload();
+            }
+
+            // Remove element
+            screen.element.remove();
+
+            // Remove from array
+            screens.splice(index, 1);
+
+            // Update IDs and event handlers
+            screens.forEach((s, i) => {
+                s.element.id = `screen${i}`;
+                s.element.onclick = () => selectScreen(i);
+                // Update button event handlers in overlay
+                updateCellOverlayHandlers(s.element, i);
+            });
+
+            // Adjust active audio if needed
+            if (activeAudioScreen >= screens.length) {
+                activeAudioScreen = Math.max(0, screens.length - 1);
+            }
+            if (screens.length > 0) {
+                setActiveAudioScreen(activeAudioScreen);
+            }
+
+            // Update layout
+            updateGridLayout();
+
+            // If no screens left, switch back to single player
+            if (screens.length === 0) {
+                isMultiview = false;
+                document.getElementById('singlePlayer').style.display = 'flex';
+                document.getElementById('multiviewGrid').style.display = 'none';
+                document.getElementById('layoutSelector').style.display = 'none';
+            }
+        }
+
+        // Check if video is stalled (frozen/buffering)
+        function isVideoStalled(video) {
+            // Video is stalled if it's not paused but readyState is low or buffered is empty
+            if (!video) return false;
+
+            // If video is trying to play but stuck
+            if (!video.paused && video.readyState < 3) return true;
+
+            // If video hasn't progressed in a while (check networkState)
+            if (video.networkState === 2 && video.readyState < 3) return true;
+
+            return false;
+        }
+
+        // Toggle play/pause for a cell
+        function toggleCellPlay(index) {
+            const screen = screens[index];
+            if (!screen) return;
+
+            const video = screen.element.querySelector('video');
+            const icon = document.getElementById(`cellPlayIcon${index}`);
+            if (!video || !icon) return;
+
+            // Check if stream is stalled - if so, reload it
+            if (isVideoStalled(video)) {
+                console.log('Stream appears stalled, reloading...');
+                reloadCellStream(index);
+                return;
+            }
+
+            if (video.paused) {
+                // Use a small delay to avoid AbortError when rapidly clicking
+                const playPromise = video.play();
+                if (playPromise !== undefined) {
+                    playPromise.then(() => {
+                        icon.className = 'fas fa-pause';
+                    }).catch(e => {
+                        // If play failed, try reloading the stream
+                        if (e.name === 'AbortError') {
+                            console.log('Play interrupted, will retry...');
+                        } else {
+                            console.error('Play failed, reloading stream:', e);
+                            reloadCellStream(index);
+                        }
+                    });
+                }
+            } else {
+                video.pause();
+                icon.className = 'fas fa-play';
+            }
+        }
+
+        // Reload/restart a frozen stream
+        function reloadCellStream(index) {
+            const screen = screens[index];
+            if (!screen || !screen.channel) return;
+
+            console.log(`Reloading stream for screen ${index}: ${screen.channel.name}`);
+
+            // Re-play the channel in this screen (this will destroy and recreate the player)
+            playInScreen(index, screen.channel);
+        }
+
+        // Toggle mute for a cell
+        function toggleCellMute(index) {
+            const screen = screens[index];
+            if (!screen) return;
+
+            const video = screen.element.querySelector('video');
+            const icon = document.getElementById(`cellVolumeIcon${index}`);
+            if (!video || !icon) return;
+
+            video.muted = !video.muted;
+            icon.className = video.muted ? 'fas fa-volume-mute' : 'fas fa-volume-up';
+        }
+
+        // Set volume for a cell
+        function setCellVolume(index, value) {
+            const screen = screens[index];
+            if (!screen) return;
+
+            const video = screen.element.querySelector('video');
+            const icon = document.getElementById(`cellVolumeIcon${index}`);
+            if (!video) return;
+
+            video.volume = value / 100;
+
+            if (icon) {
+                if (value == 0) {
+                    icon.className = 'fas fa-volume-mute';
+                } else if (value < 50) {
+                    icon.className = 'fas fa-volume-down';
+                } else {
+                    icon.className = 'fas fa-volume-up';
+                }
+            }
+        }
+
+        // Focus screen - make it the main large view
+        function focusScreen(index) {
+            if (index < 0 || index >= screens.length) return;
+
+            // Set layout to focused mode
+            layoutMode = 'focused';
+            document.getElementById('layoutEvenBtn').classList.remove('active');
+            document.getElementById('layoutFocusedBtn').classList.add('active');
+
+            // Reorder screens so focused one is first
+            if (index > 0) {
+                const focusedScreen = screens.splice(index, 1)[0];
+                screens.unshift(focusedScreen);
+
+                // Rebuild grid
+                const grid = document.getElementById('multiviewGrid');
+                grid.innerHTML = '';
+                screens.forEach((s, i) => {
+                    s.element.id = `screen${i}`;
+                    s.element.onclick = () => selectScreen(i);
+                    grid.appendChild(s.element);
+                    // Update button event handlers in overlay
+                    updateCellOverlayHandlers(s.element, i);
+                });
+
+                // Update audio to follow the focused screen
+                activeAudioScreen = 0;
+                screens.forEach((screen, i) => {
+                    const video = screen.element.querySelector('video');
+                    if (video) {
+                        video.muted = i !== 0;
+                    }
+                });
+            }
+
+            // Set focused class on first screen (the main view)
+            screens.forEach((screen, i) => {
+                screen.element.classList.toggle('focused', i === 0);
+            });
+
+            updateGridLayout();
+            updateAudioIndicators();
+        }
+
+        // Update cell overlay button handlers after reordering
+        function updateCellOverlayHandlers(cell, index) {
+            const overlay = cell.querySelector('.cell-overlay');
+            if (!overlay) return;
+
+            // Update play button (first small button)
+            const cellControls = overlay.querySelector('.cell-controls');
+            const smallButtons = cellControls ? cellControls.querySelectorAll('.cell-btn-small') : [];
+
+            // Play button
+            if (smallButtons[0]) {
+                smallButtons[0].onclick = (e) => { e.stopPropagation(); toggleCellPlay(index); };
+                const playIcon = smallButtons[0].querySelector('i');
+                if (playIcon) playIcon.id = `cellPlayIcon${index}`;
+            }
+
+            // Reload button
+            if (smallButtons[1]) {
+                smallButtons[1].onclick = (e) => { e.stopPropagation(); reloadCellStream(index); };
+            }
+
+            // Update mute button
+            const muteBtn = overlay.querySelector('.cell-volume-control .cell-btn-small');
+            if (muteBtn) {
+                muteBtn.onclick = (e) => { e.stopPropagation(); toggleCellMute(index); };
+                const muteIcon = muteBtn.querySelector('i');
+                if (muteIcon) muteIcon.id = `cellVolumeIcon${index}`;
+            }
+
+            // Update volume slider
+            const volumeSlider = overlay.querySelector('.cell-volume-slider');
+            if (volumeSlider) {
+                volumeSlider.id = `cellVolumeSlider${index}`;
+                volumeSlider.oninput = (e) => { e.stopPropagation(); setCellVolume(index, volumeSlider.value); };
+            }
+
+            // Update action buttons
+            const focusBtn = overlay.querySelector('.cell-actions-row .cell-btn:nth-child(1)');
+            const expandBtn = overlay.querySelector('.cell-actions-row .cell-btn:nth-child(2)');
+            const removeBtn = overlay.querySelector('.cell-actions-row .cell-btn:nth-child(3)');
+
+            if (focusBtn) focusBtn.onclick = (e) => { e.stopPropagation(); focusScreen(index); };
+            if (expandBtn) expandBtn.onclick = (e) => { e.stopPropagation(); expandScreen(index); };
+            if (removeBtn) removeBtn.onclick = (e) => { e.stopPropagation(); removeScreen(index); };
+        }
+
+        // Expand screen to fullscreen within the page (not browser fullscreen)
+        function expandScreen(index) {
+            const screen = screens[index];
+            if (!screen || !screen.channel) return;
+
+            expandedScreenIndex = index;
+
+            const overlay = document.getElementById('expandedOverlay');
+            const expandedVideo = document.getElementById('expandedVideo');
+            const expandedTitle = document.getElementById('expandedTitle');
+            const expandedNowPlaying = document.getElementById('expandedNowPlaying');
+
+            expandedTitle.textContent = screen.channel.name;
+            expandedNowPlaying.textContent = screen.channel.name;
+
+            // Create a new player for the expanded view
+            const streamUrl = screen.channel.url;
+            const streamType = getStreamType(streamUrl);
+
+            // Destroy existing expanded player if any
+            if (expandedPlayer) {
+                if (expandedPlayer.destroy) expandedPlayer.destroy();
+                if (expandedPlayer.unload) expandedPlayer.unload();
+                expandedPlayer = null;
+            }
+
+            if (streamType === 'mpegts' && mpegts && mpegts.isSupported()) {
+                expandedPlayer = mpegts.createPlayer({
+                    type: 'mpegts',
+                    url: streamUrl,
+                    isLive: true
+                }, {
+                    enableWorker: true,
+                    enableStashBuffer: false,
+                    liveBufferLatencyChasing: true
+                });
+
+                expandedPlayer.attachMediaElement(expandedVideo);
+                expandedPlayer.load();
+                expandedVideo.onloadeddata = () => expandedVideo.play().catch(e => console.error('Expanded play failed:', e));
+
+            } else if (streamType === 'hls' && Hls.isSupported()) {
+                expandedPlayer = new Hls();
+                expandedPlayer.loadSource(streamUrl);
+                expandedPlayer.attachMedia(expandedVideo);
+
+                expandedPlayer.on(Hls.Events.MANIFEST_PARSED, () => {
+                    expandedVideo.play();
+                });
+
+            } else if (expandedVideo.canPlayType('application/vnd.apple.mpegurl')) {
+                expandedVideo.src = streamUrl;
+                expandedVideo.play();
+            } else {
+                expandedVideo.src = streamUrl;
+                expandedVideo.play().catch(e => console.error('Native expanded playback failed:', e));
+            }
+
+            // Apply saved volume
+            const savedVolume = parseFloat(localStorage.getItem('iptv_volume') || '1');
+            expandedVideo.volume = savedVolume;
+            document.getElementById('expandedVolumeSlider').value = savedVolume * 100;
+
+            // Update play icon
+            document.getElementById('expandedPlayIcon').className = 'fas fa-pause';
+
+            // Show overlay
+            overlay.classList.add('visible');
+
+            // Pause the original cell video to save resources
+            const originalVideo = screen.element.querySelector('video');
+            if (originalVideo) {
+                originalVideo.pause();
+            }
+        }
+
+        // Close expanded view
+        function closeExpandedView() {
+            const overlay = document.getElementById('expandedOverlay');
+            const expandedVideo = document.getElementById('expandedVideo');
+
+            overlay.classList.remove('visible');
+
+            // Destroy expanded player
+            if (expandedPlayer) {
+                if (expandedPlayer.destroy) expandedPlayer.destroy();
+                if (expandedPlayer.unload) expandedPlayer.unload();
+                expandedPlayer = null;
+            }
+            expandedVideo.src = '';
+
+            // Resume the original cell video
+            if (expandedScreenIndex >= 0 && expandedScreenIndex < screens.length) {
+                const screen = screens[expandedScreenIndex];
+                const video = screen.element.querySelector('video');
+                if (video) {
+                    video.play().catch(e => console.error('Resume play failed:', e));
+                    // Update cell play icon
+                    const icon = document.getElementById(`cellPlayIcon${expandedScreenIndex}`);
+                    if (icon) icon.className = 'fas fa-pause';
+                }
+            }
+
+            expandedScreenIndex = -1;
+        }
+
+        // Toggle play for expanded view
+        function toggleExpandedPlay() {
+            const video = document.getElementById('expandedVideo');
+            const icon = document.getElementById('expandedPlayIcon');
+            if (video.paused) {
+                video.play();
+                icon.className = 'fas fa-pause';
+            } else {
+                video.pause();
+                icon.className = 'fas fa-play';
+            }
+        }
+
+        // Toggle mute for expanded view
+        function toggleExpandedMute() {
+            const video = document.getElementById('expandedVideo');
+            const icon = document.getElementById('expandedVolumeIcon');
+            video.muted = !video.muted;
+            icon.className = video.muted ? 'fas fa-volume-mute' : 'fas fa-volume-up';
+        }
+
+        // Set volume for expanded view
+        function setExpandedVolume(value) {
+            const video = document.getElementById('expandedVideo');
+            const icon = document.getElementById('expandedVolumeIcon');
+            video.volume = value / 100;
+            localStorage.setItem('iptv_volume', (value / 100).toString());
+
+            if (value == 0) {
+                icon.className = 'fas fa-volume-mute';
+            } else if (value < 50) {
+                icon.className = 'fas fa-volume-down';
+            } else {
+                icon.className = 'fas fa-volume-up';
+            }
+        }
+
+        // Update grid layout classes
+        function updateGridLayout() {
+            const grid = document.getElementById('multiviewGrid');
+
+            // Remove old screen classes
+            grid.className = 'multiview-grid';
+
+            // Add layout mode
+            grid.classList.add(`layout-${layoutMode}`);
+
+            // Add screen count
+            grid.classList.add(`screens-${screens.length}`);
+
+            // In focused mode, the first screen (index 0) is always the focused/main view
+            // The focused class determines which screen gets the large grid area
+            if (layoutMode === 'focused' && screens.length > 0) {
+                screens.forEach((screen, i) => {
+                    screen.element.classList.toggle('focused', i === 0);
+                });
+            } else {
+                // Remove focused class from all in even mode
+                screens.forEach((screen) => {
+                    screen.element.classList.remove('focused');
+                });
+            }
+        }
+
+        // Set layout mode
+        function setLayoutMode(mode) {
+            layoutMode = mode;
+
+            document.getElementById('layoutEvenBtn').classList.toggle('active', mode === 'even');
+            document.getElementById('layoutFocusedBtn').classList.toggle('active', mode === 'focused');
+
+            updateGridLayout();
+        }
+
+        // Toggle sidebar
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('visible');
+            document.getElementById('sidebarBtn').classList.toggle('active');
+        }
+
+        // Toggle fullscreen
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                document.getElementById('appContainer').requestFullscreen();
+                document.getElementById('appContainer').classList.add('fullscreen');
+            } else {
+                document.exitFullscreen();
+                document.getElementById('appContainer').classList.remove('fullscreen');
+            }
+        }
+
+        // Toggle play/pause
+        function togglePlay() {
+            const video = document.getElementById('mainVideo');
+            const icon = document.getElementById('playIcon');
+            if (video.paused) {
+                video.play();
+                icon.className = 'fas fa-pause';
+            } else {
+                video.pause();
+                icon.className = 'fas fa-play';
+            }
+        }
+
+        // Toggle mute
+        function toggleMute() {
+            const video = document.getElementById('mainVideo');
+            const icon = document.getElementById('volumeIcon');
+            video.muted = !video.muted;
+            icon.className = video.muted ? 'fas fa-volume-mute' : 'fas fa-volume-up';
+        }
+
+        // Set volume
+        function setVolume(value) {
+            const video = document.getElementById('mainVideo');
+            video.volume = value / 100;
+            // Save to localStorage for persistence
+            localStorage.setItem('iptv_volume', (value / 100).toString());
+        }
+
+        // Go to guide with current stream
+        function goToGuide(event) {
+            event.preventDefault();
+
+            // Save current volume
+            const video = document.getElementById('mainVideo');
+            if (video && !video.paused) {
+                localStorage.setItem('iptv_volume', video.volume.toString());
+            }
+
+            // Navigate to guide with stream info for mini-player
+            if (currentChannel) {
+                const url = encodeURIComponent(currentChannel.url);
+                const name = encodeURIComponent(currentChannel.name);
+                window.location.href = `guide.html?play_url=${url}&play_name=${name}`;
+            } else {
+                window.location.href = 'guide.html';
+            }
+        }
+
+        // Apply saved volume to video element
+        function applySavedVolume(video) {
+            const savedVolume = parseFloat(localStorage.getItem('iptv_volume') || '1');
+            video.volume = savedVolume;
+            document.getElementById('volumeSlider').value = savedVolume * 100;
+
+            // Update volume icon
+            const icon = document.getElementById('volumeIcon');
+            if (savedVolume === 0) {
+                icon.className = 'fas fa-volume-mute';
+            } else if (savedVolume < 0.5) {
+                icon.className = 'fas fa-volume-down';
+            } else {
+                icon.className = 'fas fa-volume-up';
+            }
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            loadChannels();
+
+            // Check for volume parameter in URL
+            const params = new URLSearchParams(window.location.search);
+            const volumeParam = params.get('volume');
+            if (volumeParam) {
+                const volume = parseFloat(volumeParam);
+                if (!isNaN(volume) && volume >= 0 && volume <= 1) {
+                    localStorage.setItem('iptv_volume', volume.toString());
+                }
+            }
+
+            // Handle fullscreen changes
+            document.addEventListener('fullscreenchange', () => {
+                const appContainer = document.getElementById('appContainer');
+                if (!document.fullscreenElement) {
+                    appContainer.classList.remove('fullscreen');
+                }
+                // Force recalculate grid layout after fullscreen change
+                setTimeout(() => {
+                    if (isMultiview) {
+                        updateGridLayout();
+                        // Force a reflow to ensure proper sizing
+                        const grid = document.getElementById('multiviewGrid');
+                        grid.style.display = 'none';
+                        grid.offsetHeight; // Trigger reflow
+                        grid.style.display = 'grid';
+                    }
+                }, 100);
+            });
+
+            // Also handle ESC key for expanded view
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && expandedScreenIndex >= 0) {
+                    closeExpandedView();
+                }
+                // Also close mobile video on ESC
+                if (e.key === 'Escape' && document.getElementById('mobileFullscreenVideo').classList.contains('active')) {
+                    closeMobileVideo();
+                }
+            });
+
+            // Initialize mobile video controls auto-hide
+            initMobileVideoControls();
+        });
+
+        // =====================================================
+        // MOBILE PLAYER FUNCTIONS
+        // =====================================================
+
+        let mobileVideoPlayer = null;
+        let mobileSelectedCategory = null;
+        let mobileVideoControlsVisible = true;
+        let mobileVideoControlsTimeout = null;
+
+        // Override loadChannels to also render mobile views
+        const originalLoadChannels = loadChannels;
+        loadChannels = async function() {
+            await originalLoadChannels();
+            // After loading, render mobile category list
+            renderMobileCategoryList();
+        };
+
+        // Render mobile category list
+        function renderMobileCategoryList() {
+            const container = document.getElementById('mobileCategoryList');
+            if (!container) return;
+
+            // Group channels by category to get counts
+            const categoryCounts = {};
+            channels.forEach(ch => {
+                const catId = ch.category_id || 'uncategorized';
+                categoryCounts[catId] = (categoryCounts[catId] || 0) + 1;
+            });
+
+            // Filter categories that have channels
+            const filteredCategories = categories.filter(cat =>
+                cat.category_id === 'all' || categoryCounts[cat.category_id]
+            );
+
+            if (filteredCategories.length === 0) {
+                container.innerHTML = `
+                    <div class="mobile-empty">
+                        <i class="fas fa-folder-open"></i>
+                        <h3>No Categories</h3>
+                        <p>No channels available</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = filteredCategories.map(cat => {
+                const count = cat.category_id === 'all'
+                    ? channels.length
+                    : (categoryCounts[cat.category_id] || 0);
+                return `
+                    <div class="mobile-category-item" onclick="mobileSelectCategory('${cat.category_id}', '${escapeHtml(cat.category_name)}')">
+                        <div class="mobile-category-icon">
+                            <i class="fas fa-folder"></i>
+                        </div>
+                        <div class="mobile-category-info">
+                            <div class="mobile-category-name">${escapeHtml(cat.category_name)}</div>
+                            <div class="mobile-category-count">${count} channel${count !== 1 ? 's' : ''}</div>
+                        </div>
+                        <i class="fas fa-chevron-right mobile-category-arrow"></i>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Mobile select category
+        function mobileSelectCategory(categoryId, categoryName) {
+            mobileSelectedCategory = categoryId;
+            document.getElementById('mobileSelectedCategoryName').textContent = categoryName;
+
+            // Show channel list view
+            document.getElementById('mobileCategoryList').style.display = 'none';
+            document.getElementById('mobileChannelListView').classList.add('active');
+
+            // Clear search
+            document.getElementById('mobilePlayerSearch').value = '';
+
+            // Render channels
+            renderMobileChannelList();
+        }
+
+        // Show categories (back button)
+        function mobileShowCategories() {
+            mobileSelectedCategory = null;
+            document.getElementById('mobileCategoryList').style.display = 'block';
+            document.getElementById('mobileChannelListView').classList.remove('active');
+            document.getElementById('mobilePlayerSearch').value = '';
+            renderMobileCategoryList();
+        }
+
+        // Render mobile channel list
+        function renderMobileChannelList() {
+            const container = document.getElementById('mobileChannelListContent');
+            if (!container) return;
+
+            let filtered = channels;
+
+            // Filter by selected category
+            if (mobileSelectedCategory && mobileSelectedCategory !== 'all') {
+                filtered = filtered.filter(ch =>
+                    String(ch.category_id) === String(mobileSelectedCategory)
+                );
+            }
+
+            if (filtered.length === 0) {
+                container.innerHTML = `
+                    <div class="mobile-empty">
+                        <i class="fas fa-tv"></i>
+                        <h3>No Channels</h3>
+                        <p>No channels in this category</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = filtered.map((channel, index) => {
+                const logo = channel.stream_icon || channel.logo
+                    ? `<img src="${escapeHtml(channel.stream_icon || channel.logo)}" onerror="this.parentNode.innerHTML='<i class=\\'fas fa-tv\\'></i>'" alt="">`
+                    : '<i class="fas fa-tv"></i>';
+
+                const channelIndex = channels.indexOf(channel);
+                return `
+                    <div class="mobile-channel-row" onclick="mobilePlayChannel(${channelIndex})">
+                        <div class="mobile-channel-logo">${logo}</div>
+                        <div class="mobile-channel-details">
+                            <div class="mobile-channel-title">${escapeHtml(channel.name)}</div>
+                            <div class="mobile-channel-subtitle">Tap to play</div>
+                        </div>
+                        <button class="mobile-channel-play" onclick="event.stopPropagation(); mobilePlayChannel(${channelIndex})">
+                            <i class="fas fa-play"></i>
+                        </button>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Mobile search channels
+        function mobileSearchChannels() {
+            const searchTerm = document.getElementById('mobilePlayerSearch').value.toLowerCase();
+
+            if (searchTerm.length > 0) {
+                // Show search results across all channels
+                document.getElementById('mobileCategoryList').style.display = 'none';
+                document.getElementById('mobileChannelListView').classList.add('active');
+                document.getElementById('mobileSelectedCategoryName').textContent = `Search: "${searchTerm}"`;
+
+                const filtered = channels.filter(ch =>
+                    ch.name.toLowerCase().includes(searchTerm)
+                );
+
+                const container = document.getElementById('mobileChannelListContent');
+                if (filtered.length === 0) {
+                    container.innerHTML = `
+                        <div class="mobile-empty">
+                            <i class="fas fa-search"></i>
+                            <h3>No Results</h3>
+                            <p>No channels match your search</p>
+                        </div>
+                    `;
+                } else {
+                    container.innerHTML = filtered.map((channel) => {
+                        const logo = channel.stream_icon || channel.logo
+                            ? `<img src="${escapeHtml(channel.stream_icon || channel.logo)}" onerror="this.parentNode.innerHTML='<i class=\\'fas fa-tv\\'></i>'" alt="">`
+                            : '<i class="fas fa-tv"></i>';
+
+                        const channelIndex = channels.indexOf(channel);
+                        return `
+                            <div class="mobile-channel-row" onclick="mobilePlayChannel(${channelIndex})">
+                                <div class="mobile-channel-logo">${logo}</div>
+                                <div class="mobile-channel-details">
+                                    <div class="mobile-channel-title">${escapeHtml(channel.name)}</div>
+                                    <div class="mobile-channel-subtitle">Tap to play</div>
+                                </div>
+                                <button class="mobile-channel-play" onclick="event.stopPropagation(); mobilePlayChannel(${channelIndex})">
+                                    <i class="fas fa-play"></i>
+                                </button>
+                            </div>
+                        `;
+                    }).join('');
+                }
+            } else {
+                // Clear search - show categories or channel list
+                if (mobileSelectedCategory) {
+                    renderMobileChannelList();
+                } else {
+                    mobileShowCategories();
+                }
+            }
+        }
+
+        // Mobile play channel - open fullscreen video
+        function mobilePlayChannel(channelIndex) {
+            const channel = channels[channelIndex];
+            if (!channel) return;
+
+            currentChannel = channel;
+
+            // Update UI
+            document.getElementById('mobileVideoTitle').textContent = channel.name;
+            document.getElementById('mobileFullscreenVideo').classList.add('active');
+            document.getElementById('mobileVideoLoading').style.display = 'flex';
+            document.getElementById('mobileVideoError').style.display = 'none';
+
+            // Apply saved volume
+            const video = document.getElementById('mobileVideoElement');
+            const savedVolume = parseFloat(localStorage.getItem('iptv_volume') || '1');
+            video.volume = savedVolume;
+            document.getElementById('mobileVideoVolumeSlider').value = savedVolume * 100;
+            updateMobileVideoVolumeIcon();
+
+            // Play stream
+            playMobileVideoStream(channel.url);
+
+            // Show controls initially
+            showMobileVideoControls();
+
+            // Lock to landscape if supported
+            if (screen.orientation && screen.orientation.lock) {
+                screen.orientation.lock('landscape').catch(() => {});
+            }
+        }
+
+        // Play stream in mobile video player
+        function playMobileVideoStream(url) {
+            const video = document.getElementById('mobileVideoElement');
+            const loadingEl = document.getElementById('mobileVideoLoading');
+            const errorEl = document.getElementById('mobileVideoError');
+            const errorTextEl = document.getElementById('mobileVideoErrorText');
+
+            // Destroy existing player
+            if (mobileVideoPlayer) {
+                if (mobileVideoPlayer.destroy) mobileVideoPlayer.destroy();
+                if (mobileVideoPlayer.unload) mobileVideoPlayer.unload();
+                mobileVideoPlayer = null;
+            }
+
+            const streamType = getStreamType(url);
+
+            if (streamType === 'mpegts' && mpegts && mpegts.isSupported()) {
+                mobileVideoPlayer = mpegts.createPlayer({
+                    type: 'mpegts',
+                    url: url,
+                    isLive: true
+                }, {
+                    enableWorker: true,
+                    enableStashBuffer: false,
+                    liveBufferLatencyChasing: true
+                });
+
+                mobileVideoPlayer.attachMediaElement(video);
+                mobileVideoPlayer.load();
+
+                video.onloadeddata = () => {
+                    loadingEl.style.display = 'none';
+                    video.play().catch(console.error);
+                    document.getElementById('mobileVideoPlayIcon').className = 'fas fa-pause';
+                };
+
+                mobileVideoPlayer.on(mpegts.Events.ERROR, () => {
+                    loadingEl.style.display = 'none';
+                    errorEl.style.display = 'flex';
+                });
+
+            } else if (streamType === 'hls' && Hls.isSupported()) {
+                mobileVideoPlayer = new Hls({
+                    enableWorker: true,
+                    lowLatencyMode: true,
+                    maxBufferLength: 30
+                });
+
+                mobileVideoPlayer.loadSource(url);
+                mobileVideoPlayer.attachMedia(video);
+
+                mobileVideoPlayer.on(Hls.Events.MANIFEST_PARSED, () => {
+                    loadingEl.style.display = 'none';
+                    video.play().catch(console.error);
+                    document.getElementById('mobileVideoPlayIcon').className = 'fas fa-pause';
+                });
+
+                mobileVideoPlayer.on(Hls.Events.ERROR, (event, data) => {
+                    if (data.fatal) {
+                        loadingEl.style.display = 'none';
+                        errorEl.style.display = 'flex';
+                        errorTextEl.textContent = 'Stream error: ' + (data.details || 'Unknown');
+                    }
+                });
+
+            } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                // Native HLS (Safari/iOS)
+                video.src = url;
+                video.addEventListener('loadedmetadata', () => {
+                    loadingEl.style.display = 'none';
+                    video.play().catch(console.error);
+                    document.getElementById('mobileVideoPlayIcon').className = 'fas fa-pause';
+                }, { once: true });
+
+                video.addEventListener('error', () => {
+                    loadingEl.style.display = 'none';
+                    errorEl.style.display = 'flex';
+                }, { once: true });
+
+            } else {
+                // Fallback
+                video.src = url;
+                video.onloadeddata = () => {
+                    loadingEl.style.display = 'none';
+                    video.play().catch(console.error);
+                    document.getElementById('mobileVideoPlayIcon').className = 'fas fa-pause';
+                };
+
+                video.onerror = () => {
+                    loadingEl.style.display = 'none';
+                    errorEl.style.display = 'flex';
+                    errorTextEl.textContent = 'Stream format not supported';
+                };
+            }
+        }
+
+        // Close mobile video
+        function closeMobileVideo() {
+            const video = document.getElementById('mobileVideoElement');
+            video.pause();
+            video.src = '';
+
+            if (mobileVideoPlayer) {
+                if (mobileVideoPlayer.destroy) mobileVideoPlayer.destroy();
+                if (mobileVideoPlayer.unload) mobileVideoPlayer.unload();
+                mobileVideoPlayer = null;
+            }
+
+            document.getElementById('mobileFullscreenVideo').classList.remove('active');
+
+            // Unlock orientation
+            if (screen.orientation && screen.orientation.unlock) {
+                screen.orientation.unlock();
+            }
+        }
+
+        // Toggle mobile video controls
+        function toggleMobileVideoControls() {
+            const header = document.getElementById('mobileVideoHeader');
+            const controls = document.getElementById('mobileVideoControls');
+
+            if (mobileVideoControlsVisible) {
+                header.classList.add('hidden');
+                controls.classList.add('hidden');
+                mobileVideoControlsVisible = false;
+            } else {
+                showMobileVideoControls();
+            }
+        }
+
+        // Show mobile video controls with auto-hide
+        function showMobileVideoControls() {
+            const header = document.getElementById('mobileVideoHeader');
+            const controls = document.getElementById('mobileVideoControls');
+
+            header.classList.remove('hidden');
+            controls.classList.remove('hidden');
+            mobileVideoControlsVisible = true;
+
+            // Clear existing timeout
+            if (mobileVideoControlsTimeout) {
+                clearTimeout(mobileVideoControlsTimeout);
+            }
+
+            // Auto-hide after 4 seconds
+            mobileVideoControlsTimeout = setTimeout(() => {
+                header.classList.add('hidden');
+                controls.classList.add('hidden');
+                mobileVideoControlsVisible = false;
+            }, 4000);
+        }
+
+        // Initialize mobile video controls
+        function initMobileVideoControls() {
+            const video = document.getElementById('mobileVideoElement');
+            if (video) {
+                video.addEventListener('touchstart', () => {
+                    if (!mobileVideoControlsVisible) {
+                        showMobileVideoControls();
+                    }
+                });
+            }
+        }
+
+        // Toggle mobile video play/pause
+        function toggleMobileVideoPlay() {
+            const video = document.getElementById('mobileVideoElement');
+            const icon = document.getElementById('mobileVideoPlayIcon');
+
+            if (video.paused) {
+                video.play();
+                icon.className = 'fas fa-pause';
+            } else {
+                video.pause();
+                icon.className = 'fas fa-play';
+            }
+
+            showMobileVideoControls();
+        }
+
+        // Toggle mobile video mute
+        function toggleMobileVideoMute() {
+            const video = document.getElementById('mobileVideoElement');
+            video.muted = !video.muted;
+            updateMobileVideoVolumeIcon();
+            showMobileVideoControls();
+        }
+
+        // Set mobile video volume
+        function setMobileVideoVolume(value) {
+            const video = document.getElementById('mobileVideoElement');
+            const volume = value / 100;
+            video.volume = volume;
+            video.muted = false;
+            localStorage.setItem('iptv_volume', volume.toString());
+            updateMobileVideoVolumeIcon();
+            showMobileVideoControls();
+        }
+
+        // Update mobile video volume icon
+        function updateMobileVideoVolumeIcon() {
+            const video = document.getElementById('mobileVideoElement');
+            const icon = document.getElementById('mobileVideoVolumeIcon');
+
+            if (video.muted || video.volume === 0) {
+                icon.className = 'fas fa-volume-mute';
+            } else if (video.volume < 0.5) {
+                icon.className = 'fas fa-volume-down';
+            } else {
+                icon.className = 'fas fa-volume-up';
+            }
+        }
+    </script>
+</body>
+</html>

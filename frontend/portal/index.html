@@ -1,0 +1,2673 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Portal - Overview</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --bg-primary: #0f172a;
+            --bg-secondary: #1e293b;
+            --bg-tertiary: #334155;
+            --card-bg: #1e293b;
+            --border-color: #334155;
+            --text-primary: #f8fafc;
+            --text-secondary: #cbd5e1;
+            --text-tertiary: #94a3b8;
+            --primary-color: #3b82f6;
+            --primary-color-hover: #2563eb;
+            --error-color: #ef4444;
+            --success-color: #22c55e;
+            --warning-color: #f59e0b;
+            --plex-color: #e5a00d;
+            --iptv-color: #8b5cf6;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+
+        /* Header */
+        .header {
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            padding: 16px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .header-logo {
+            max-height: 36px;
+            max-width: 140px;
+            object-fit: contain;
+        }
+
+        .header-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .header-icon {
+            font-size: 24px;
+            color: var(--primary-color);
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        .header-btn {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 16px;
+            background: transparent;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-secondary);
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-decoration: none;
+        }
+
+        .header-btn:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        /* Main Content */
+        .main-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        /* Announcements Section */
+        .announcements-section {
+            margin-bottom: 24px;
+        }
+
+        .announcement {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            position: relative;
+        }
+
+        .announcement.info {
+            background: rgba(59, 130, 246, 0.1);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+        }
+
+        .announcement.warning {
+            background: rgba(245, 158, 11, 0.1);
+            border: 1px solid rgba(245, 158, 11, 0.3);
+        }
+
+        .announcement.success {
+            background: rgba(34, 197, 94, 0.1);
+            border: 1px solid rgba(34, 197, 94, 0.3);
+        }
+
+        .announcement.error {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+
+        .announcement-icon {
+            font-size: 20px;
+            flex-shrink: 0;
+        }
+
+        .announcement.info .announcement-icon { color: var(--primary-color); }
+        .announcement.warning .announcement-icon { color: var(--warning-color); }
+        .announcement.success .announcement-icon { color: var(--success-color); }
+        .announcement.error .announcement-icon { color: var(--error-color); }
+
+        .announcement-content {
+            flex: 1;
+        }
+
+        .announcement-title {
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .announcement-message {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .announcement-dismiss {
+            background: none;
+            border: none;
+            color: var(--text-tertiary);
+            cursor: pointer;
+            padding: 4px;
+            font-size: 16px;
+            transition: color 0.2s;
+        }
+
+        .announcement-dismiss:hover {
+            color: var(--text-primary);
+        }
+
+        /* Notice Board Section (static bulletin) */
+        .notice-board {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            margin-bottom: 24px;
+            overflow: hidden;
+        }
+
+        .notice-board-header {
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(139, 92, 246, 0.1));
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .notice-board-header h3 {
+            margin: 0;
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .notice-board-header i {
+            color: var(--primary-color);
+        }
+
+        .notice-board-content {
+            padding: 0;
+        }
+
+        .notice-item {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .notice-item:last-child {
+            border-bottom: none;
+        }
+
+        .notice-item-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .notice-item-header.everyone { color: var(--primary-color); }
+        .notice-item-header.plex { color: #e5a00d; }
+        .notice-item-header.iptv { color: #6366f1; }
+
+        .notice-item-content {
+            font-size: 14px;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        .notice-item-content p {
+            margin: 0 0 8px 0;
+        }
+
+        .notice-item-content p:last-child {
+            margin-bottom: 0;
+        }
+
+        .notice-item-content strong {
+            color: var(--text-primary);
+        }
+
+        .notice-item-content ul, .notice-item-content ol {
+            margin: 8px 0;
+            padding-left: 20px;
+        }
+
+        /* Welcome Section */
+        .welcome-section {
+            margin-bottom: 32px;
+        }
+
+        .welcome-title {
+            font-size: 28px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .welcome-subtitle {
+            color: var(--text-secondary);
+            font-size: 16px;
+        }
+
+        /* Account Status Card */
+        .account-status-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+
+        .account-info {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .account-avatar {
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: var(--bg-tertiary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            color: var(--primary-color);
+        }
+
+        .account-details h3 {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .account-details p {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .status-badges {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .status-badge.active {
+            background: rgba(34, 197, 94, 0.15);
+            color: var(--success-color);
+        }
+
+        .status-badge.expired {
+            background: rgba(239, 68, 68, 0.15);
+            color: var(--error-color);
+        }
+
+        .status-badge.warning {
+            background: rgba(245, 158, 11, 0.15);
+            color: var(--warning-color);
+        }
+
+        .status-badge.paid {
+            background: rgba(59, 130, 246, 0.15);
+            color: var(--primary-color);
+        }
+
+        .status-badge.donation {
+            background: rgba(236, 72, 153, 0.15);
+            color: #ec4899;
+        }
+
+        .account-actions {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .action-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+            text-decoration: none;
+        }
+
+        .action-btn.primary {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .action-btn.primary:hover {
+            background: var(--primary-color-hover);
+        }
+
+        .action-btn.secondary {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .action-btn.secondary:hover {
+            background: #475569;
+        }
+
+        .action-btn.donation {
+            background: #ec4899;
+            color: white;
+        }
+
+        .action-btn.donation:hover {
+            background: #db2777;
+        }
+
+        .action-btn.danger {
+            background: var(--error-color);
+            color: white;
+        }
+
+        .action-btn.danger:hover {
+            background: #dc2626;
+        }
+
+        /* Services Grid */
+        .services-section {
+            margin-bottom: 32px;
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .section-title {
+            font-size: 20px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section-title i {
+            color: var(--primary-color);
+        }
+
+        .services-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+            gap: 24px;
+        }
+
+        .service-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            overflow: hidden;
+            transition: transform 0.2s, box-shadow 0.2s;
+            min-height: 320px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .service-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+        }
+
+        .service-card.plex {
+            border-top: 3px solid var(--plex-color);
+        }
+
+        .service-card.iptv {
+            border-top: 3px solid var(--iptv-color);
+        }
+
+        .service-card.pending {
+            border-top: 3px solid var(--warning-color, #f59e0b);
+        }
+
+        .service-card.full-width {
+            grid-column: 1 / -1;
+            max-width: 600px;
+        }
+
+        .service-card-header {
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .service-card-title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .service-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+        }
+
+        .service-icon.plex {
+            background: rgba(229, 160, 13, 0.15);
+            color: var(--plex-color);
+        }
+
+        .service-icon.iptv {
+            background: rgba(139, 92, 246, 0.15);
+            color: var(--iptv-color);
+        }
+
+        .service-icon.pending {
+            background: rgba(245, 158, 11, 0.15);
+            color: var(--warning-color, #f59e0b);
+        }
+
+        .service-name {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .service-type {
+            font-size: 13px;
+            color: var(--text-tertiary);
+        }
+
+        .service-status {
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .service-status.active {
+            background: rgba(34, 197, 94, 0.15);
+            color: var(--success-color);
+        }
+
+        .service-status.expired {
+            background: rgba(239, 68, 68, 0.15);
+            color: var(--error-color);
+        }
+
+        .service-status.cancelled {
+            background: rgba(245, 158, 11, 0.15);
+            color: var(--warning-color);
+        }
+
+        .service-status.pending {
+            background: rgba(245, 158, 11, 0.15);
+            color: var(--warning-color, #f59e0b);
+        }
+
+        .service-status.cancelling {
+            background: rgba(245, 158, 11, 0.15);
+            color: var(--warning-color, #f59e0b);
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
+        .service-status i {
+            font-size: 8px;
+        }
+
+        .service-card-body {
+            padding: 20px;
+            flex: 1;
+        }
+
+        .service-details {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            font-size: 14px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .detail-row:last-child {
+            border-bottom: none;
+        }
+
+        .detail-label {
+            color: var(--text-tertiary);
+        }
+
+        .detail-value {
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+
+        .detail-value.warning {
+            color: var(--warning-color);
+        }
+
+        .detail-value.expired {
+            color: var(--error-color);
+        }
+
+        .service-card-footer {
+            padding: 16px 20px;
+            border-top: 1px solid var(--border-color);
+            margin-top: auto;
+        }
+
+        .service-btn {
+            width: 100%;
+            padding: 12px 16px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+            text-align: center;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .service-btn.primary {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .service-btn.primary:hover {
+            background: var(--primary-color-hover);
+        }
+
+        /* Modal Styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.2s, visibility 0.2s;
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .modal {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            width: 90%;
+            max-width: 500px;
+            max-height: 90vh;
+            overflow-y: auto;
+            transform: scale(0.9);
+            transition: transform 0.2s;
+        }
+
+        .modal-overlay.active .modal {
+            transform: scale(1);
+        }
+
+        .modal-header {
+            padding: 20px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h3 {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            color: var(--text-tertiary);
+            font-size: 20px;
+            cursor: pointer;
+            padding: 4px;
+        }
+
+        .modal-close:hover {
+            color: var(--text-primary);
+        }
+
+        .modal-body {
+            padding: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 8px;
+            color: var(--text-secondary);
+        }
+
+        .form-group input,
+        .form-group textarea,
+        .form-group select {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-size: 14px;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+
+        .form-group textarea {
+            min-height: 120px;
+            resize: vertical;
+        }
+
+        .modal-footer {
+            padding: 16px 20px;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+        }
+
+        .warning-text {
+            color: var(--warning-color);
+            font-size: 13px;
+            margin-top: 8px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        /* Loading State */
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 60px;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--border-color);
+            border-top-color: var(--primary-color);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Toast notifications */
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            padding: 16px 24px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            z-index: 2000;
+            transform: translateY(100px);
+            opacity: 0;
+            transition: all 0.3s;
+        }
+
+        .toast.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        .toast.success {
+            background: var(--success-color);
+            color: white;
+        }
+
+        .toast.error {
+            background: var(--error-color);
+            color: white;
+        }
+
+        .toast.info {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .header {
+                flex-direction: column;
+                gap: 16px;
+            }
+
+            .header-actions {
+                width: 100%;
+                justify-content: space-between;
+            }
+
+            .welcome-title {
+                font-size: 24px;
+            }
+
+            .account-status-card {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .services-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .service-card {
+                min-height: auto;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-brand">
+            <div id="header-logo-container">
+                <i class="fas fa-user-circle header-icon"></i>
+            </div>
+            <span class="header-title" id="header-title">User Portal</span>
+        </div>
+        <div class="header-actions">
+            <div class="user-info">
+                <i class="fas fa-user"></i>
+                <span id="user-display-name">Loading...</span>
+            </div>
+            <button class="header-btn" id="message-admin-btn">
+                <i class="fas fa-envelope"></i>
+                Contact Support
+            </button>
+            <button class="header-btn" id="logout-btn">
+                <i class="fas fa-sign-out-alt"></i>
+                Logout
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Loading State -->
+        <div id="loading-state" class="loading">
+            <div class="spinner"></div>
+        </div>
+
+        <!-- Dashboard Content -->
+        <div id="dashboard-content" style="display: none;">
+            <!-- Announcements Section -->
+            <div class="announcements-section" id="announcements-container">
+                <!-- Announcements will be inserted here -->
+            </div>
+
+            <!-- Welcome Section -->
+            <div class="welcome-section">
+                <h1 class="welcome-title">Welcome back, <span id="welcome-name">User</span></h1>
+                <p class="welcome-subtitle">Here's an overview of your subscription and services.</p>
+            </div>
+
+            <!-- Account Status Card -->
+            <div class="account-status-card">
+                <div class="account-info">
+                    <div class="account-avatar">
+                        <i class="fas fa-user"></i>
+                    </div>
+                    <div class="account-details">
+                        <h3 id="account-name">User Name</h3>
+                        <p id="account-email">user@example.com</p>
+                    </div>
+                </div>
+                <div class="status-badges" id="status-badges">
+                    <!-- Status badges will be inserted here -->
+                </div>
+                <div class="account-actions" id="account-actions">
+                    <!-- Action buttons will be inserted here -->
+                </div>
+            </div>
+
+            <!-- Notice Board Section -->
+            <div class="notice-board" id="notice-board" style="display: none;">
+                <div class="notice-board-header">
+                    <i class="fas fa-bullhorn"></i>
+                    <h3>Announcements</h3>
+                </div>
+                <div class="notice-board-content" id="notice-board-content">
+                    <!-- Notices will be inserted here -->
+                </div>
+            </div>
+
+            <!-- Services Section -->
+            <div class="services-section">
+                <div class="section-header">
+                    <h2 class="section-title">
+                        <i class="fas fa-cube"></i>
+                        Your Services
+                    </h2>
+                </div>
+                <div class="services-grid" id="services-grid">
+                    <!-- Service cards will be inserted here -->
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Message Modal -->
+    <div class="modal-overlay" id="message-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Contact Support</h3>
+                <button class="modal-close" onclick="closeModal('message-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="message-category">Category</label>
+                    <select id="message-category">
+                        <option value="general">General Question</option>
+                        <option value="technical">Technical Issue</option>
+                        <option value="billing">Billing Question</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="message-subject">Subject</label>
+                    <input type="text" id="message-subject" placeholder="Brief description of your question">
+                </div>
+                <div class="form-group">
+                    <label for="message-content">Message</label>
+                    <textarea id="message-content" placeholder="Describe your question or issue in detail..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="action-btn secondary" onclick="closeModal('message-modal')">Cancel</button>
+                <button class="action-btn primary" onclick="sendMessage()">
+                    <i class="fas fa-paper-plane"></i>
+                    Send Message
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Service Modal (Multi-step wizard) -->
+    <div class="modal-overlay" id="add-service-modal">
+        <div class="modal" style="max-width: 550px;">
+            <div class="modal-header">
+                <h3 id="add-service-modal-title">Add New Service</h3>
+                <button class="modal-close" onclick="closeModal('add-service-modal')">&times;</button>
+            </div>
+            <div class="modal-body" id="add-service-modal-body">
+                <!-- Step 1: Select Service Type -->
+                <div id="add-service-step-1">
+                    <p style="margin-bottom: 20px; color: var(--text-secondary);">Choose the service you'd like to add:</p>
+
+                    <div id="service-options" style="display: flex; flex-direction: column; gap: 12px;">
+                        <!-- Plex Option -->
+                        <div class="service-option" id="plex-option" onclick="selectServiceType('plex')" style="border: 2px solid var(--border-color); border-radius: 12px; padding: 16px; cursor: pointer; transition: all 0.2s;">
+                            <div style="display: flex; align-items: flex-start; gap: 16px;">
+                                <div style="width: 48px; height: 48px; background: linear-gradient(135deg, #e5a00d, #c98d00); border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                                    <i class="fas fa-film" style="font-size: 24px; color: white;"></i>
+                                </div>
+                                <div style="flex: 1;">
+                                    <div style="font-weight: 600; font-size: 16px; margin-bottom: 4px;">Plex (Video on Demand)</div>
+                                    <div style="font-size: 13px; color: var(--text-secondary); line-height: 1.4;">Stream movies, TV shows, and documentaries on-demand. Watch what you want, when you want. Request any title and we'll add it to the library.</div>
+                                    <div id="plex-price-display" style="margin-top: 8px; font-weight: 600; color: var(--primary-color);"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- IPTV Option -->
+                        <div class="service-option" id="iptv-option" onclick="selectServiceType('iptv')" style="border: 2px solid var(--border-color); border-radius: 12px; padding: 16px; cursor: pointer; transition: all 0.2s;">
+                            <div style="display: flex; align-items: flex-start; gap: 16px;">
+                                <div style="width: 48px; height: 48px; background: linear-gradient(135deg, #8b5cf6, #7c3aed); border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                                    <i class="fas fa-tv" style="font-size: 24px; color: white;"></i>
+                                </div>
+                                <div style="flex: 1;">
+                                    <div style="font-weight: 600; font-size: 16px; margin-bottom: 4px;">IPTV (Live TV)</div>
+                                    <div style="font-size: 13px; color: var(--text-secondary); line-height: 1.4;">Live TV streaming with all major sporting events, PPV fights, local channels, and entertainment networks. Stream on your smart TV, phone, tablet, or any device.</div>
+                                    <div style="margin-top: 8px; font-size: 12px; color: var(--iptv-color);">
+                                        <i class="fas fa-arrow-right" style="margin-right: 4px;"></i>
+                                        Click to choose plan &amp; connections
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 1.5: IPTV Options (Connections + Duration → Plan Selection) -->
+                <div id="add-service-step-iptv" style="display: none;">
+                    <div style="text-align: center; margin-bottom: 20px;">
+                        <div style="width: 60px; height: 60px; background: linear-gradient(135deg, #8b5cf6, #7c3aed); border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 12px;">
+                            <i class="fas fa-tv" style="font-size: 28px; color: white;"></i>
+                        </div>
+                        <h4 style="margin: 0 0 4px 0;">IPTV (Live TV)</h4>
+                        <p style="font-size: 14px; color: var(--text-secondary); margin: 0;">Configure your IPTV subscription options</p>
+                    </div>
+
+                    <!-- Connections Dropdown -->
+                    <div class="form-group" style="margin-bottom: 20px;">
+                        <label for="iptv-connections-dropdown" style="font-size: 14px; font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 8px;">
+                            <i class="fas fa-users" style="margin-right: 6px; color: var(--iptv-color);"></i>
+                            Number of Connections
+                        </label>
+                        <select id="iptv-connections-dropdown" style="width: 100%; padding: 12px; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-primary); font-size: 14px;">
+                            <!-- Populated dynamically from available plans -->
+                        </select>
+                        <div style="margin-top: 8px; padding: 10px; background: rgba(139, 92, 246, 0.1); border-radius: 6px; border-left: 3px solid var(--iptv-color);">
+                            <p style="font-size: 12px; color: var(--text-secondary); margin: 0; line-height: 1.5;">
+                                <i class="fas fa-info-circle" style="margin-right: 6px; color: var(--iptv-color);"></i>
+                                <strong>What are connections?</strong> The number of simultaneous streams you can watch at the same time. For example, 2 connections means you can watch on 2 different devices at once.
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Duration Dropdown -->
+                    <div class="form-group" style="margin-bottom: 20px;">
+                        <label for="iptv-duration-dropdown" style="font-size: 14px; font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 8px;">
+                            <i class="fas fa-calendar-alt" style="margin-right: 6px; color: var(--iptv-color);"></i>
+                            Subscription Duration
+                        </label>
+                        <select id="iptv-duration-dropdown" style="width: 100%; padding: 12px; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-primary); font-size: 14px;">
+                            <!-- Populated dynamically from available plans -->
+                        </select>
+                    </div>
+
+                    <!-- Matching Plans Container -->
+                    <div id="iptv-matching-plans" style="margin-bottom: 20px;">
+                        <!-- Shows matching plans based on selections -->
+                    </div>
+
+                    <!-- No Plans Message -->
+                    <div id="iptv-no-plans" style="display: none; text-align: center; padding: 20px; background: var(--bg-tertiary); border-radius: 10px; margin-bottom: 20px;">
+                        <i class="fas fa-exclamation-circle" style="font-size: 24px; color: var(--warning-color); margin-bottom: 10px;"></i>
+                        <p style="margin: 0; color: var(--text-secondary);">No plans available for this combination. Try different options.</p>
+                    </div>
+
+                    <button id="iptv-continue-btn" class="action-btn primary" onclick="proceedIPTVToPayment()" style="width: 100%; justify-content: center; padding: 14px;" disabled>
+                        <i class="fas fa-arrow-right"></i>
+                        Continue to Payment
+                    </button>
+                </div>
+
+                <!-- Step 2: Payment Info -->
+                <div id="add-service-step-2" style="display: none;">
+                    <div style="text-align: center; margin-bottom: 20px;">
+                        <div id="selected-service-icon" style="width: 60px; height: 60px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 12px;"></div>
+                        <h4 id="selected-service-name" style="margin: 0 0 4px 0;"></h4>
+                        <div id="selected-service-price" style="font-size: 24px; font-weight: 700; color: var(--primary-color);"></div>
+                        <div id="selected-service-duration" style="font-size: 14px; color: var(--text-secondary);"></div>
+                    </div>
+
+                    <div style="background: var(--bg-tertiary); border-radius: 10px; padding: 16px; margin-bottom: 20px;">
+                        <div style="font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+                            <i class="fas fa-credit-card"></i> Payment Methods
+                        </div>
+                        <div id="payment-methods-list" style="display: flex; flex-direction: column; gap: 8px;">
+                            <!-- Payment methods loaded dynamically -->
+                        </div>
+                    </div>
+
+                    <div class="form-group" style="margin-bottom: 16px;">
+                        <label for="transaction-reference" style="font-size: 14px; color: var(--text-secondary); margin-bottom: 6px; display: block;">
+                            Reference ID: <span id="generated-ref-id" style="font-family: monospace; color: var(--primary-color);"></span>
+                        </label>
+                        <p style="font-size: 12px; color: var(--text-tertiary); margin-bottom: 8px;">
+                            Include this reference ID in your payment note, OR provide your payment app username/transaction ID below.
+                            <span style="opacity: 0.8;">(Optional but helps speed up verification)</span>
+                        </p>
+                        <input type="text" id="transaction-reference" placeholder="Your Venmo/PayPal username or transaction ID..." style="width: 100%; padding: 12px; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-primary); font-size: 14px;">
+                    </div>
+
+                    <div style="display: flex; flex-direction: column; gap: 10px;">
+                        <button class="action-btn primary" onclick="submitServiceRequest('submitted')" style="width: 100%; justify-content: center; padding: 14px;">
+                            <i class="fas fa-check-circle"></i>
+                            I've Completed Payment
+                        </button>
+                        <button class="action-btn secondary" onclick="submitServiceRequest('pending')" style="width: 100%; justify-content: center; padding: 14px;">
+                            <i class="fas fa-clock"></i>
+                            I'll Pay Later
+                        </button>
+                    </div>
+
+                    <p style="text-align: center; margin-top: 16px; font-size: 13px; color: var(--text-tertiary);">
+                        Your service will be activated within 24 hours after we verify your payment.
+                    </p>
+                </div>
+            </div>
+            <div class="modal-footer" id="add-service-modal-footer">
+                <button class="action-btn secondary" onclick="closeModal('add-service-modal')">Cancel</button>
+                <button class="action-btn secondary" id="add-service-back-btn" onclick="goBackToStep1()" style="display: none;">
+                    <i class="fas fa-arrow-left"></i> Back
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Cancel Service Modal -->
+    <div class="modal-overlay" id="cancel-service-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Cancel Service</h3>
+                <button class="modal-close" onclick="closeModal('cancel-service-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p style="margin-bottom: 16px; color: var(--text-secondary);">Please let us know which service you'd like to cancel:</p>
+                <div class="form-group">
+                    <label for="cancel-service-type">Service to Cancel</label>
+                    <select id="cancel-service-type" onchange="updateCancelWarning()">
+                        <!-- Options will be populated dynamically -->
+                    </select>
+                    <div class="warning-text" id="cancel-warning" style="display: none;">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <span id="cancel-warning-text"></span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="action-btn danger" onclick="confirmCancelService()">
+                    <i class="fas fa-times"></i>
+                    Cancel Service
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirmation Modal -->
+    <div class="modal-overlay" id="confirm-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="confirm-title">Confirm</h3>
+                <button class="modal-close" onclick="closeModal('confirm-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p id="confirm-message" style="color: var(--text-secondary);"></p>
+            </div>
+            <div class="modal-footer">
+                <button class="action-btn secondary" onclick="closeModal('confirm-modal')">No, Keep Service</button>
+                <button type="button" class="action-btn danger" id="confirm-btn" onclick="executeCancelService()">
+                    Yes, Cancel Service
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast" class="toast"></div>
+
+    <script>
+        const API_BASE = '/api/v2';
+        let currentUser = null;
+        let pendingCancelServiceType = null;
+        let cancellingServices = new Set(); // Track services currently being cancelled
+
+        // Load cancelling services from localStorage (persists across refresh)
+        function loadCancellingServices() {
+            try {
+                const saved = localStorage.getItem('portal_cancelling_services');
+                console.log('[DEBUG] Loading cancelling services from localStorage:', saved);
+                if (saved) {
+                    const arr = JSON.parse(saved);
+                    cancellingServices = new Set(arr);
+                    console.log('[DEBUG] Loaded cancelling services:', [...cancellingServices]);
+                }
+            } catch (e) {
+                console.error('Error loading cancelling services:', e);
+            }
+        }
+
+        // Save cancelling services to localStorage
+        function saveCancellingServices() {
+            try {
+                const toSave = JSON.stringify([...cancellingServices]);
+                console.log('[DEBUG] Saving cancelling services to localStorage:', toSave);
+                localStorage.setItem('portal_cancelling_services', toSave);
+            } catch (e) {
+                console.error('Error saving cancelling services:', e);
+            }
+        }
+
+        // Clear a service from cancelling state (both memory and localStorage)
+        function clearCancellingService(serviceType) {
+            cancellingServices.delete(serviceType);
+            saveCancellingServices();
+        }
+
+        // Initialize on load
+        loadCancellingServices();
+        checkAuth();
+
+        async function checkAuth() {
+            const token = localStorage.getItem('portal_token');
+            const user = localStorage.getItem('portal_user');
+
+            if (!token || !user) {
+                window.location.href = '/login.html';
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/portal/auth/verify`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error('Session expired');
+                }
+
+                const data = await response.json();
+                if (!data.success) {
+                    throw new Error('Invalid session');
+                }
+
+                // Load full user data
+                await loadUserData();
+
+            } catch (error) {
+                console.error('Auth check failed:', error);
+                localStorage.removeItem('portal_token');
+                localStorage.removeItem('portal_user');
+                window.location.href = '/login.html';
+            }
+        }
+
+        async function loadUserData() {
+            try {
+                const token = localStorage.getItem('portal_token');
+
+                const response = await fetch(`${API_BASE}/portal/user/full`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                const data = await response.json();
+                if (!data.success) {
+                    throw new Error(data.message || 'Failed to load user data');
+                }
+
+                currentUser = data.user;
+                localStorage.setItem('portal_user', JSON.stringify(currentUser));
+
+                // Load branding and announcements in parallel
+                await Promise.all([
+                    loadBrandingSettings(),
+                    loadAnnouncements()
+                ]);
+
+                // Render the dashboard
+                initDashboard(currentUser);
+
+            } catch (error) {
+                console.error('Error loading user data:', error);
+                showToast('Failed to load user data', 'error');
+            }
+        }
+
+        function initDashboard(user, skipServiceRequestsLoad = false) {
+            // Clean up stale cancelling services from localStorage
+            // If a service is in cancellingServices but the user no longer has that service
+            // (and there's no active cancellation), remove it from the set
+            const hasIPTVEditor = user.iptv_editor_enabled && user.iptv_editor;
+            const userHasPlex = user.plex_enabled;
+            const userHasIPTV = user.iptv_enabled || hasIPTVEditor;
+            const plexCancellationActive = user.plex_cancelled_at || user.plex_scheduled_deletion;
+            const iptvCancellationActive = user.iptv_cancelled_at || user.iptv_scheduled_deletion;
+
+            // Remove stale 'plex' from cancelling if user doesn't have Plex and no active cancellation
+            if (cancellingServices.has('plex') && !userHasPlex && !plexCancellationActive) {
+                console.log('[DEBUG] Clearing stale plex cancellation from localStorage');
+                clearCancellingService('plex');
+            }
+            // Remove stale 'iptv' from cancelling if user doesn't have IPTV and no active cancellation
+            if (cancellingServices.has('iptv') && !userHasIPTV && !iptvCancellationActive) {
+                console.log('[DEBUG] Clearing stale iptv cancellation from localStorage');
+                clearCancellingService('iptv');
+            }
+
+            // Display user info
+            const displayName = user.name || user.email || 'User';
+            document.getElementById('user-display-name').textContent = displayName;
+            document.getElementById('welcome-name').textContent = displayName.split(' ')[0];
+            document.getElementById('account-name').textContent = displayName;
+            document.getElementById('account-email').textContent = user.email || '';
+
+            // Render status badges
+            renderStatusBadges(user);
+
+            // Render action buttons
+            renderActionButtons(user);
+
+            // Load notice board
+            loadNoticeBoard();
+
+            // Render service cards
+            renderServiceCards(user);
+
+            // Load pending service requests (skip during optimistic updates)
+            // When skipping, we've already cleared the activeServiceRequests array and removed DOM elements
+            if (!skipServiceRequestsLoad) {
+                loadPendingServiceRequests();
+            }
+
+            // Hide loading, show content
+            document.getElementById('loading-state').style.display = 'none';
+            document.getElementById('dashboard-content').style.display = 'block';
+        }
+
+        function renderStatusBadges(user) {
+            // No badges in header - removed per user request
+            const container = document.getElementById('status-badges');
+            container.innerHTML = '';
+        }
+
+        function renderActionButtons(user) {
+            const container = document.getElementById('account-actions');
+            let html = '';
+
+            // Use subscription_type from plan's price_type
+            const subscriptionType = user.subscription_type || 'free';
+
+            if (subscriptionType === 'paid') {
+                html += `<button class="action-btn primary" onclick="showRenewOptions()">
+                    <i class="fas fa-sync-alt"></i> Renew Subscription
+                </button>`;
+            } else if (subscriptionType === 'donation') {
+                html += `<button class="action-btn donation" onclick="showDonateOptions()">
+                    <i class="fas fa-heart"></i> Support Us
+                </button>`;
+            }
+
+            // Add Service option (if missing one of the services)
+            // Show Plex card if enabled, or if cancellation is in progress (scheduled but not yet deleted)
+            // Only consider "cancelling" if service is still active - once plex_enabled=0, cancellation is complete
+            const isPlexCancelling = (user.plex_enabled && (user.plex_cancelled_at || user.plex_scheduled_deletion)) || cancellingServices.has('plex');
+            const hasPlex = (user.plex_enabled && user.plex_servers && user.plex_servers.length > 0) || isPlexCancelling;
+            // Show IPTV card if enabled, or if cancellation is in progress (scheduled but not yet deleted)
+            // For IPTV Editor, also verify they have actual editor data (not just the flag)
+            const hasIPTVEditor = user.iptv_editor_enabled && user.iptv_editor;
+            const isIPTVCancelling = ((user.iptv_enabled || hasIPTVEditor) && (user.iptv_cancelled_at || user.iptv_scheduled_deletion)) || cancellingServices.has('iptv');
+            const hasIPTV = user.iptv_enabled || hasIPTVEditor || isIPTVCancelling;
+
+            // Debug logging
+            console.log('Add Service button check:', {
+                hasPlex, hasIPTV, hasIPTVEditor,
+                plex_enabled: user.plex_enabled,
+                plex_servers: user.plex_servers?.length,
+                iptv_enabled: user.iptv_enabled,
+                iptv_editor_enabled: user.iptv_editor_enabled,
+                iptv_editor: !!user.iptv_editor,
+                showButton: !hasPlex || !hasIPTV
+            });
+
+            if (!hasPlex || !hasIPTV) {
+                html += `<button class="action-btn secondary" onclick="openAddServiceModal()">
+                    <i class="fas fa-plus"></i> Add Service
+                </button>`;
+            }
+
+            // Cancel service option (if they have any active services)
+            if (user.plex_enabled || user.iptv_enabled) {
+                html += `<button class="action-btn secondary" onclick="openCancelModal()">
+                    <i class="fas fa-times"></i> Cancel Service
+                </button>`;
+            }
+
+            container.innerHTML = html;
+        }
+
+        // Add Service state
+        let availablePlans = { plex: [], iptv: [] };
+        let defaultPlans = { plex: null, iptv: null };
+        let paymentMethods = [];
+        let selectedServiceType = null;
+        let selectedPlan = null;
+        let activeServiceRequests = []; // Track active (pending/submitted/verified) service requests
+
+        async function openAddServiceModal() {
+            const user = currentUser;
+            const hasPlex = user.plex_enabled && user.plex_servers && user.plex_servers.length > 0;
+            const hasIPTV = user.iptv_enabled || user.iptv_editor_enabled;
+
+            // Check if user already has pending requests for each service type
+            const hasPendingPlexRequest = activeServiceRequests.some(r => r.service_type === 'plex');
+            const hasPendingIPTVRequest = activeServiceRequests.some(r => r.service_type === 'iptv');
+
+            // Reset state
+            selectedServiceType = null;
+            selectedPlan = null;
+            document.getElementById('add-service-step-1').style.display = 'block';
+            document.getElementById('add-service-step-2').style.display = 'none';
+            document.getElementById('add-service-step-iptv').style.display = 'none';
+            document.getElementById('add-service-back-btn').style.display = 'none';
+            document.getElementById('add-service-modal-title').textContent = 'Add New Service';
+            document.getElementById('transaction-reference').value = '';
+
+            // Reset visual selection
+            document.querySelectorAll('.service-option').forEach(el => {
+                el.style.borderColor = 'var(--border-color)';
+                el.style.background = 'transparent';
+            });
+
+            // Show/hide service options based on what user already has OR has pending requests for
+            // Hide if user has the service OR has a pending/submitted/verified request for it
+            const plexUnavailable = hasPlex || hasPendingPlexRequest;
+            const iptvUnavailable = hasIPTV || hasPendingIPTVRequest;
+            document.getElementById('plex-option').style.display = plexUnavailable ? 'none' : 'block';
+            document.getElementById('iptv-option').style.display = iptvUnavailable ? 'none' : 'block';
+
+            // If both services are unavailable, show message and don't open modal
+            if (plexUnavailable && iptvUnavailable) {
+                alert('You already have all available services or have pending requests for them.');
+                return;
+            }
+
+            // Load available plans and payment methods
+            try {
+                const token = localStorage.getItem('portal_token');
+
+                // Load plans
+                const plansRes = await fetch(`${API_BASE}/portal/available-plans`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const plansData = await plansRes.json();
+                if (plansData.success) {
+                    availablePlans = plansData.plans;
+                    defaultPlans = plansData.defaults;
+
+                    // Display Plex default price
+                    if (defaultPlans.plex) {
+                        const p = defaultPlans.plex;
+                        const priceText = p.price_type === 'free' ? 'Free' :
+                            p.price_type === 'donation' ? 'Donation' :
+                            `$${p.price?.toFixed(2) || '0.00'}/${p.duration_months || 1} month${p.duration_months !== 1 ? 's' : ''}`;
+                        document.getElementById('plex-price-display').textContent = priceText;
+                    }
+
+                    // Populate IPTV plan dropdown
+                    const iptvSelect = document.getElementById('iptv-plan-select');
+                    iptvSelect.innerHTML = availablePlans.iptv.map(p => {
+                        const priceText = p.price_type === 'free' ? 'Free' :
+                            `$${p.price?.toFixed(2) || '0.00'}/${p.duration_months || 1}mo`;
+                        const connections = p.iptv_connections ? ` (${p.iptv_connections} connection${p.iptv_connections > 1 ? 's' : ''})` : '';
+                        return `<option value="${p.id}" ${p.is_portal_default ? 'selected' : ''}>${p.name}${connections} - ${priceText}</option>`;
+                    }).join('');
+                }
+
+                // Load payment methods
+                const paymentRes = await fetch(`${API_BASE}/portal/payment-methods`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const paymentData = await paymentRes.json();
+                console.log('[Portal] Payment methods response:', paymentData);
+                if (paymentData.success) {
+                    paymentMethods = paymentData.payment_methods || [];
+                    console.log('[Portal] Loaded', paymentMethods.length, 'payment methods');
+                } else {
+                    console.error('[Portal] Failed to load payment methods:', paymentData);
+                }
+
+            } catch (error) {
+                console.error('Error loading add service data:', error);
+            }
+
+            openModal('add-service-modal');
+        }
+
+        let selectedConnections = 1; // Track selected IPTV connections
+
+        async function selectServiceType(type) {
+            selectedServiceType = type;
+
+            // Visual feedback
+            document.querySelectorAll('.service-option').forEach(el => {
+                el.style.borderColor = 'var(--border-color)';
+                el.style.background = 'transparent';
+            });
+
+            const selectedEl = document.getElementById(`${type}-option`);
+            selectedEl.style.borderColor = 'var(--primary-color)';
+            selectedEl.style.background = 'rgba(59, 130, 246, 0.1)';
+
+            if (type === 'iptv') {
+                // Show IPTV options step
+                showIPTVOptionsStep();
+            } else {
+                // Plex - use default plan, proceed immediately to payment
+                selectedPlan = defaultPlans.plex;
+                await proceedToPayment();
+            }
+        }
+
+        function showIPTVOptionsStep() {
+            // Hide step 1, show IPTV options step
+            document.getElementById('add-service-step-1').style.display = 'none';
+            document.getElementById('add-service-step-iptv').style.display = 'block';
+            document.getElementById('add-service-back-btn').style.display = 'inline-flex';
+            document.getElementById('add-service-modal-title').textContent = 'IPTV Options';
+
+            // Get unique connections and durations from IPTV plans
+            const iptvPlans = availablePlans.iptv.filter(p => p.iptv_connections);
+            const uniqueConnections = [...new Set(iptvPlans.map(p => p.iptv_connections))].sort((a, b) => a - b);
+            const uniqueDurations = [...new Set(iptvPlans.map(p => p.duration_months))].sort((a, b) => a - b);
+
+            // Populate connections dropdown
+            const connectionsDropdown = document.getElementById('iptv-connections-dropdown');
+            connectionsDropdown.innerHTML = uniqueConnections.map(c =>
+                `<option value="${c}">${c} Connection${c > 1 ? 's' : ''}</option>`
+            ).join('');
+
+            // Populate duration dropdown
+            const durationDropdown = document.getElementById('iptv-duration-dropdown');
+            durationDropdown.innerHTML = uniqueDurations.map(d =>
+                `<option value="${d}">${d} Month${d !== 1 ? 's' : ''}</option>`
+            ).join('');
+
+            // Add change listeners
+            connectionsDropdown.onchange = function() {
+                updateIPTVDurationDropdown();
+                updateIPTVMatchingPlans();
+            };
+            durationDropdown.onchange = updateIPTVMatchingPlans;
+
+            // Reset selected plan
+            selectedPlan = null;
+            selectedConnections = uniqueConnections[0] || 1;
+
+            // Update duration dropdown based on initial connections selection, then update matching plans
+            updateIPTVDurationDropdown();
+            updateIPTVMatchingPlans();
+        }
+
+        function updateIPTVDurationDropdown() {
+            const connections = parseInt(document.getElementById('iptv-connections-dropdown').value);
+            const durationDropdown = document.getElementById('iptv-duration-dropdown');
+            const currentDuration = durationDropdown.value;
+
+            // Get plans that match the selected connections count
+            const matchingPlans = availablePlans.iptv.filter(p => p.iptv_connections === connections);
+
+            // Get unique durations from matching plans only
+            const availableDurations = [...new Set(matchingPlans.map(p => p.duration_months))].sort((a, b) => a - b);
+
+            // Populate duration dropdown with only valid options
+            durationDropdown.innerHTML = availableDurations.map(d =>
+                `<option value="${d}">${d} Month${d !== 1 ? 's' : ''}</option>`
+            ).join('');
+
+            // Try to keep the same duration selected if it's still available
+            if (availableDurations.includes(parseInt(currentDuration))) {
+                durationDropdown.value = currentDuration;
+            }
+        }
+
+        function updateIPTVMatchingPlans() {
+            const connections = parseInt(document.getElementById('iptv-connections-dropdown').value);
+            const duration = parseInt(document.getElementById('iptv-duration-dropdown').value);
+            selectedConnections = connections;
+
+            // Find matching plans
+            const matchingPlans = availablePlans.iptv.filter(p =>
+                p.iptv_connections === connections && p.duration_months === duration
+            );
+
+            const plansContainer = document.getElementById('iptv-matching-plans');
+            const noPlansMsg = document.getElementById('iptv-no-plans');
+            const continueBtn = document.getElementById('iptv-continue-btn');
+
+            if (matchingPlans.length === 0) {
+                plansContainer.innerHTML = '';
+                noPlansMsg.style.display = 'block';
+                continueBtn.disabled = true;
+                selectedPlan = null;
+                return;
+            }
+
+            noPlansMsg.style.display = 'none';
+
+            // Render matching plans
+            if (matchingPlans.length === 1) {
+                // Single plan - auto-select it
+                selectedPlan = matchingPlans[0];
+                continueBtn.disabled = false;
+                plansContainer.innerHTML = renderPlanCard(matchingPlans[0], true);
+            } else {
+                // Multiple plans - show options to choose
+                selectedPlan = null;
+                continueBtn.disabled = true;
+                plansContainer.innerHTML = `
+                    <p style="font-size: 14px; color: var(--text-secondary); margin-bottom: 12px;">
+                        <i class="fas fa-info-circle" style="margin-right: 6px;"></i>
+                        Multiple plans available. Choose one:
+                    </p>
+                    ${matchingPlans.map(p => renderPlanCard(p, false)).join('')}
+                `;
+            }
+        }
+
+        function renderPlanCard(plan, isSelected) {
+            const priceText = plan.price_type === 'free' ? 'Free' : `$${plan.price?.toFixed(2) || '0.00'}`;
+            const durationText = `${plan.duration_months} month${plan.duration_months !== 1 ? 's' : ''}`;
+            const selectedStyle = isSelected ? 'border: 2px solid var(--primary-color); background: rgba(99, 102, 241, 0.1);' : 'border: 1px solid var(--border-color);';
+
+            return `
+                <div class="iptv-plan-option" onclick="selectIPTVPlan(${plan.id})"
+                     style="padding: 16px; border-radius: 10px; cursor: pointer; margin-bottom: 10px; ${selectedStyle} transition: all 0.2s;"
+                     data-plan-id="${plan.id}">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <div style="font-weight: 600; font-size: 16px;">${plan.name}</div>
+                            ${plan.description ? `<div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">${plan.description}</div>` : ''}
+                            <div style="font-size: 12px; color: var(--text-tertiary); margin-top: 4px;">
+                                ${plan.iptv_connections} connection${plan.iptv_connections > 1 ? 's' : ''} • ${durationText}
+                            </div>
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="font-size: 20px; font-weight: 700; color: var(--primary-color);">${priceText}</div>
+                            ${isSelected ? '<div style="font-size: 12px; color: var(--success-color);"><i class="fas fa-check-circle"></i> Selected</div>' : ''}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function selectIPTVPlan(planId) {
+            selectedPlan = availablePlans.iptv.find(p => p.id === planId);
+
+            // Update visual selection
+            document.querySelectorAll('.iptv-plan-option').forEach(el => {
+                const isPlanSelected = parseInt(el.dataset.planId) === planId;
+                el.style.border = isPlanSelected ? '2px solid var(--primary-color)' : '1px solid var(--border-color)';
+                el.style.background = isPlanSelected ? 'rgba(99, 102, 241, 0.1)' : '';
+
+                // Update selected indicator
+                const rightDiv = el.querySelector('div > div:last-child');
+                const existingCheck = rightDiv.querySelector('.selected-check');
+                if (existingCheck) existingCheck.remove();
+
+                if (isPlanSelected) {
+                    rightDiv.insertAdjacentHTML('beforeend', '<div class="selected-check" style="font-size: 12px; color: var(--success-color);"><i class="fas fa-check-circle"></i> Selected</div>');
+                }
+            });
+
+            // Enable continue button
+            document.getElementById('iptv-continue-btn').disabled = false;
+        }
+
+        async function proceedIPTVToPayment() {
+            if (!selectedPlan) {
+                alert('Please select a plan');
+                return;
+            }
+            await proceedToPayment();
+        }
+
+        async function proceedToPayment() {
+            console.log('[Portal] proceedToPayment called - serviceType:', selectedServiceType);
+            console.log('[Portal] proceedToPayment - paymentMethods:', paymentMethods);
+            console.log('[Portal] proceedToPayment - paymentMethods.length:', paymentMethods ? paymentMethods.length : 'undefined');
+
+            // For IPTV, plan should already be set from selectIPTVPlan
+
+            if (!selectedPlan && selectedServiceType === 'plex') {
+                selectedPlan = defaultPlans.plex;
+            }
+
+            // Ensure payment methods are loaded - reload if empty
+            if (!paymentMethods || paymentMethods.length === 0) {
+                console.log('[Portal] Payment methods empty, reloading...');
+                try {
+                    const token = localStorage.getItem('portal_token');
+                    const paymentRes = await fetch(`${API_BASE}/portal/payment-methods`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    const paymentData = await paymentRes.json();
+                    console.log('[Portal] Reloaded payment methods response:', paymentData);
+                    if (paymentData.success) {
+                        paymentMethods = paymentData.payment_methods || [];
+                        console.log('[Portal] Reloaded', paymentMethods.length, 'payment methods');
+                    }
+                } catch (error) {
+                    console.error('[Portal] Error reloading payment methods:', error);
+                }
+            }
+
+            // Hide IPTV step if visible
+            document.getElementById('add-service-step-iptv').style.display = 'none';
+
+            // Update step 2 UI
+            const iconEl = document.getElementById('selected-service-icon');
+            if (selectedServiceType === 'plex') {
+                iconEl.style.background = 'linear-gradient(135deg, #e5a00d, #c98d00)';
+                iconEl.innerHTML = '<i class="fas fa-film" style="font-size: 28px; color: white;"></i>';
+            } else {
+                iconEl.style.background = 'linear-gradient(135deg, #8b5cf6, #7c3aed)';
+                iconEl.innerHTML = '<i class="fas fa-tv" style="font-size: 28px; color: white;"></i>';
+            }
+
+            document.getElementById('selected-service-name').textContent = selectedPlan?.name || (selectedServiceType === 'plex' ? 'Plex' : 'IPTV');
+
+            if (selectedPlan) {
+                const priceText = selectedPlan.price_type === 'free' ? 'Free' :
+                    selectedPlan.price_type === 'donation' ? 'Donation Based' :
+                    `$${selectedPlan.price?.toFixed(2) || '0.00'}`;
+                document.getElementById('selected-service-price').textContent = priceText;
+
+                const durationText = selectedPlan.duration_months === 0 || !selectedPlan.duration_months ?
+                    'Unlimited' : `${selectedPlan.duration_months} month${selectedPlan.duration_months > 1 ? 's' : ''}`;
+                document.getElementById('selected-service-duration').textContent = durationText;
+            } else {
+                document.getElementById('selected-service-price').textContent = 'Contact for pricing';
+                document.getElementById('selected-service-duration').textContent = '';
+            }
+
+            // Render payment methods with brand icons
+            const paymentListEl = document.getElementById('payment-methods-list');
+            if (paymentMethods.length > 0) {
+                paymentListEl.innerHTML = paymentMethods.map(pm => {
+                    const config = getPaymentMethodConfig(pm.name);
+                    return `
+                        <a href="${escapeHtml(pm.payment_url)}" target="_blank" style="display: flex; align-items: center; justify-content: space-between; padding: 12px; background: var(--bg-secondary); border-radius: 8px; text-decoration: none; color: var(--text-primary); transition: all 0.2s; border: 1px solid transparent;" onmouseover="this.style.borderColor='${config.color}'; this.style.background='${config.hoverBg}'" onmouseout="this.style.borderColor='transparent'; this.style.background='var(--bg-secondary)'">
+                            <div style="display: flex; align-items: center; gap: 12px;">
+                                <div style="width: 40px; height: 40px; border-radius: 10px; background: ${config.bgColor}; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                                    ${config.icon}
+                                </div>
+                                <span style="font-weight: 500;">${escapeHtml(pm.name)}</span>
+                            </div>
+                            <i class="fas fa-external-link-alt" style="color: var(--text-tertiary); font-size: 12px;"></i>
+                        </a>
+                    `;
+                }).join('');
+            } else {
+                paymentListEl.innerHTML = '<p style="color: var(--text-tertiary); text-align: center;">No payment methods configured. Please contact support.</p>';
+            }
+
+            // Generate simple 6-digit reference ID
+            const refId = String(Math.floor(100000 + Math.random() * 900000));
+            document.getElementById('generated-ref-id').textContent = refId;
+            document.getElementById('transaction-reference').value = '';
+
+            // Switch to step 2
+            document.getElementById('add-service-step-1').style.display = 'none';
+            document.getElementById('add-service-step-2').style.display = 'block';
+            document.getElementById('add-service-back-btn').style.display = 'inline-flex';
+            document.getElementById('add-service-modal-title').textContent = 'Complete Payment';
+        }
+
+        function goBackToStep1() {
+            // Check which step we're on to determine where to go back to
+            const isOnPaymentStep = document.getElementById('add-service-step-2').style.display !== 'none';
+            const isOnIPTVStep = document.getElementById('add-service-step-iptv').style.display !== 'none';
+
+            if (isOnPaymentStep && selectedServiceType === 'iptv') {
+                // Go back to IPTV options step
+                document.getElementById('add-service-step-2').style.display = 'none';
+                document.getElementById('add-service-step-iptv').style.display = 'block';
+                document.getElementById('add-service-modal-title').textContent = 'IPTV Options';
+            } else {
+                // Go back to step 1 (service selection)
+                document.getElementById('add-service-step-1').style.display = 'block';
+                document.getElementById('add-service-step-2').style.display = 'none';
+                document.getElementById('add-service-step-iptv').style.display = 'none';
+                document.getElementById('add-service-back-btn').style.display = 'none';
+                document.getElementById('add-service-modal-title').textContent = 'Add New Service';
+
+                // Reset selection
+                selectedServiceType = null;
+                selectedPlan = null;
+                selectedConnections = 1;
+                document.querySelectorAll('.service-option').forEach(el => {
+                    el.style.borderColor = 'var(--border-color)';
+                    el.style.background = 'transparent';
+                });
+            }
+        }
+
+        async function submitServiceRequest(paymentStatus) {
+            try {
+                const token = localStorage.getItem('portal_token');
+                const userRef = document.getElementById('transaction-reference').value.trim();
+                const generatedRef = document.getElementById('generated-ref-id').textContent;
+
+                // Combine the generated ref with user-provided info
+                let transactionRef = generatedRef;
+                if (userRef) {
+                    transactionRef = `${generatedRef} | ${userRef}`;
+                }
+
+                const response = await fetch(`${API_BASE}/portal/service-requests`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        service_type: selectedServiceType,
+                        subscription_plan_id: selectedPlan?.id || null,
+                        request_type: 'new_service',
+                        payment_status: paymentStatus,
+                        transaction_reference: transactionRef || null,
+                        iptv_connections: selectedServiceType === 'iptv' ? selectedConnections : null
+                    })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    closeModal('add-service-modal');
+                    // Show success message with admin notification info
+                    const message = paymentStatus === 'submitted'
+                        ? 'Request submitted! Administrators have been notified and will verify your payment shortly.'
+                        : 'Request submitted! Administrators have been notified. Complete your payment when ready.';
+                    showToast(message, 'success');
+                    // Refresh dashboard to show the new pending request
+                    await loadUserData();
+                } else {
+                    showToast(data.message || 'Failed to submit request', 'error');
+                }
+            } catch (error) {
+                console.error('Error submitting service request:', error);
+                showToast('Failed to submit request', 'error');
+            }
+        }
+
+        function renderServiceCards(user) {
+            const container = document.getElementById('services-grid');
+            let html = '';
+
+            // Helper function to format date without timezone shift
+            function formatDateString(dateStr) {
+                if (!dateStr) return '';
+                // Parse the date string directly to avoid timezone issues
+                const parts = dateStr.split('T')[0].split('-');
+                if (parts.length === 3) {
+                    const month = parseInt(parts[1], 10);
+                    const day = parseInt(parts[2], 10);
+                    const year = parseInt(parts[0], 10);
+                    return `${month}/${day}/${year}`;
+                }
+                return new Date(dateStr).toLocaleDateString();
+            }
+
+            // Check if cancellation is in progress for each service
+            // Only consider "cancelling" if service is still enabled - once disabled, cancellation is complete
+            const isPlexCancelling = (user.plex_enabled && (user.plex_cancelled_at || user.plex_scheduled_deletion)) || cancellingServices.has('plex');
+            const isIPTVCancelling = ((user.iptv_enabled || user.iptv_editor_enabled) && (user.iptv_cancelled_at || user.iptv_scheduled_deletion)) || cancellingServices.has('iptv');
+
+            // Check if service is FULLY cancelled (removal complete) - don't show card in this case
+            const isPlexFullyCancelled = !user.plex_enabled && user.plex_cancelled;
+            const isIPTVFullyCancelled = !user.iptv_enabled && !user.iptv_editor_enabled && user.iptv_cancelled;
+
+            // Clear localStorage when service is fully cancelled (since card won't be shown to trigger cleanup)
+            if (isPlexFullyCancelled && cancellingServices.has('plex')) {
+                clearCancellingService('plex');
+            }
+            if (isIPTVFullyCancelled && cancellingServices.has('iptv')) {
+                clearCancellingService('iptv');
+            }
+
+            // Count active services to determine if we need full-width
+            // Show Plex card if enabled, or if cancellation is in progress (but NOT if fully cancelled/removed)
+            const hasPlex = (user.plex_enabled && user.plex_servers && user.plex_servers.length > 0) || (isPlexCancelling && !isPlexFullyCancelled);
+            // Show IPTV card if enabled, or if cancellation is in progress (but NOT if fully cancelled/removed)
+            const hasIPTV = user.iptv_enabled || user.iptv_editor_enabled || (isIPTVCancelling && !isIPTVFullyCancelled);
+            const serviceCount = (hasPlex ? 1 : 0) + (hasIPTV ? 1 : 0);
+            const fullWidthClass = serviceCount === 1 ? ' full-width' : '';
+
+            // Plex Card
+            if (hasPlex) {
+                const plexServers = user.plex_servers || [];
+                const totalLibraries = plexServers.reduce((sum, s) => sum + (s.library_count || 0), 0);
+                const serverCount = plexServers.length;
+
+                // Determine Plex status
+                let plexStatus = 'active';
+                let plexStatusClass = 'active';
+                let expirationDisplay = '';
+
+                // Check if service is fully cancelled (background job completed - service disabled)
+                if (!user.plex_enabled && user.plex_cancelled) {
+                    plexStatus = 'Cancelled';
+                    plexStatusClass = 'cancelled';
+                    // Clear localStorage since cancellation is complete
+                    if (cancellingServices.has('plex')) {
+                        clearCancellingService('plex');
+                    }
+                }
+                // Check if cancellation is scheduled/pending:
+                // - plex_scheduled_deletion OR plex_cancelled_at is set (database) OR cancellingServices has 'plex' (optimistic UI)
+                // Note: We don't require plex_enabled to be true, as immediate deletion sets it to 0
+                else if (isPlexCancelling) {
+                    plexStatus = 'Cancelling...';
+                    plexStatusClass = 'cancelling';
+                }
+
+                if (user.plex_expiration_date) {
+                    // Parse expiration as local midnight (not UTC) for accurate day comparison
+                    const expDateStr = user.plex_expiration_date.split('T')[0];
+                    const [year, month, day] = expDateStr.split('-').map(Number);
+                    const expDate = new Date(year, month - 1, day); // Local midnight
+                    const now = new Date();
+                    now.setHours(0, 0, 0, 0); // Normalize to local midnight
+                    const daysLeft = Math.round((expDate - now) / (1000 * 60 * 60 * 24));
+
+                    if (daysLeft < 0) {
+                        plexStatus = 'Expired';
+                        plexStatusClass = 'expired';
+                        expirationDisplay = `<span class="detail-value expired">Expired ${formatDateString(user.plex_expiration_date)}</span>`;
+                    } else if (user.plex_cancelled) {
+                        // Cancelled but not expired yet - show removal date
+                        expirationDisplay = `<span class="detail-value warning">Removal: ${formatDateString(user.plex_expiration_date)}</span>`;
+                    } else if (daysLeft <= 7) {
+                        expirationDisplay = `<span class="detail-value warning">${formatDateString(user.plex_expiration_date)} (${daysLeft} days)</span>`;
+                    } else {
+                        expirationDisplay = `<span class="detail-value">${formatDateString(user.plex_expiration_date)}</span>`;
+                    }
+                }
+
+                html += `
+                    <div class="service-card plex${fullWidthClass}">
+                        <div class="service-card-header">
+                            <div class="service-card-title">
+                                <div class="service-icon plex">
+                                    <i class="fas fa-film"></i>
+                                </div>
+                                <div>
+                                    <div class="service-name">Plex</div>
+                                    <div class="service-type">Movies & TV Shows</div>
+                                </div>
+                            </div>
+                            <span class="service-status ${plexStatusClass}">
+                                <i class="fas fa-circle"></i> ${plexStatus === 'active' ? 'Active' : plexStatus}
+                            </span>
+                        </div>
+                        <div class="service-card-body">
+                            <div class="service-details">
+                                <div class="detail-row">
+                                    <span class="detail-label">Plex Account</span>
+                                    <span class="detail-value">${user.plex_email || 'Not set'}</span>
+                                </div>
+                                <div class="detail-row">
+                                    <span class="detail-label">Libraries</span>
+                                    <span class="detail-value">${totalLibraries}</span>
+                                </div>
+                                ${user.plex_expiration_date ? `
+                                <div class="detail-row">
+                                    <span class="detail-label">Expires</span>
+                                    ${expirationDisplay}
+                                </div>
+                                ` : ''}
+                            </div>
+                        </div>
+                        <div class="service-card-footer">
+                            <a href="/portal/plex.html" class="service-btn primary">
+                                <i class="fas fa-arrow-right"></i> View Details
+                            </a>
+                        </div>
+                    </div>
+                `;
+            }
+
+            // IPTV Card
+            if (user.iptv_enabled || user.iptv_editor_enabled) {
+                // Determine IPTV status
+                let iptvStatus = 'active';
+                let iptvStatusClass = 'active';
+                let iptvExpirationDisplay = '';
+
+                // Check if service is fully cancelled (service disabled and no cancellation pending)
+                // Clear localStorage if we see service is disabled - cancellation is complete
+                if (!user.iptv_enabled && !user.iptv_editor_enabled) {
+                    if (cancellingServices.has('iptv')) {
+                        clearCancellingService('iptv');
+                    }
+                }
+
+                // Check if cancellation is scheduled/pending:
+                // Only show "Cancelling" if service is enabled AND has cancellation dates, or localStorage says so
+                if (isIPTVCancelling) {
+                    iptvStatus = 'Cancelling...';
+                    iptvStatusClass = 'cancelling';
+                }
+
+                if (user.iptv_expiration_date) {
+                    // Parse expiration as local midnight (not UTC) for accurate day comparison
+                    const expDateStr = user.iptv_expiration_date.split('T')[0];
+                    const [year, month, day] = expDateStr.split('-').map(Number);
+                    const expDate = new Date(year, month - 1, day); // Local midnight
+                    const now = new Date();
+                    now.setHours(0, 0, 0, 0); // Normalize to local midnight
+                    const daysLeft = Math.round((expDate - now) / (1000 * 60 * 60 * 24));
+
+                    if (daysLeft < 0) {
+                        iptvStatus = 'Expired';
+                        iptvStatusClass = 'expired';
+                        iptvExpirationDisplay = `<span class="detail-value expired">Expired ${formatDateString(user.iptv_expiration_date)}</span>`;
+                    } else if (isIPTVCancelling) {
+                        // Cancelling but not expired yet - show removal date
+                        iptvExpirationDisplay = `<span class="detail-value warning">Removal: ${formatDateString(user.iptv_expiration_date)}</span>`;
+                    } else if (daysLeft <= 7) {
+                        iptvExpirationDisplay = `<span class="detail-value warning">${formatDateString(user.iptv_expiration_date)} (${daysLeft} days)</span>`;
+                    } else {
+                        iptvExpirationDisplay = `<span class="detail-value">${formatDateString(user.iptv_expiration_date)}</span>`;
+                    }
+                }
+
+                html += `
+                    <div class="service-card iptv${fullWidthClass}">
+                        <div class="service-card-header">
+                            <div class="service-card-title">
+                                <div class="service-icon iptv">
+                                    <i class="fas fa-tv"></i>
+                                </div>
+                                <div>
+                                    <div class="service-name">Live TV</div>
+                                    <div class="service-type">IPTV Service</div>
+                                </div>
+                            </div>
+                            <span class="service-status ${iptvStatusClass}">
+                                <i class="fas fa-circle"></i> ${iptvStatus === 'active' ? 'Active' : iptvStatus}
+                            </span>
+                        </div>
+                        <div class="service-card-body">
+                            <div class="service-details">
+                                <div class="detail-row">
+                                    <span class="detail-label">Username</span>
+                                    <span class="detail-value">${user.iptv_username || user.iptv_editor?.username || 'N/A'}</span>
+                                </div>
+                                <div class="detail-row">
+                                    <span class="detail-label">Connections</span>
+                                    <span class="detail-value">${user.iptv_connections || user.iptv_editor?.max_connections || 1}</span>
+                                </div>
+                                ${user.iptv_expiration_date ? `
+                                <div class="detail-row">
+                                    <span class="detail-label">Expires</span>
+                                    ${iptvExpirationDisplay}
+                                </div>
+                                ` : ''}
+                            </div>
+                        </div>
+                        <div class="service-card-footer">
+                            <a href="/portal/iptv.html" class="service-btn primary">
+                                <i class="fas fa-arrow-right"></i> View Details
+                            </a>
+                        </div>
+                    </div>
+                `;
+            }
+
+            container.innerHTML = html;
+        }
+
+        async function loadPendingServiceRequests() {
+            try {
+                const token = localStorage.getItem('portal_token');
+                const response = await fetch(`${API_BASE}/portal/service-requests`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                const data = await response.json();
+                if (!data.success) return;
+
+                // Store all active requests globally (for checking in Add Service modal)
+                activeServiceRequests = data.requests.filter(r =>
+                    r.payment_status === 'pending' ||
+                    r.payment_status === 'submitted' ||
+                    r.payment_status === 'verified'
+                );
+
+                // Filter for pending/submitted/verified requests (not rejected or fully provisioned)
+                // Also exclude requests for services that are already provisioned
+                const pendingRequests = data.requests.filter(r => {
+                    // Only include pending, submitted, or verified statuses
+                    if (r.payment_status !== 'pending' && r.payment_status !== 'submitted' && r.payment_status !== 'verified') {
+                        return false;
+                    }
+
+                    // Exclude if the service is already provisioned for this user
+                    if (currentUser) {
+                        if (r.service_type === 'plex' && currentUser.plex_enabled && currentUser.plex_servers && currentUser.plex_servers.length > 0) {
+                            return false;
+                        }
+                        if (r.service_type === 'iptv' && (currentUser.iptv_enabled || currentUser.iptv_editor_enabled)) {
+                            return false;
+                        }
+                    }
+
+                    return true;
+                });
+
+                if (pendingRequests.length === 0) return;
+
+                const container = document.getElementById('services-grid');
+
+                // Remove full-width class from existing cards since we'll have multiple cards
+                const existingCards = container.querySelectorAll('.service-card.full-width');
+                existingCards.forEach(card => card.classList.remove('full-width'));
+
+                // Render pending request cards
+                pendingRequests.forEach(request => {
+                    const serviceIcon = request.service_type === 'plex' ? 'fa-film' : 'fa-tv';
+                    const serviceName = request.service_type === 'plex' ? 'Plex' : 'Live TV';
+                    const serviceDesc = request.service_type === 'plex' ? 'Movies & TV Shows' : 'IPTV Service';
+                    const requestTypeLabel = request.request_type === 'new' ? 'New Service Request' :
+                                            request.request_type === 'upgrade' ? 'Upgrade Request' :
+                                            request.request_type === 'renewal' ? 'Renewal Request' : 'Service Request';
+
+                    const statusLabel = request.payment_status === 'verified' ? 'Payment Verified' :
+                                       request.payment_status === 'submitted' ? 'Payment Submitted' : 'Pending Payment';
+                    const statusMessage = request.payment_status === 'verified'
+                        ? 'Your service is being set up by our team.'
+                        : request.payment_status === 'submitted'
+                        ? 'Your payment is being verified by our team.'
+                        : 'Complete your payment to proceed.';
+
+                    const createdDate = new Date(request.created_at).toLocaleDateString();
+
+                    // Determine styling based on status
+                    const isVerified = request.payment_status === 'verified';
+                    const statusIcon = isVerified ? 'fa-check-circle' : 'fa-clock';
+                    const statusClass = isVerified ? 'active' : 'pending';
+                    const statusColor = isVerified ? 'var(--success-color, #10b981)' : 'var(--warning-color, #f59e0b)';
+                    const footerText = isVerified ? 'Setting Up Your Service' : 'Awaiting Setup';
+
+                    const cardHtml = `
+                        <div class="service-card ${statusClass}">
+                            <div class="service-card-header">
+                                <div class="service-card-title">
+                                    <div class="service-icon ${statusClass}">
+                                        <i class="fas ${serviceIcon}"></i>
+                                    </div>
+                                    <div>
+                                        <div class="service-name">${serviceName}</div>
+                                        <div class="service-type">${requestTypeLabel}</div>
+                                    </div>
+                                </div>
+                                <span class="service-status ${statusClass}">
+                                    <i class="fas ${statusIcon}"></i> ${statusLabel}
+                                </span>
+                            </div>
+                            <div class="service-card-body">
+                                <div class="service-details">
+                                    <div class="detail-row">
+                                        <span class="detail-label">Plan</span>
+                                        <span class="detail-value">${request.plan_name || 'N/A'}</span>
+                                    </div>
+                                    <div class="detail-row">
+                                        <span class="detail-label">Submitted</span>
+                                        <span class="detail-value">${createdDate}</span>
+                                    </div>
+                                    <div class="detail-row">
+                                        <span class="detail-label">Status</span>
+                                        <span class="detail-value" style="color: ${statusColor};">${statusMessage}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="service-card-footer">
+                                <div style="text-align: center; color: var(--text-tertiary); font-size: 13px;">
+                                    <i class="fas fa-hourglass-half"></i> ${footerText}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+
+                    container.insertAdjacentHTML('beforeend', cardHtml);
+                });
+
+            } catch (error) {
+                console.error('Error loading pending service requests:', error);
+            }
+        }
+
+        async function loadAnnouncements() {
+            try {
+                const token = localStorage.getItem('portal_token');
+                const response = await fetch(`${API_BASE}/portal/announcements`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                const data = await response.json();
+                if (data.success && data.announcements.length > 0) {
+                    renderAnnouncements(data.announcements);
+                }
+            } catch (error) {
+                console.error('Error loading announcements:', error);
+            }
+        }
+
+        function renderAnnouncements(announcements) {
+            const container = document.getElementById('announcements-container');
+            let html = '';
+
+            const icons = {
+                info: 'fa-info-circle',
+                warning: 'fa-exclamation-triangle',
+                success: 'fa-check-circle',
+                error: 'fa-times-circle'
+            };
+
+            announcements.forEach(announcement => {
+                html += `
+                    <div class="announcement ${announcement.type}" data-id="${announcement.id}">
+                        <i class="fas ${icons[announcement.type]} announcement-icon"></i>
+                        <div class="announcement-content">
+                            <div class="announcement-title">${escapeHtml(announcement.title)}</div>
+                            <div class="announcement-message">${escapeHtml(announcement.message)}</div>
+                        </div>
+                        ${announcement.is_dismissible ? `
+                            <button class="announcement-dismiss" onclick="dismissAnnouncement(${announcement.id})" title="Dismiss">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        ` : ''}
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+        }
+
+        async function dismissAnnouncement(id) {
+            try {
+                const token = localStorage.getItem('portal_token');
+                await fetch(`${API_BASE}/portal/announcements/${id}/dismiss`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                // Remove from DOM
+                const element = document.querySelector(`.announcement[data-id="${id}"]`);
+                if (element) {
+                    element.style.opacity = '0';
+                    setTimeout(() => element.remove(), 300);
+                }
+            } catch (error) {
+                console.error('Error dismissing announcement:', error);
+            }
+        }
+
+        async function loadNoticeBoard() {
+            try {
+                const token = localStorage.getItem('portal_token');
+                const response = await fetch(`${API_BASE}/portal/notices`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                const data = await response.json();
+                if (data.success && data.notices.length > 0) {
+                    renderNoticeBoard(data.notices);
+                }
+            } catch (error) {
+                console.error('Error loading notice board:', error);
+            }
+        }
+
+        function renderNoticeBoard(notices) {
+            const container = document.getElementById('notice-board');
+            const content = document.getElementById('notice-board-content');
+
+            const icons = {
+                everyone: 'fa-globe',
+                plex: 'fa-film',
+                iptv: 'fa-tv'
+            };
+
+            const labels = {
+                everyone: 'General Notice',
+                plex: 'Plex Notice',
+                iptv: 'IPTV Notice'
+            };
+
+            let html = '';
+
+            notices.forEach(notice => {
+                html += `
+                    <div class="notice-item">
+                        <div class="notice-item-header ${notice.type}">
+                            <i class="fas ${icons[notice.type]}"></i>
+                            ${labels[notice.type]}
+                        </div>
+                        <div class="notice-item-content">
+                            ${notice.content}
+                        </div>
+                    </div>
+                `;
+            });
+
+            content.innerHTML = html;
+            container.style.display = 'block';
+        }
+
+        async function loadBrandingSettings() {
+            try {
+                const [titleRes, logoRes, faviconRes] = await Promise.all([
+                    fetch(`${API_BASE}/settings/portal_title`).catch(() => ({ json: () => ({}) })),
+                    fetch(`${API_BASE}/settings/portal_logo`).catch(() => ({ json: () => ({}) })),
+                    fetch(`${API_BASE}/settings/app_favicon`).catch(() => ({ json: () => ({}) }))
+                ]);
+
+                const titleData = await titleRes.json().catch(() => ({}));
+                const logoData = await logoRes.json().catch(() => ({}));
+                const faviconData = await faviconRes.json().catch(() => ({}));
+
+                if (titleData.value) {
+                    document.getElementById('header-title').textContent = titleData.value;
+                    document.title = `${titleData.value} - Overview`;
+                }
+
+                if (logoData.value) {
+                    document.getElementById('header-logo-container').innerHTML =
+                        `<img src="${logoData.value}" alt="Logo" class="header-logo" onerror="this.parentElement.innerHTML='<i class=\\'fas fa-user-circle header-icon\\'></i>'">`;
+                }
+
+                if (faviconData.value) {
+                    let link = document.querySelector("link[rel*='icon']");
+                    if (!link) {
+                        link = document.createElement('link');
+                        link.rel = 'icon';
+                        document.head.appendChild(link);
+                    }
+                    link.href = faviconData.value;
+                }
+            } catch (error) {
+                console.error('Error loading branding:', error);
+            }
+        }
+
+        // Modal functions
+        function openModal(id) {
+            document.getElementById(id).classList.add('active');
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.remove('active');
+        }
+
+        function openCancelModal() {
+            populateCancelOptions();
+            openModal('cancel-service-modal');
+        }
+
+        function populateCancelOptions() {
+            const select = document.getElementById('cancel-service-type');
+            select.innerHTML = '';
+
+            if (currentUser.plex_enabled) {
+                select.innerHTML += '<option value="plex">Plex (Movies & TV)</option>';
+            }
+            if (currentUser.iptv_enabled || currentUser.iptv_editor_enabled) {
+                select.innerHTML += '<option value="iptv">Live TV (IPTV)</option>';
+            }
+
+            updateCancelWarning();
+        }
+
+        function updateCancelWarning() {
+            const serviceType = document.getElementById('cancel-service-type').value;
+            const warningDiv = document.getElementById('cancel-warning');
+            const warningText = document.getElementById('cancel-warning-text');
+
+            if (serviceType === 'iptv') {
+                warningDiv.style.display = 'flex';
+                warningText.textContent = 'This action cannot be undone. Your IPTV line will be permanently deleted.';
+            } else {
+                warningDiv.style.display = 'none';
+            }
+        }
+
+        function confirmCancelService() {
+            const serviceType = document.getElementById('cancel-service-type').value;
+            console.log('[Cancel] confirmCancelService called, serviceType:', serviceType);
+            pendingCancelServiceType = serviceType;
+            console.log('[Cancel] Set pendingCancelServiceType to:', pendingCancelServiceType);
+            const serviceName = serviceType === 'plex' ? 'Plex' : 'Live TV (IPTV)';
+
+            let message = `Are you sure you want to cancel your ${serviceName} service?`;
+            if (serviceType === 'iptv') {
+                message += ' This action cannot be undone and your IPTV line will be permanently deleted.';
+            }
+
+            document.getElementById('confirm-title').textContent = `Cancel ${serviceName}?`;
+            document.getElementById('confirm-message').textContent = message;
+
+            closeModal('cancel-service-modal');
+
+            // Store in data attribute as backup
+            document.getElementById('confirm-btn').setAttribute('data-service-type', serviceType);
+
+            openModal('confirm-modal');
+        }
+
+        function executeCancelService() {
+            // Get service type
+            let serviceType = pendingCancelServiceType;
+            if (!serviceType) {
+                serviceType = document.getElementById('confirm-btn').getAttribute('data-service-type');
+            }
+
+            // Close modal immediately - feels instant to user
+            closeModal('confirm-modal');
+            pendingCancelServiceType = null;
+
+            if (!serviceType) return;
+
+            // OPTIMISTIC UI UPDATE - Mark service as cancelling and re-render
+            // This shows a "Cancelling" status badge while the API processes
+            cancellingServices.add(serviceType);
+            saveCancellingServices(); // Persist to localStorage for page refresh
+
+            // Clear any pending service requests for this service type from the UI
+            activeServiceRequests = activeServiceRequests.filter(r => r.service_type !== serviceType);
+
+            // Re-render the full dashboard to show "Cancelling" status
+            // Using initDashboard preserves pending service requests for other services
+            initDashboard(currentUser);
+            showToast('Service cancellation in progress...', 'info');
+
+            // Fire off the API call in the background
+            const token = localStorage.getItem('portal_token');
+            fetch(`${API_BASE}/portal/cancel-service`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    service_type: serviceType
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Don't clear cancelling state here - the API returns immediately
+                // but the background job takes time. We'll clear it when we detect
+                // plex_cancelled/iptv_cancelled is true in renderServiceCards()
+                loadUserData();
+                if (data.success) {
+                    showToast(data.message || 'Service cancellation started', 'success');
+                } else {
+                    // API failed - clear cancelling state
+                    clearCancellingService(serviceType);
+                    showToast(data.message || 'Failed to cancel service', 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error cancelling service:', error);
+                // API error - clear cancelling state and reload
+                clearCancellingService(serviceType);
+                showToast('Error cancelling service', 'error');
+                loadUserData();
+            });
+        }
+
+        async function sendMessage() {
+            const category = document.getElementById('message-category').value;
+            const subject = document.getElementById('message-subject').value;
+            const message = document.getElementById('message-content').value;
+
+            if (!subject || !message) {
+                showToast('Please fill in all fields', 'error');
+                return;
+            }
+
+            try {
+                const token = localStorage.getItem('portal_token');
+                const response = await fetch(`${API_BASE}/portal/messages`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ category, subject, message })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    showToast('Message sent successfully!', 'success');
+                    closeModal('message-modal');
+                    document.getElementById('message-subject').value = '';
+                    document.getElementById('message-content').value = '';
+                } else {
+                    showToast(data.message || 'Failed to send message', 'error');
+                }
+            } catch (error) {
+                showToast('Failed to send message', 'error');
+            }
+        }
+
+        function showRenewOptions() {
+            // TODO: Implement renew flow
+            showToast('Renewal options coming soon!', 'info');
+        }
+
+        function showDonateOptions() {
+            // TODO: Implement donate flow
+            showToast('Donation options coming soon!', 'info');
+        }
+
+        // Utility functions
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function getPaymentMethodConfig(name) {
+            const nameLower = (name || '').toLowerCase();
+
+            // Venmo - Blue
+            if (nameLower.includes('venmo')) {
+                return {
+                    icon: '<svg viewBox="0 0 24 24" width="22" height="22" fill="white"><path d="M19.27 3c.76 1.23 1.1 2.5 1.1 4.1 0 5.1-4.36 11.72-7.9 16.37H5.18L2.5 4.5l6.3-.57 1.58 12.68C12.06 13.6 14 9.3 14 6.36c0-1.52-.25-2.56-.73-3.37L19.27 3z"/></svg>',
+                    color: '#3D95CE',
+                    bgColor: '#3D95CE',
+                    hoverBg: 'rgba(61, 149, 206, 0.1)'
+                };
+            }
+
+            // PayPal - Dark Blue
+            if (nameLower.includes('paypal')) {
+                return {
+                    icon: '<i class="fab fa-paypal" style="font-size: 20px; color: white;"></i>',
+                    color: '#003087',
+                    bgColor: '#003087',
+                    hoverBg: 'rgba(0, 48, 135, 0.1)'
+                };
+            }
+
+            // CashApp - Green
+            if (nameLower.includes('cash')) {
+                return {
+                    icon: '<span style="font-size: 20px; font-weight: 700; color: white;">$</span>',
+                    color: '#00D632',
+                    bgColor: '#00D632',
+                    hoverBg: 'rgba(0, 214, 50, 0.1)'
+                };
+            }
+
+            // Apple Pay - Black
+            if (nameLower.includes('apple')) {
+                return {
+                    icon: '<i class="fab fa-apple-pay" style="font-size: 24px; color: white;"></i>',
+                    color: '#000000',
+                    bgColor: '#000000',
+                    hoverBg: 'rgba(0, 0, 0, 0.1)'
+                };
+            }
+
+            // Google Pay - Multi-color on white
+            if (nameLower.includes('google')) {
+                return {
+                    icon: '<i class="fab fa-google-pay" style="font-size: 24px; color: #4285F4;"></i>',
+                    color: '#4285F4',
+                    bgColor: '#ffffff',
+                    hoverBg: 'rgba(66, 133, 244, 0.1)'
+                };
+            }
+
+            // Zelle - Purple
+            if (nameLower.includes('zelle')) {
+                return {
+                    icon: '<svg viewBox="0 0 24 24" width="20" height="20" fill="white"><path d="M13.559 24h-2.841a.483.483 0 0 1-.483-.483v-6.628H5.069a.478.478 0 0 1-.473-.412.483.483 0 0 1 .253-.504l10.809-6.212H5.552a.483.483 0 0 1-.483-.483V6.517c0-.267.216-.483.483-.483h5.166V.483c0-.267.216-.483.483-.483h2.841c.267 0 .483.216.483.483v6.628h5.166a.478.478 0 0 1 .473.412.483.483 0 0 1-.253.504L8.103 14.239h10.106c.267 0 .483.216.483.483v2.761a.483.483 0 0 1-.483.483h-5.166v5.551a.483.483 0 0 1-.484.483z"/></svg>',
+                    color: '#6D1ED4',
+                    bgColor: '#6D1ED4',
+                    hoverBg: 'rgba(109, 30, 212, 0.1)'
+                };
+            }
+
+            // Default - Generic payment icon
+            return {
+                icon: '<i class="fas fa-credit-card" style="font-size: 18px; color: white;"></i>',
+                color: 'var(--primary-color)',
+                bgColor: 'var(--primary-color)',
+                hoverBg: 'rgba(59, 130, 246, 0.1)'
+            };
+        }
+
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = `toast ${type} show`;
+
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+
+        // Event listeners
+        document.getElementById('logout-btn').addEventListener('click', async () => {
+            try {
+                const token = localStorage.getItem('portal_token');
+                await fetch(`${API_BASE}/portal/auth/logout`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+            } catch (error) {
+                console.error('Logout error:', error);
+            }
+
+            localStorage.removeItem('portal_token');
+            localStorage.removeItem('portal_user');
+            window.location.href = '/login.html';
+        });
+
+        document.getElementById('message-admin-btn').addEventListener('click', () => {
+            openModal('message-modal');
+        });
+
+        // Close modal on overlay click
+        document.querySelectorAll('.modal-overlay').forEach(overlay => {
+            overlay.addEventListener('click', (e) => {
+                if (e.target === overlay) {
+                    overlay.classList.remove('active');
+                }
+            });
+        });
+    </script>
+</body>
+</html>

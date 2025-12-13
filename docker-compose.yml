@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  streampanel:
+    build: .
+    container_name: streampanel-production
+    ports:
+      - "3080:3050"
+    environment:
+      - NODE_ENV=production
+      - PORT=3050
+      - DB_PATH=/app/data/subsapp_v2.db
+      - PYTHON_PATH=python3
+      - TZ=America/Chicago
+    volumes:
+      # Persist database
+      - ./data:/app/data
+      # Persist uploads (branding, etc.)
+      - ./uploads:/app/backend/uploads
+      # Persist logs
+      - ./logs:/app/backend/logs
+    restart: unless-stopped

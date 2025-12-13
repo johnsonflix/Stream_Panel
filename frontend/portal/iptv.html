@@ -1,0 +1,1871 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live TV Service - User Portal</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        :root {
+            --bg-primary: #0f172a;
+            --bg-secondary: #1e293b;
+            --bg-tertiary: #334155;
+            --card-bg: #1e293b;
+            --border-color: #334155;
+            --text-primary: #f8fafc;
+            --text-secondary: #cbd5e1;
+            --text-tertiary: #94a3b8;
+            --primary-color: #3b82f6;
+            --primary-color-hover: #2563eb;
+            --error-color: #ef4444;
+            --success-color: #22c55e;
+            --warning-color: #f59e0b;
+            --iptv-color: #8b5cf6;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+
+        /* Header */
+        .header {
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            padding: 16px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .back-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: var(--bg-tertiary);
+            border: none;
+            border-radius: 6px;
+            color: var(--text-secondary);
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-decoration: none;
+        }
+
+        .back-btn:hover {
+            background: var(--border-color);
+            color: var(--text-primary);
+        }
+
+        .page-title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .page-title i {
+            font-size: 24px;
+            color: var(--iptv-color);
+        }
+
+        .page-title h1 {
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 12px;
+        }
+
+        .btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-decoration: none;
+        }
+
+        .btn-primary {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-color-hover);
+        }
+
+        .btn-danger {
+            background: rgba(239, 68, 68, 0.2);
+            color: var(--error-color);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+
+        .btn-danger:hover {
+            background: rgba(239, 68, 68, 0.3);
+        }
+
+        .btn-iptv {
+            background: var(--iptv-color);
+            color: white;
+        }
+
+        .btn-iptv:hover {
+            background: #7c3aed;
+        }
+
+        .btn-secondary {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .btn-secondary:hover {
+            background: var(--border-color);
+        }
+
+        /* Main Content */
+        .main-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        /* Announcements */
+        .announcements-section {
+            margin-bottom: 24px;
+        }
+
+        .announcement {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            background: rgba(139, 92, 246, 0.1);
+            border: 1px solid rgba(139, 92, 246, 0.3);
+        }
+
+        .announcement-icon {
+            font-size: 20px;
+            color: var(--iptv-color);
+        }
+
+        .announcement-content {
+            flex: 1;
+        }
+
+        .announcement-title {
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .announcement-message {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        /* Cards */
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .card-header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .card-header i {
+            font-size: 20px;
+            color: var(--iptv-color);
+        }
+
+        .card-header h2 {
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .card-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 12px;
+        }
+
+        /* Credentials */
+        .credentials-section {
+            margin-bottom: 24px;
+        }
+
+        .credentials-box {
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 16px;
+        }
+
+        .credentials-box.backup {
+            background: rgba(245, 158, 11, 0.1);
+            border: 1px solid rgba(245, 158, 11, 0.3);
+        }
+
+        .credentials-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+
+        .credentials-title {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 600;
+        }
+
+        .credentials-title.primary {
+            color: var(--success-color);
+        }
+
+        .credentials-title.backup {
+            color: var(--warning-color);
+        }
+
+        .credentials-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+        }
+
+        .credential-item {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .credential-label {
+            font-size: 12px;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .credential-value {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-family: monospace;
+            font-size: 14px;
+            background: var(--bg-secondary);
+            padding: 10px 12px;
+            border-radius: 6px;
+            position: relative;
+        }
+
+        .credential-value.masked {
+            color: var(--text-tertiary);
+        }
+
+        .credential-value .copy-btn {
+            position: absolute;
+            right: 8px;
+            background: none;
+            border: none;
+            color: var(--text-tertiary);
+            cursor: pointer;
+            padding: 4px;
+        }
+
+        .credential-value .copy-btn:hover {
+            color: var(--primary-color);
+        }
+
+        .m3u-url-box {
+            margin-top: 16px;
+        }
+
+        .m3u-url-value {
+            font-family: monospace;
+            font-size: 12px;
+            background: var(--bg-secondary);
+            padding: 12px;
+            border-radius: 6px;
+            word-break: break-all;
+            position: relative;
+            padding-right: 40px;
+        }
+
+        .backup-notice {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 12px;
+            background: rgba(245, 158, 11, 0.1);
+            border-radius: 6px;
+            margin-bottom: 16px;
+            font-size: 13px;
+            color: var(--warning-color);
+        }
+
+        .backup-notice i {
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+
+        /* Detail Row */
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .detail-row:last-child {
+            border-bottom: none;
+        }
+
+        .detail-label {
+            color: var(--text-tertiary);
+            font-size: 14px;
+        }
+
+        .detail-value {
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .status-active {
+            background: rgba(34, 197, 94, 0.2);
+            color: var(--success-color);
+        }
+
+        .status-cancelling {
+            background: rgba(245, 158, 11, 0.2);
+            color: var(--warning-color);
+        }
+
+        /* Quick Actions */
+        .quick-actions {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 250px));
+            gap: 16px;
+        }
+
+        .action-card {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+            padding: 24px;
+            background: var(--bg-tertiary);
+            border-radius: 12px;
+            text-decoration: none;
+            color: var(--text-primary);
+            transition: all 0.2s;
+            cursor: pointer;
+            border: 1px solid transparent;
+        }
+
+        .action-card:hover {
+            background: var(--border-color);
+            border-color: var(--iptv-color);
+        }
+
+        .action-card.disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Featured Actions (Web Player & TV Guide) */
+        .featured-actions {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+            margin-bottom: 24px;
+        }
+
+        .featured-action-card {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            padding: 32px 24px;
+            background: linear-gradient(135deg, rgba(139, 92, 246, 0.15) 0%, rgba(59, 130, 246, 0.1) 100%);
+            border: 2px solid rgba(139, 92, 246, 0.4);
+            border-radius: 16px;
+            text-decoration: none;
+            color: var(--text-primary);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            overflow: hidden;
+        }
+
+        .featured-action-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(59, 130, 246, 0.05) 100%);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .featured-action-card:hover {
+            border-color: var(--iptv-color);
+            transform: translateY(-4px);
+            box-shadow: 0 12px 40px rgba(139, 92, 246, 0.3);
+        }
+
+        .featured-action-card:hover::before {
+            opacity: 1;
+        }
+
+        .featured-action-icon {
+            position: relative;
+            z-index: 1;
+            width: 64px;
+            height: 64px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, var(--iptv-color) 0%, #3b82f6 100%);
+            border-radius: 16px;
+            font-size: 28px;
+            box-shadow: 0 8px 24px rgba(139, 92, 246, 0.4);
+        }
+
+        .featured-action-content {
+            position: relative;
+            z-index: 1;
+            text-align: center;
+        }
+
+        .featured-action-name {
+            display: block;
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .featured-action-desc {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        @media (max-width: 768px) {
+            .featured-actions {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .action-icon {
+            width: 48px;
+            height: 48px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(139, 92, 246, 0.2);
+            border-radius: 12px;
+            font-size: 24px;
+        }
+
+        .action-icon:has(img) {
+            background: transparent;
+        }
+
+        .action-name {
+            font-weight: 500;
+        }
+
+        .action-desc {
+            font-size: 12px;
+            color: var(--text-tertiary);
+            text-align: center;
+        }
+
+        /* Apps Grid - Dynamic Layout (matches Plex) */
+        .apps-categories-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+        }
+
+        .app-category {
+            background: var(--bg-tertiary);
+            border-radius: 10px;
+            padding: 16px;
+        }
+
+        .app-category-header {
+            font-size: 13px;
+            color: var(--text-tertiary);
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 500;
+        }
+
+        .app-category-items {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .app-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 14px 16px;
+            min-height: 70px;
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            text-decoration: none;
+            color: var(--text-primary);
+            transition: all 0.2s;
+        }
+
+        .app-item:hover {
+            border-color: var(--iptv-color);
+            transform: translateX(4px);
+        }
+
+        .app-item-icon {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .app-item-icon img {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            object-fit: contain;
+        }
+
+        .app-item-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .app-item-name {
+            font-weight: 500;
+            font-size: 14px;
+            margin-bottom: 2px;
+        }
+
+        .app-item-desc {
+            font-size: 12px;
+            color: var(--text-tertiary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .app-item-action {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 6px;
+            font-size: 12px;
+            color: var(--text-tertiary);
+        }
+
+        .app-item-links {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            align-items: flex-end;
+        }
+
+        .downloader-code {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: var(--primary-color);
+            color: white;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .downloader-code:hover {
+            background: var(--primary-color-hover);
+        }
+
+        .app-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            color: var(--primary-color);
+            font-size: 12px;
+            text-decoration: none;
+            white-space: nowrap;
+            padding: 4px 8px;
+            background: rgba(59, 130, 246, 0.1);
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+
+        .app-link:hover {
+            background: rgba(59, 130, 246, 0.2);
+            text-decoration: none;
+        }
+
+        /* Guides Section */
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .section-header i {
+            font-size: 20px;
+            color: var(--iptv-color);
+        }
+
+        .section-header h2 {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .guides-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 16px;
+        }
+
+        .guide-card {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+            padding: 20px;
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            text-decoration: none;
+            color: var(--text-primary);
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+
+        .guide-card:hover {
+            border-color: var(--primary-color);
+            transform: translateY(-2px);
+        }
+
+        .guide-icon {
+            font-size: 32px;
+        }
+
+        .guide-title {
+            font-weight: 500;
+            text-align: center;
+        }
+
+        .guide-desc {
+            font-size: 12px;
+            color: var(--text-tertiary);
+            text-align: center;
+        }
+
+        /* Modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal {
+            background: var(--card-bg);
+            border-radius: 16px;
+            max-width: 800px;
+            width: 100%;
+            max-height: 90vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .modal-title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            color: var(--text-tertiary);
+            font-size: 20px;
+            cursor: pointer;
+            padding: 8px;
+        }
+
+        .modal-close:hover {
+            color: var(--text-primary);
+        }
+
+        .modal-body {
+            padding: 24px;
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        .modal-body h1, .modal-body h2, .modal-body h3 {
+            color: var(--text-primary);
+            margin-top: 20px;
+            margin-bottom: 12px;
+        }
+
+        .modal-body h1:first-child, .modal-body h2:first-child {
+            margin-top: 0;
+        }
+
+        .modal-body p {
+            color: var(--text-secondary);
+            line-height: 1.6;
+            margin-bottom: 12px;
+        }
+
+        .modal-body ul, .modal-body ol {
+            color: var(--text-secondary);
+            padding-left: 24px;
+            margin-bottom: 12px;
+        }
+
+        .modal-body li {
+            margin-bottom: 8px;
+        }
+
+        .modal-body code {
+            background: var(--bg-tertiary);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+
+        /* Loading */
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 60px;
+            color: var(--text-tertiary);
+        }
+
+        .loading i {
+            font-size: 32px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        /* Collapsible Sections */
+        .collapsible-section {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            overflow: hidden;
+            margin-bottom: 24px;
+        }
+
+        .collapsible-header {
+            cursor: pointer;
+            padding: 16px 20px;
+            margin-bottom: 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background 0.2s;
+        }
+
+        .collapsible-header:hover {
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .collapse-icon {
+            color: var(--text-tertiary);
+            transition: transform 0.3s ease;
+        }
+
+        .collapsible-section.collapsed .collapse-icon {
+            transform: rotate(-90deg);
+        }
+
+        .collapsible-content {
+            padding: 0 20px 20px;
+            transition: max-height 0.3s ease, padding 0.3s ease, opacity 0.2s ease;
+            overflow: hidden;
+        }
+
+        .collapsible-section.collapsed .collapsible-content {
+            max-height: 0 !important;
+            padding-top: 0;
+            padding-bottom: 0;
+            opacity: 0;
+        }
+
+        /* Legacy collapsible for backup credentials */
+        .backup-collapsible-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+            padding: 12px 0;
+        }
+
+        .backup-collapsible-header:hover {
+            color: var(--primary-color);
+        }
+
+        .backup-collapsible-content {
+            display: none;
+            padding-top: 16px;
+        }
+
+        .backup-collapsible-content.active {
+            display: block;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .header {
+                flex-direction: column;
+                gap: 16px;
+                align-items: flex-start;
+            }
+
+            .header-actions {
+                width: 100%;
+                flex-wrap: wrap;
+            }
+
+            .header-actions .btn {
+                flex: 1;
+                justify-content: center;
+            }
+
+            .credentials-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .quick-actions {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .apps-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .guides-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="header-left">
+            <a href="index.html" class="back-btn">
+                <i class="fas fa-arrow-left"></i>
+                Back to Dashboard
+            </a>
+            <div class="page-title">
+                <i class="fas fa-tv"></i>
+                <h1>Live TV Service</h1>
+            </div>
+        </div>
+        <div class="header-actions">
+            <button class="btn btn-primary" onclick="showRenewModal()">
+                <i class="fas fa-sync-alt"></i>
+                Renew Subscription
+            </button>
+            <button class="btn btn-danger" onclick="showCancelModal()" id="cancelBtn">
+                <i class="fas fa-times"></i>
+                Cancel Service
+            </button>
+        </div>
+    </header>
+
+    <main class="main-content">
+        <!-- Announcements -->
+        <section class="announcements-section" id="announcements"></section>
+
+        <!-- Featured Actions - Web Player & TV Guide -->
+        <div class="featured-actions">
+            <div class="featured-action-card" onclick="window.location.href='player.html'">
+                <div class="featured-action-icon">
+                    <i class="fas fa-globe" style="color: white;"></i>
+                </div>
+                <div class="featured-action-content">
+                    <span class="featured-action-name">Web Player</span>
+                    <span class="featured-action-desc">Watch in your browser</span>
+                </div>
+            </div>
+            <div class="featured-action-card" onclick="window.location.href='guide.html'">
+                <div class="featured-action-icon">
+                    <i class="fas fa-tv" style="color: white;"></i>
+                </div>
+                <div class="featured-action-content">
+                    <span class="featured-action-name">TV Guide</span>
+                    <span class="featured-action-desc">Browse channels & schedule</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Account Overview -->
+        <div class="card">
+            <div class="card-header">
+                <div class="card-header-left">
+                    <i class="fas fa-user-circle"></i>
+                    <h2>Account Overview</h2>
+                </div>
+            </div>
+            <div id="accountOverview">
+                <div class="loading"><i class="fas fa-spinner"></i></div>
+            </div>
+        </div>
+
+        <!-- Credentials Section -->
+        <div class="card">
+            <div class="card-header">
+                <div class="card-header-left">
+                    <i class="fas fa-key"></i>
+                    <h2>Your Credentials</h2>
+                </div>
+                <div class="card-actions">
+                    <button class="btn btn-sm btn-secondary" onclick="togglePasswordVisibility()">
+                        <i class="fas fa-eye" id="togglePwIcon"></i>
+                        <span id="togglePwText">Show</span>
+                    </button>
+                    <button class="btn btn-sm btn-primary" onclick="copyAllCredentials()">
+                        <i class="fas fa-copy"></i>
+                        Copy All
+                    </button>
+                </div>
+            </div>
+            <div id="credentialsSection">
+                <div class="loading"><i class="fas fa-spinner"></i></div>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="card">
+            <div class="card-header">
+                <div class="card-header-left">
+                    <i class="fas fa-bolt"></i>
+                    <h2>Quick Actions</h2>
+                </div>
+            </div>
+            <div class="quick-actions" id="quickActions">
+                <!-- Dynamic quick actions loaded here -->
+            </div>
+        </div>
+
+        <!-- Apps Section -->
+        <section id="appsSectionWrapper" class="collapsible-section" style="display: none;">
+            <div class="section-header collapsible-header" onclick="toggleSection('apps')">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <i class="fas fa-mobile-alt"></i>
+                    <h2>Recommended Apps</h2>
+                </div>
+                <i class="fas fa-chevron-down collapse-icon" id="appsCollapseIcon"></i>
+            </div>
+            <div class="collapsible-content" id="appsContent">
+                <div id="appsSection">
+                    <div class="loading"><i class="fas fa-spinner"></i></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Setup Guides -->
+        <section id="guidesSectionWrapper" class="collapsible-section">
+            <div class="section-header collapsible-header" onclick="toggleSection('guides')">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <i class="fas fa-book-open"></i>
+                    <h2>Setup Guides</h2>
+                </div>
+                <i class="fas fa-chevron-down collapse-icon" id="guidesCollapseIcon"></i>
+            </div>
+            <div class="collapsible-content" id="guidesContent">
+                <div class="guides-grid" id="guides">
+                    <div class="loading"><i class="fas fa-spinner"></i></div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Guide Modal -->
+    <div class="modal-overlay" id="guideModal">
+        <div class="modal">
+            <div class="modal-header">
+                <div class="modal-title">
+                    <span id="guideModalIcon"></span>
+                    <span id="guideModalTitle"></span>
+                </div>
+                <button class="modal-close" onclick="closeGuideModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body" id="guideModalContent"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '/api/v2';
+        let userData = null;
+        let credentialsData = null;
+        let passwordsVisible = false;
+        let quickActionsData = [];
+
+        // Get auth token
+        function getToken() {
+            return localStorage.getItem('portal_token');
+        }
+
+        // API helper
+        async function api(endpoint, options = {}) {
+            const token = getToken();
+            if (!token) {
+                window.location.href = '/login.html';
+                return;
+            }
+
+            const response = await fetch(`${API_BASE}${endpoint}`, {
+                ...options,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                    ...options.headers
+                }
+            });
+
+            if (response.status === 401) {
+                localStorage.removeItem('portal_token');
+                window.location.href = '/login.html';
+                return;
+            }
+
+            return response.json();
+        }
+
+        // Load user data
+        async function loadUserData() {
+            const result = await api('/portal/user/full');
+            if (result.success) {
+                userData = result.user;
+                renderAccountOverview();
+                updateCancelButton();
+            }
+        }
+
+        // Render account overview
+        function renderAccountOverview() {
+            const container = document.getElementById('accountOverview');
+
+            let statusClass = 'status-active';
+            let statusText = 'Active';
+
+            if (userData.iptv_cancelled) {
+                statusClass = 'status-cancelling';
+                statusText = 'Cancelling';
+            }
+
+            const expirationDisplay = userData.iptv_expiration_date
+                ? new Date(userData.iptv_expiration_date).toLocaleDateString()
+                : 'No expiration';
+
+            container.innerHTML = `
+                <div class="detail-row">
+                    <span class="detail-label">Status</span>
+                    <span class="status-badge ${statusClass}">${statusText}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Plan</span>
+                    <span class="detail-value">${userData.iptv_subscription_name || 'Standard'}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Connections</span>
+                    <span class="detail-value">${userData.iptv_connections || 1}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Expires</span>
+                    <span class="detail-value">${expirationDisplay}</span>
+                </div>
+                ${userData.iptv_cancelled ? `
+                <div class="detail-row">
+                    <span class="detail-label">Removal Date</span>
+                    <span class="detail-value" style="color: var(--error-color);">
+                        ${new Date(userData.iptv_scheduled_deletion).toLocaleDateString()}
+                    </span>
+                </div>
+                ` : ''}
+            `;
+        }
+
+        // Load credentials
+        async function loadCredentials() {
+            const result = await api('/portal/iptv/credentials');
+            if (result.success) {
+                credentialsData = result.credentials;
+                renderCredentials();
+            }
+        }
+
+        // Render credentials
+        function renderCredentials() {
+            const container = document.getElementById('credentialsSection');
+
+            if (!credentialsData.editor && !credentialsData.panel) {
+                container.innerHTML = '<p style="color: var(--text-tertiary);">No credentials available</p>';
+                return;
+            }
+
+            let html = '';
+
+            // Primary credentials (Editor if available, otherwise Panel)
+            const primary = credentialsData.editor || credentialsData.panel;
+            const isEditor = !!credentialsData.editor;
+
+            html += `
+                <div class="credentials-box">
+                    <div class="credentials-header">
+                        <div class="credentials-title primary">
+                            <i class="fas fa-check-circle"></i>
+                            Primary Credentials${isEditor ? ' (Optimized)' : ''}
+                        </div>
+                    </div>
+                    <div class="credentials-grid">
+                        <div class="credential-item">
+                            <span class="credential-label">Username</span>
+                            <div class="credential-value" data-value="${primary.username}">
+                                ${primary.username}
+                                <button class="copy-btn" onclick="copyToClipboard('${primary.username}')">
+                                    <i class="fas fa-copy"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="credential-item">
+                            <span class="credential-label">Password</span>
+                            <div class="credential-value password-field ${passwordsVisible ? '' : 'masked'}" data-value="${primary.password}">
+                                ${passwordsVisible ? primary.password : '••••••••'}
+                                <button class="copy-btn" onclick="copyToClipboard('${primary.password}')">
+                                    <i class="fas fa-copy"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="credential-item">
+                            <span class="credential-label">Connections</span>
+                            <div class="credential-value">
+                                ${primary.max_connections || primary.connections || 1}
+                            </div>
+                        </div>
+                        <div class="credential-item">
+                            <span class="credential-label">Expires</span>
+                            <div class="credential-value">
+                                ${primary.expiration ? new Date(primary.expiration).toLocaleDateString() : 'N/A'}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="m3u-url-box">
+                        <span class="credential-label">M3U URL</span>
+                        <div class="m3u-url-value">
+                            ${primary.m3u_url}
+                            <button class="copy-btn" onclick="copyToClipboard('${primary.m3u_url}')">
+                                <i class="fas fa-copy"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // Backup credentials (Panel when Editor is primary)
+            if (credentialsData.editor && credentialsData.panel) {
+                const backup = credentialsData.panel;
+                html += `
+                    <div class="backup-collapsible-header" onclick="toggleBackupCredentials()">
+                        <span style="color: var(--warning-color);">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            Backup Credentials (Use if primary not working)
+                        </span>
+                        <i class="fas fa-chevron-down" id="backupChevron"></i>
+                    </div>
+                    <div class="backup-collapsible-content" id="backupCredentials">
+                        <div class="backup-notice">
+                            <i class="fas fa-info-circle"></i>
+                            <span>These connect directly to the source. Guide data may be incomplete and channels won't be as organized. Use only as a backup.</span>
+                        </div>
+                        <div class="credentials-box backup">
+                            <div class="credentials-grid">
+                                <div class="credential-item">
+                                    <span class="credential-label">Username</span>
+                                    <div class="credential-value" data-value="${backup.username}">
+                                        ${backup.username}
+                                        <button class="copy-btn" onclick="copyToClipboard('${backup.username}')">
+                                            <i class="fas fa-copy"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="credential-item">
+                                    <span class="credential-label">Password</span>
+                                    <div class="credential-value password-field ${passwordsVisible ? '' : 'masked'}" data-value="${backup.password}">
+                                        ${passwordsVisible ? backup.password : '••••••••'}
+                                        <button class="copy-btn" onclick="copyToClipboard('${backup.password}')">
+                                            <i class="fas fa-copy"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="m3u-url-box">
+                                <span class="credential-label">Backup M3U URL</span>
+                                <div class="m3u-url-value">
+                                    ${backup.m3u_url}
+                                    <button class="copy-btn" onclick="copyToClipboard('${backup.m3u_url}')">
+                                        <i class="fas fa-copy"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            container.innerHTML = html;
+        }
+
+        // Toggle backup credentials
+        function toggleBackupCredentials() {
+            const content = document.getElementById('backupCredentials');
+            const chevron = document.getElementById('backupChevron');
+            content.classList.toggle('active');
+            chevron.style.transform = content.classList.contains('active') ? 'rotate(180deg)' : 'rotate(0deg)';
+        }
+
+        // Toggle password visibility
+        function togglePasswordVisibility() {
+            passwordsVisible = !passwordsVisible;
+            const icon = document.getElementById('togglePwIcon');
+            const text = document.getElementById('togglePwText');
+
+            icon.className = passwordsVisible ? 'fas fa-eye-slash' : 'fas fa-eye';
+            text.textContent = passwordsVisible ? 'Hide' : 'Show';
+
+            // Re-render credentials
+            renderCredentials();
+        }
+
+        // Copy to clipboard
+        async function copyToClipboard(text) {
+            try {
+                await navigator.clipboard.writeText(text);
+                showToast('Copied to clipboard!');
+            } catch (err) {
+                console.error('Failed to copy:', err);
+            }
+        }
+
+        // Copy all credentials
+        function copyAllCredentials() {
+            const primary = credentialsData.editor || credentialsData.panel;
+            if (!primary) return;
+
+            const text = `Username: ${primary.username}
+Password: ${primary.password}
+M3U URL: ${primary.m3u_url}`;
+
+            copyToClipboard(text);
+        }
+
+        // Show toast notification
+        function showToast(message) {
+            // Simple alert for now, could be enhanced
+            const existing = document.querySelector('.toast');
+            if (existing) existing.remove();
+
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.style.cssText = `
+                position: fixed;
+                bottom: 20px;
+                right: 20px;
+                background: var(--success-color);
+                color: white;
+                padding: 12px 20px;
+                border-radius: 8px;
+                z-index: 9999;
+                animation: fadeIn 0.3s;
+            `;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+
+            setTimeout(() => toast.remove(), 2000);
+        }
+
+        // Load quick actions
+        async function loadQuickActions() {
+            const result = await api('/portal/quick-actions');
+            if (result.success) {
+                quickActionsData = result.actions.iptv || [];
+                renderQuickActions();
+            }
+        }
+
+        // Render quick actions
+        function renderQuickActions() {
+            const container = document.getElementById('quickActions');
+            const card = container.closest('.card');
+
+            if (quickActionsData.length === 0) {
+                card.style.display = 'none';
+                return;
+            }
+            card.style.display = 'block';
+
+            container.innerHTML = quickActionsData.map(action => {
+                // Resolve URL based on action type
+                let url = action.resolved_url || action.url;
+
+                // For internal pages, use relative paths
+                if (action.action_type === 'internal_page' && action.internal_page_url) {
+                    url = action.internal_page_url;
+                }
+
+                // Auto-resolve types need a resolved URL
+                const autoResolveTypes = ['dynamic', 'plex_web', 'request_site', 'tv_guide', 'web_player'];
+                const isDisabled = autoResolveTypes.includes(action.action_type) && !url;
+
+                // Render icon - support icon_url (uploaded image) or icon (emoji)
+                let iconHtml;
+                if (action.icon_url) {
+                    iconHtml = `<img src="${action.icon_url}" alt="" style="width: 32px; height: 32px; object-fit: contain;">`;
+                } else {
+                    iconHtml = action.icon || '⚡';
+                }
+
+                // Determine click handler based on action type
+                let clickHandler = '';
+                if (!isDisabled && url) {
+                    if (action.action_type === 'internal_page') {
+                        clickHandler = `window.location.href='${url}'`;
+                    } else {
+                        clickHandler = `openAction('${url}')`;
+                    }
+                }
+
+                return `
+                    <div class="action-card ${isDisabled ? 'disabled' : ''}"
+                         onclick="${clickHandler}">
+                        <div class="action-icon">${iconHtml}</div>
+                        <span class="action-name">${action.name}</span>
+                        <span class="action-desc">${isDisabled ? 'Not configured' : action.description}</span>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Open action URL in new tab
+        function openAction(url) {
+            if (url) {
+                window.open(url, '_blank');
+            }
+        }
+
+        // Load apps
+        async function loadApps() {
+            const result = await api('/portal/apps');
+            if (result.success) {
+                renderApps(result.apps);
+            }
+        }
+
+        // Render apps
+        function renderApps(apps) {
+            const container = document.getElementById('appsSection');
+            const wrapper = document.getElementById('appsSectionWrapper');
+
+            const categories = [
+                { key: 'tv', title: 'TV & Streaming', icon: 'fa-tv' },
+                { key: 'mobile', title: 'Mobile', icon: 'fa-mobile-alt' },
+                { key: 'desktop', title: 'Desktop', icon: 'fa-desktop' },
+                { key: 'web', title: 'Web', icon: 'fa-globe' }
+            ];
+
+            // Filter to only IPTV apps with valid names
+            const filterIptvApps = (appList) => (appList || []).filter(a =>
+                (a.service_type === 'iptv' || a.service_type === 'both') && a.name && a.name.trim()
+            );
+
+            // Get filtered categories
+            const filteredCategories = categories
+                .map(cat => ({
+                    ...cat,
+                    apps: filterIptvApps(apps[cat.key])
+                }))
+                .filter(cat => cat.apps.length > 0);
+
+            if (filteredCategories.length === 0) {
+                wrapper.style.display = 'none';
+                return;
+            }
+
+            wrapper.style.display = 'block';
+
+            // Use dynamic grid layout (like Plex)
+            container.innerHTML = `
+                <div class="apps-categories-grid">
+                    ${filteredCategories.map(cat => `
+                        <div class="app-category">
+                            <div class="app-category-header">
+                                <i class="fas ${cat.icon}"></i>
+                                ${cat.title}
+                            </div>
+                            <div class="app-category-items">
+                                ${cat.apps.map(app => renderAppCard(app)).join('')}
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        // Render single app card (horizontal layout like Plex)
+        function renderAppCard(app) {
+            // Render icon - support icon_url (uploaded image) or icon (emoji)
+            let iconHtml;
+            if (app.icon_url) {
+                iconHtml = `<img src="${app.icon_url}" alt="">`;
+            } else {
+                iconHtml = `<span style="font-size: 24px;">${app.icon || '📱'}</span>`;
+            }
+
+            // Determine the action element and URL
+            let actionHtml = '';
+            let appUrl = '#';
+            let isClickable = false;
+
+            switch (app.app_type) {
+                case 'downloader_code':
+                    if (app.downloader_code) {
+                        actionHtml = `
+                            <span class="downloader-code" onclick="event.preventDefault(); event.stopPropagation(); copyToClipboard('${app.downloader_code}')">
+                                Code: ${app.downloader_code}
+                                <i class="fas fa-copy"></i>
+                            </span>
+                        `;
+                    }
+                    break;
+
+                case 'play_store':
+                    if (app.store_url_android) {
+                        appUrl = app.store_url_android;
+                        isClickable = true;
+                    }
+                    break;
+
+                case 'apk':
+                    if (app.apk_url) {
+                        appUrl = app.apk_url;
+                        isClickable = true;
+                    }
+                    break;
+
+                case 'roku_store':
+                    if (app.store_url_roku) {
+                        appUrl = app.store_url_roku;
+                        isClickable = true;
+                    }
+                    break;
+
+                case 'appletv_store':
+                    if (app.store_url_appletv) {
+                        appUrl = app.store_url_appletv;
+                        isClickable = true;
+                    }
+                    break;
+
+                case 'mobile_store':
+                case 'store_link':
+                    const links = [];
+                    if (app.store_url_android) links.push(`<a href="${app.store_url_android}" target="_blank" class="app-link" onclick="event.stopPropagation()"><i class="fab fa-android"></i> Android</a>`);
+                    if (app.store_url_ios) links.push(`<a href="${app.store_url_ios}" target="_blank" class="app-link" onclick="event.stopPropagation()"><i class="fab fa-apple"></i> iOS</a>`);
+                    if (links.length > 0) {
+                        actionHtml = `<div class="app-item-links">${links.join('')}</div>`;
+                    }
+                    break;
+
+                case 'windows_store':
+                    if (app.store_url_windows) {
+                        appUrl = app.store_url_windows;
+                        isClickable = true;
+                    }
+                    break;
+
+                case 'windows_download':
+                case 'mac_download':
+                case 'direct_url':
+                    if (app.direct_url) {
+                        appUrl = app.direct_url;
+                        isClickable = true;
+                    }
+                    break;
+
+                case 'mac_store':
+                    if (app.store_url_mac) {
+                        appUrl = app.store_url_mac;
+                        isClickable = true;
+                    }
+                    break;
+
+                case 'web_player':
+                    if (app.web_player_url) {
+                        appUrl = app.web_player_url;
+                        isClickable = true;
+                    }
+                    break;
+
+                default:
+                    if (app.direct_url) {
+                        appUrl = app.direct_url;
+                        isClickable = true;
+                    }
+            }
+
+            // If we have custom action HTML (like downloader code or multiple links), show that
+            // Otherwise show external link icon if clickable
+            if (!actionHtml && isClickable) {
+                actionHtml = `<i class="fas fa-external-link-alt" style="color: var(--text-tertiary); font-size: 12px;"></i>`;
+            }
+
+            // Use div instead of <a> when we have nested links to avoid invalid HTML
+            const hasNestedLinks = actionHtml.includes('class="app-link"') || actionHtml.includes('class="downloader-code"');
+
+            if (hasNestedLinks) {
+                // Use div container with onclick for navigation if needed
+                return `
+                    <div class="app-item" ${isClickable ? `onclick="window.open('${appUrl}', '_blank')" style="cursor: pointer;"` : ''}>
+                        <div class="app-item-icon">${iconHtml}</div>
+                        <div class="app-item-info">
+                            <div class="app-item-name">${app.name}</div>
+                            ${app.description ? `<div class="app-item-desc">${app.description}</div>` : ''}
+                        </div>
+                        <div class="app-item-action">${actionHtml}</div>
+                    </div>
+                `;
+            } else {
+                // Use anchor tag for simple clickable cards
+                return `
+                    <a href="${appUrl}" target="_blank" class="app-item">
+                        <div class="app-item-icon">${iconHtml}</div>
+                        <div class="app-item-info">
+                            <div class="app-item-name">${app.name}</div>
+                            ${app.description ? `<div class="app-item-desc">${app.description}</div>` : ''}
+                        </div>
+                        <div class="app-item-action">${actionHtml}</div>
+                    </a>
+                `;
+            }
+        }
+
+        // Load guides
+        async function loadGuides() {
+            const result = await api('/portal/guides');
+            if (result.success) {
+                // Include null service_type (all services) and iptv-specific guides
+                const iptvGuides = result.guides.filter(g =>
+                    g.service_type === null || g.service_type === 'iptv' || g.service_type === 'both' || g.service_type === 'general'
+                );
+                renderGuides(iptvGuides);
+            }
+        }
+
+        // Render guides
+        function renderGuides(guides) {
+            const container = document.getElementById('guides');
+            const wrapper = document.getElementById('guidesSectionWrapper');
+
+            if (guides.length === 0) {
+                wrapper.style.display = 'none';
+                return;
+            }
+
+            wrapper.style.display = 'block';
+            container.innerHTML = guides.map(guide => `
+                <div class="guide-card" onclick="openGuide('${guide.slug}')">
+                    <span class="guide-icon">${guide.icon || '📖'}</span>
+                    <span class="guide-title">${guide.title}</span>
+                    <span class="guide-desc">${guide.short_description || ''}</span>
+                </div>
+            `).join('');
+        }
+
+        // Toggle collapsible section
+        function toggleSection(sectionName) {
+            const section = document.getElementById(`${sectionName}SectionWrapper`);
+            if (section) {
+                section.classList.toggle('collapsed');
+                // Save preference to localStorage
+                const isCollapsed = section.classList.contains('collapsed');
+                localStorage.setItem(`portal_iptv_${sectionName}_collapsed`, isCollapsed ? '1' : '0');
+            }
+        }
+
+        // Restore collapsed state from localStorage
+        function restoreCollapsedStates() {
+            ['apps', 'guides'].forEach(sectionName => {
+                const isCollapsed = localStorage.getItem(`portal_iptv_${sectionName}_collapsed`) === '1';
+                if (isCollapsed) {
+                    const section = document.getElementById(`${sectionName}SectionWrapper`);
+                    if (section) {
+                        section.classList.add('collapsed');
+                    }
+                }
+            });
+        }
+
+        // Open guide modal
+        async function openGuide(slug) {
+            const modal = document.getElementById('guideModal');
+            const content = document.getElementById('guideModalContent');
+            const title = document.getElementById('guideModalTitle');
+            const icon = document.getElementById('guideModalIcon');
+
+            content.innerHTML = '<div class="loading"><i class="fas fa-spinner"></i></div>';
+            modal.classList.add('active');
+
+            const result = await api(`/portal/guides/${slug}`);
+            if (result.success) {
+                const guide = result.guide;
+                title.textContent = guide.title;
+                icon.textContent = guide.icon || '📖';
+
+                if (guide.content_type === 'markdown') {
+                    content.innerHTML = marked.parse(guide.content || '');
+                } else {
+                    content.innerHTML = guide.content || '<p>No content available</p>';
+                }
+            } else {
+                content.innerHTML = '<p>Failed to load guide</p>';
+            }
+        }
+
+        // Close guide modal
+        function closeGuideModal() {
+            document.getElementById('guideModal').classList.remove('active');
+        }
+
+        // Load announcements
+        async function loadAnnouncements() {
+            const result = await api('/portal/notices');
+            if (result.success) {
+                const iptvNotice = result.notices.find(n => n.type === 'iptv');
+                if (iptvNotice) {
+                    renderAnnouncements([iptvNotice]);
+                }
+            }
+        }
+
+        // Render announcements
+        function renderAnnouncements(notices) {
+            const container = document.getElementById('announcements');
+            container.innerHTML = notices.map(notice => `
+                <div class="announcement">
+                    <i class="fas fa-bullhorn announcement-icon"></i>
+                    <div class="announcement-content">
+                        <div class="announcement-title">IPTV Notice</div>
+                        <div class="announcement-message">${notice.content}</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Update cancel button
+        function updateCancelButton() {
+            const btn = document.getElementById('cancelBtn');
+            if (userData.iptv_cancelled) {
+                btn.innerHTML = '<i class="fas fa-undo"></i> Undo Cancellation';
+                btn.onclick = undoCancellation;
+                btn.classList.remove('btn-danger');
+                btn.classList.add('btn-secondary');
+            }
+        }
+
+        // Show renew modal
+        function showRenewModal() {
+            window.location.href = 'index.html#renew';
+        }
+
+        // Show cancel modal
+        function showCancelModal() {
+            if (confirm('Are you sure you want to cancel your IPTV service? Your access will remain until the expiration date.')) {
+                cancelService();
+            }
+        }
+
+        // Cancel service
+        async function cancelService() {
+            const result = await api('/portal/cancel-service', {
+                method: 'POST',
+                body: JSON.stringify({
+                    service_type: 'iptv',
+                    reason: 'User requested cancellation from portal'
+                })
+            });
+
+            if (result.success) {
+                alert(result.message);
+                loadUserData();
+            } else {
+                alert(result.message || 'Failed to cancel service');
+            }
+        }
+
+        // Undo cancellation
+        async function undoCancellation() {
+            const result = await api('/portal/cancel-scheduled-deletion', {
+                method: 'POST',
+                body: JSON.stringify({ service_type: 'iptv' })
+            });
+
+            if (result.success) {
+                alert(result.message);
+                loadUserData();
+            } else {
+                alert(result.message || 'Failed to undo cancellation');
+            }
+        }
+
+        // Close modal on overlay click
+        document.getElementById('guideModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeGuideModal();
+            }
+        });
+
+        // Close modal on escape
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeGuideModal();
+            }
+        });
+
+        // Load favicon from settings
+        async function loadFavicon() {
+            try {
+                const response = await fetch(`${API_BASE}/settings/app_favicon`);
+                const data = await response.json();
+                if (data.value) {
+                    let link = document.querySelector("link[rel*='icon']");
+                    if (!link) {
+                        link = document.createElement('link');
+                        link.rel = 'icon';
+                        document.head.appendChild(link);
+                    }
+                    link.href = data.value;
+                }
+            } catch (error) {
+                console.error('Error loading favicon:', error);
+            }
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', async function() {
+            loadFavicon();
+            restoreCollapsedStates();
+            await loadUserData();
+            loadAnnouncements();
+            loadCredentials();
+            loadQuickActions();
+            loadApps();
+            loadGuides();
+        });
+    </script>
+</body>
+</html>
