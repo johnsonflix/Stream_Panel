@@ -29,6 +29,12 @@ process.on('SIGINT', () => { console.log('[SHUTDOWN] SIGINT received'); process.
 console.log('[STARTUP] Crash protection enabled');
 // === END CRASH PROTECTION ===
 
+// === FILE LOGGER ===
+// Initialize logger to capture all console output to log files
+const { initializeLogger } = require('./utils/logger');
+initializeLogger();
+// === END FILE LOGGER ===
+
 const app = express();
 
 // Initialize scheduled jobs
@@ -85,6 +91,7 @@ const portalPublicRoutes = require('./routes/portal-public-routes');
 const serviceRequestsRoutes = require('./routes/service-requests-routes');
 const jobsRoutes = require('./routes/jobs-routes');
 const ownersRoutes = require('./routes/owners-routes');
+const logsRoutes = require('./routes/logs-routes');
 const updatesRoutes = require('./routes/updates-routes');
 
 // Authentication routes (no auth required for these endpoints)
@@ -121,6 +128,7 @@ app.use('/api/v2/email/send', emailSendRoutes);
 app.use('/api/v2/service-requests', serviceRequestsRoutes);
 app.use('/api/v2/jobs', jobsRoutes);
 app.use('/api/v2/owners', ownersRoutes);
+app.use('/api/v2/logs', logsRoutes);
 app.use('/api/v2/updates', updatesRoutes);
 
 // Health check endpoint

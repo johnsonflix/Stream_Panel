@@ -54,6 +54,9 @@ const Settings = {
                     <button class="tab" data-tab="portal-quick-actions">
                         <i class="fas fa-bolt"></i> Quick Actions
                     </button>
+                    <button class="tab" data-tab="logs">
+                        <i class="fas fa-file-alt"></i> Logs
+                    </button>
                     <button class="tab" data-tab="updates">
                         <i class="fas fa-cloud-download-alt"></i> Updates
                     </button>
@@ -137,6 +140,13 @@ const Settings = {
                     </div>
                 </div>
 
+                <div id="logs" class="tab-content">
+                    <div class="text-center mt-4 mb-4">
+                        <div class="spinner" style="margin: 0 auto;"></div>
+                        <p class="mt-2">Loading...</p>
+                    </div>
+                </div>
+
                 <div id="updates" class="tab-content">
                     <div class="text-center mt-4 mb-4">
                         <div class="spinner" style="margin: 0 auto;"></div>
@@ -206,6 +216,9 @@ const Settings = {
                 break;
             case 'portal-quick-actions':
                 await PortalSettings.loadPortalQuickActions();
+                break;
+            case 'logs':
+                await this.loadLogs();
                 break;
             case 'updates':
                 await this.loadUpdates();
@@ -4638,6 +4651,12 @@ const Settings = {
                         <small class="form-help">This is your reseller username that you generate yourself</small>
                     </div>
                     <div class="form-group">
+                        <label class="form-label">Bouquet Names Line ID (Optional)</label>
+                        <input type="text" name="os_bouquet_line_id" class="form-input"
+                               placeholder="e.g., 26d5b696-4994-4c73-94b3-4a7fbbcb4934">
+                        <small class="form-help">Optional: Line ID of a user with ALL bouquets assigned. Used to fetch bouquet names when syncing. Without this, bouquets will show as "Bouquet 123" instead of their actual names.</small>
+                    </div>
+                    <div class="form-group">
                         <label class="form-label">Admin Notes</label>
                         <textarea name="os_notes" class="form-input" rows="4"
                                   placeholder="Admin credentials, server info, or other notes..."></textarea>
@@ -5495,6 +5514,13 @@ const Settings = {
                                    value="${Utils.escapeHtml(panel.credentials.username || '')}"
                                    placeholder="Your reseller username">
                             <small class="form-help">This is your reseller username that you generate yourself</small>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Bouquet Names Line ID (Optional)</label>
+                            <input type="text" name="bouquet_line_id" class="form-input"
+                                   value="${Utils.escapeHtml(panel.credentials.bouquet_line_id || '')}"
+                                   placeholder="e.g., 26d5b696-4994-4c73-94b3-4a7fbbcb4934">
+                            <small class="form-help">Optional: Line ID of a user with ALL bouquets assigned. Used to fetch bouquet names when syncing. Without this, bouquets will show as "Bouquet 123" instead of their actual names.</small>
                         </div>
                         ` : `
                         <!-- NXT Dash / XUI One / Other Panel Credentials -->
@@ -8049,6 +8075,558 @@ const Settings = {
             Utils.showToast('Error', error.message, 'error');
         }
     },
+
+    // =====================================================
+    // LOGS MANAGEMENT
+    // =====================================================
+
+    logsAutoRefreshInterval: null,
+    currentLogFile: 'crash.log',
+    logsFilter: '',
+    logCategories: null,
+    selectedCategory: 'all',
+
+    /**
+     * Load Logs Tab
+     */
+    async loadLogs() {
+        const container = document.getElementById('logs');
+
+        container.innerHTML = `
+            <div style="padding: 1.5rem;">
+                <div class="flex justify-between items-center mb-3">
+                    <div>
+                        <h3><i class="fas fa-file-alt"></i> Application Logs</h3>
+                        <p style="color: var(--text-secondary); font-size: 0.875rem;">
+                            View and manage application log files
+                        </p>
+                    </div>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <button class="btn btn-secondary" onclick="Settings.showLogSettings()">
+                            <i class="fas fa-cog"></i> Settings
+                        </button>
+                        <button class="btn btn-warning" onclick="Settings.runLogCleanup()">
+                            <i class="fas fa-broom"></i> Cleanup
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Storage Info -->
+                <div id="logs-storage-info" style="padding: 0.75rem 1rem; background: var(--bg-secondary); border-radius: 8px; margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center;">
+                    <span><i class="fas fa-database"></i> Total Log Storage: <strong id="logs-total-size">--</strong></span>
+                    <span style="color: var(--text-secondary); font-size: 0.875rem;">Auto-cleanup: <span id="logs-retention-days">7</span> days</span>
+                </div>
+
+                <!-- Category Filters -->
+                <div style="margin-bottom: 1rem;">
+                    <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.75rem;" id="logs-category-filters">
+                        <button class="btn btn-sm btn-primary" data-category="all" onclick="Settings.filterByCategory('all')">
+                            <i class="fas fa-list"></i> All Files
+                        </button>
+                        <!-- Categories will be populated here -->
+                    </div>
+                </div>
+
+                <!-- Log Controls -->
+                <div style="display: flex; flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem; align-items: center;">
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        <label style="font-weight: 500;">Log File:</label>
+                        <select id="logs-file-select" class="form-input" style="width: auto;" onchange="Settings.changeLogFile()">
+                            <option value="crash.log">crash.log</option>
+                        </select>
+                    </div>
+
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        <label style="font-weight: 500;">Filter:</label>
+                        <input type="text" id="logs-filter" class="form-input" style="width: 200px;" placeholder="Search logs..." onkeyup="Settings.filterLogs(event)">
+                    </div>
+
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        <label style="font-weight: 500;">Lines:</label>
+                        <select id="logs-lines" class="form-input" style="width: auto;" onchange="Settings.refreshLogs()">
+                            <option value="100">100</option>
+                            <option value="250">250</option>
+                            <option value="500" selected>500</option>
+                            <option value="1000">1000</option>
+                            <option value="2000">2000</option>
+                        </select>
+                    </div>
+
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        <input type="checkbox" id="logs-auto-refresh" onchange="Settings.toggleLogsAutoRefresh()">
+                        <label for="logs-auto-refresh" style="font-weight: 500; cursor: pointer;">Auto-refresh (5s)</label>
+                    </div>
+
+                    <div style="flex: 1;"></div>
+
+                    <div style="display: flex; gap: 0.5rem;">
+                        <button class="btn btn-secondary" onclick="Settings.refreshLogs()">
+                            <i class="fas fa-sync-alt"></i> Refresh
+                        </button>
+                        <button class="btn btn-secondary" onclick="Settings.downloadLog()">
+                            <i class="fas fa-download"></i> Download
+                        </button>
+                        <button class="btn btn-danger" onclick="Settings.clearLog()">
+                            <i class="fas fa-trash"></i> Clear
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Log Info Bar -->
+                <div id="logs-info" style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 1rem; background: var(--bg-secondary); border-radius: 4px; margin-bottom: 0.5rem; font-size: 0.875rem;">
+                    <span id="logs-file-info">Loading...</span>
+                    <span id="logs-count-info"></span>
+                </div>
+
+                <!-- Log Viewer -->
+                <div id="logs-viewer" style="background: #1e1e1e; color: #d4d4d4; font-family: 'Consolas', 'Monaco', 'Courier New', monospace; font-size: 12px; padding: 1rem; border-radius: 8px; overflow-x: auto; overflow-y: auto; max-height: 600px; min-height: 400px; white-space: pre-wrap; word-wrap: break-word; line-height: 1.4;">
+                    Loading logs...
+                </div>
+            </div>
+        `;
+
+        // Load categories and files
+        await this.loadLogCategories();
+
+        // Load available log files
+        await this.loadLogFiles();
+
+        // Load settings
+        await this.loadLogSettingsInfo();
+
+        // Load initial logs
+        await this.refreshLogs();
+    },
+
+    /**
+     * Load log categories
+     */
+    async loadLogCategories() {
+        try {
+            const response = await fetch('/api/v2/logs/categories', {
+                headers: API.getAuthHeaders()
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                this.logCategories = data.categories;
+
+                // Update total size
+                document.getElementById('logs-total-size').textContent = data.totalSizeFormatted;
+
+                // Build category filter buttons
+                const container = document.getElementById('logs-category-filters');
+                const categoryIcons = {
+                    main: 'fa-home',
+                    jobs: 'fa-clock',
+                    services: 'fa-server',
+                    activity: 'fa-users',
+                    api: 'fa-code'
+                };
+
+                let html = `
+                    <button class="btn btn-sm ${this.selectedCategory === 'all' ? 'btn-primary' : 'btn-secondary'}"
+                            data-category="all" onclick="Settings.filterByCategory('all')">
+                        <i class="fas fa-list"></i> All Files
+                    </button>
+                `;
+
+                for (const [catKey, catInfo] of Object.entries(data.categories)) {
+                    const icon = categoryIcons[catKey] || 'fa-folder';
+                    const isActive = this.selectedCategory === catKey;
+                    html += `
+                        <button class="btn btn-sm ${isActive ? 'btn-primary' : 'btn-secondary'}"
+                                data-category="${catKey}" onclick="Settings.filterByCategory('${catKey}')">
+                            <i class="fas ${icon}"></i> ${catInfo.name}
+                        </button>
+                    `;
+                }
+
+                container.innerHTML = html;
+            }
+        } catch (error) {
+            console.error('Error loading log categories:', error);
+        }
+    },
+
+    /**
+     * Filter logs by category
+     */
+    async filterByCategory(category) {
+        this.selectedCategory = category;
+
+        // Update button states
+        document.querySelectorAll('#logs-category-filters button').forEach(btn => {
+            if (btn.dataset.category === category) {
+                btn.classList.remove('btn-secondary');
+                btn.classList.add('btn-primary');
+            } else {
+                btn.classList.remove('btn-primary');
+                btn.classList.add('btn-secondary');
+            }
+        });
+
+        // Update file select dropdown based on category
+        await this.loadLogFiles();
+    },
+
+    /**
+     * Load log settings info
+     */
+    async loadLogSettingsInfo() {
+        try {
+            const response = await fetch('/api/v2/logs/settings', {
+                headers: API.getAuthHeaders()
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                document.getElementById('logs-retention-days').textContent = data.settings.retentionDays;
+                document.getElementById('logs-total-size').textContent = data.totalSizeFormatted;
+            }
+        } catch (error) {
+            console.error('Error loading log settings:', error);
+        }
+    },
+
+    /**
+     * Show log settings modal
+     */
+    async showLogSettings() {
+        try {
+            const response = await fetch('/api/v2/logs/settings', {
+                headers: API.getAuthHeaders()
+            });
+            const data = await response.json();
+
+            if (!data.success) {
+                Utils.showToast('Error', 'Failed to load log settings', 'error');
+                return;
+            }
+
+            const settings = data.settings;
+
+            const modal = Utils.createModal('Log Settings', `
+                <form id="log-settings-form">
+                    <div class="form-group mb-3">
+                        <label class="form-label">Max File Size (MB)</label>
+                        <input type="number" name="maxFileSizeMB" class="form-input" value="${settings.maxFileSizeMB}" min="1" max="100">
+                        <small style="color: var(--text-secondary);">Log files will be rotated when they exceed this size</small>
+                    </div>
+
+                    <div class="form-group mb-3">
+                        <label class="form-label">Retention Days</label>
+                        <input type="number" name="retentionDays" class="form-input" value="${settings.retentionDays}" min="1" max="365">
+                        <small style="color: var(--text-secondary);">Old rotated log files will be deleted after this many days</small>
+                    </div>
+
+                    <div class="form-group mb-3">
+                        <label class="form-label">Max Lines Per File</label>
+                        <input type="number" name="maxLines" class="form-input" value="${settings.maxLines}" min="1000" max="500000" step="1000">
+                        <small style="color: var(--text-secondary);">Log files will be trimmed to keep only the last N lines during cleanup</small>
+                    </div>
+
+                    <div style="padding: 1rem; background: var(--bg-secondary); border-radius: 8px; margin-top: 1rem;">
+                        <p style="margin: 0; color: var(--text-secondary); font-size: 0.875rem;">
+                            <i class="fas fa-info-circle"></i>
+                            Current total log storage: <strong>${data.totalSizeFormatted}</strong>
+                        </p>
+                    </div>
+                </form>
+            `, [
+                { text: 'Cancel', class: 'btn-secondary', onclick: () => modal.remove() },
+                {
+                    text: 'Save Settings',
+                    class: 'btn-primary',
+                    onclick: async () => {
+                        const form = document.getElementById('log-settings-form');
+                        const formData = new FormData(form);
+
+                        try {
+                            const response = await fetch('/api/v2/logs/settings', {
+                                method: 'PUT',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    ...API.getAuthHeaders()
+                                },
+                                body: JSON.stringify({
+                                    maxFileSizeMB: parseInt(formData.get('maxFileSizeMB')),
+                                    retentionDays: parseInt(formData.get('retentionDays')),
+                                    maxLines: parseInt(formData.get('maxLines'))
+                                })
+                            });
+                            const result = await response.json();
+
+                            if (result.success) {
+                                Utils.showToast('Success', 'Log settings saved', 'success');
+                                modal.remove();
+                                await this.loadLogSettingsInfo();
+                            } else {
+                                Utils.showToast('Error', result.error || 'Failed to save settings', 'error');
+                            }
+                        } catch (error) {
+                            Utils.showToast('Error', error.message, 'error');
+                        }
+                    }
+                }
+            ]);
+        } catch (error) {
+            Utils.showToast('Error', error.message, 'error');
+        }
+    },
+
+    /**
+     * Run manual log cleanup
+     */
+    async runLogCleanup() {
+        const confirmed = await Utils.confirm(
+            'Run Log Cleanup',
+            'This will delete old rotated log files and trim current logs to the configured max lines. Continue?'
+        );
+
+        if (!confirmed) return;
+
+        try {
+            Utils.showToast('Info', 'Running log cleanup...', 'info');
+
+            const response = await fetch('/api/v2/logs/cleanup', {
+                method: 'POST',
+                headers: API.getAuthHeaders()
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                let message = 'Cleanup completed. ';
+                if (data.results.cleanup.deleted.length > 0) {
+                    message += `Deleted ${data.results.cleanup.deleted.length} old files. `;
+                }
+                if (data.results.trim.trimmed.length > 0) {
+                    message += `Trimmed ${data.results.trim.trimmed.length} log files. `;
+                }
+                message += `Total size: ${data.results.totalLogSizeFormatted}`;
+
+                Utils.showToast('Success', message, 'success');
+
+                // Refresh UI
+                await this.loadLogCategories();
+                await this.loadLogFiles();
+                await this.loadLogSettingsInfo();
+            } else {
+                Utils.showToast('Error', data.error || 'Cleanup failed', 'error');
+            }
+        } catch (error) {
+            Utils.showToast('Error', error.message, 'error');
+        }
+    },
+
+    /**
+     * Load available log files
+     */
+    async loadLogFiles() {
+        try {
+            const response = await fetch('/api/v2/logs/files', {
+                headers: API.getAuthHeaders()
+            });
+            const data = await response.json();
+
+            if (data.success && data.files.length > 0) {
+                const select = document.getElementById('logs-file-select');
+                let files = data.files;
+
+                // Filter files by selected category
+                if (this.selectedCategory !== 'all' && this.logCategories && this.logCategories[this.selectedCategory]) {
+                    const categoryFiles = this.logCategories[this.selectedCategory].files.map(f => f.name);
+                    files = files.filter(f => categoryFiles.includes(f.name));
+                }
+
+                if (files.length === 0) {
+                    select.innerHTML = '<option value="">No log files in this category</option>';
+                    this.currentLogFile = '';
+                } else {
+                    select.innerHTML = files.map(f =>
+                        `<option value="${f.name}" ${f.name === this.currentLogFile ? 'selected' : ''}>${f.name} (${f.sizeFormatted})</option>`
+                    ).join('');
+
+                    // If current file not in filtered list, select first available
+                    if (!files.find(f => f.name === this.currentLogFile)) {
+                        this.currentLogFile = files[0].name;
+                        select.value = this.currentLogFile;
+                    }
+                }
+
+                // Refresh logs with new selection
+                await this.refreshLogs();
+            }
+        } catch (error) {
+            console.error('Error loading log files:', error);
+        }
+    },
+
+    /**
+     * Change log file
+     */
+    async changeLogFile() {
+        this.currentLogFile = document.getElementById('logs-file-select').value;
+        await this.refreshLogs();
+    },
+
+    /**
+     * Filter logs on Enter key
+     */
+    filterLogs(event) {
+        if (event.key === 'Enter') {
+            this.logsFilter = document.getElementById('logs-filter').value;
+            this.refreshLogs();
+        }
+    },
+
+    /**
+     * Refresh logs
+     */
+    async refreshLogs() {
+        const viewer = document.getElementById('logs-viewer');
+        const fileInfo = document.getElementById('logs-file-info');
+        const countInfo = document.getElementById('logs-count-info');
+        const lines = document.getElementById('logs-lines').value;
+        const filter = document.getElementById('logs-filter').value;
+
+        try {
+            let url = `/api/v2/logs/${encodeURIComponent(this.currentLogFile)}?lines=${lines}`;
+            if (filter) {
+                url += `&filter=${encodeURIComponent(filter)}`;
+            }
+
+            const response = await fetch(url, {
+                headers: API.getAuthHeaders()
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                fileInfo.textContent = `File: ${data.filename}`;
+                countInfo.textContent = `Showing ${data.showing} of ${data.totalLines} lines${filter ? ' (filtered)' : ''}`;
+
+                if (data.lines.length === 0) {
+                    viewer.innerHTML = '<span style="color: #6a9955;">// No log entries found</span>';
+                } else {
+                    // Colorize log output
+                    const colorizedLines = data.lines.map(line => this.colorizeLogLine(line));
+                    viewer.innerHTML = colorizedLines.join('\n');
+
+                    // Scroll to bottom (most recent)
+                    viewer.scrollTop = viewer.scrollHeight;
+                }
+            } else {
+                viewer.innerHTML = `<span style="color: #f44747;">Error: ${data.error || 'Failed to load logs'}</span>`;
+            }
+        } catch (error) {
+            console.error('Error loading logs:', error);
+            viewer.innerHTML = `<span style="color: #f44747;">Error: ${error.message}</span>`;
+        }
+    },
+
+    /**
+     * Colorize log line based on content
+     */
+    colorizeLogLine(line) {
+        // Escape HTML
+        line = line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+        // Timestamp - cyan
+        line = line.replace(/\[(\d{4}-\d{2}-\d{2}T[\d:.]+Z)\]/g, '<span style="color: #4ec9b0;">[$1]</span>');
+
+        // Error keywords - red
+        line = line.replace(/(UNCAUGHT EXCEPTION|Error:|FATAL|CRITICAL)/gi, '<span style="color: #f44747; font-weight: bold;">$1</span>');
+
+        // Warning keywords - yellow
+        line = line.replace(/(Warning:|WARN|WARNING)/gi, '<span style="color: #dcdcaa;">$1</span>');
+
+        // Success keywords - green
+        line = line.replace(/(Success|OK|DONE|completed)/gi, '<span style="color: #6a9955;">$1</span>');
+
+        // File paths - blue
+        line = line.replace(/(at\s+[\w./\\:-]+:\d+:\d+)/g, '<span style="color: #569cd6;">$1</span>');
+
+        // Stack trace paths
+        line = line.replace(/(node:[\w/]+:\d+:\d+)/g, '<span style="color: #808080;">$1</span>');
+
+        // Separator lines
+        if (line.match(/^=+$/)) {
+            line = '<span style="color: #808080;">' + line + '</span>';
+        }
+
+        return line;
+    },
+
+    /**
+     * Toggle auto-refresh
+     */
+    toggleLogsAutoRefresh() {
+        const checkbox = document.getElementById('logs-auto-refresh');
+
+        if (checkbox.checked) {
+            this.logsAutoRefreshInterval = setInterval(() => {
+                this.refreshLogs();
+            }, 5000);
+            Utils.showToast('Info', 'Auto-refresh enabled', 'info');
+        } else {
+            if (this.logsAutoRefreshInterval) {
+                clearInterval(this.logsAutoRefreshInterval);
+                this.logsAutoRefreshInterval = null;
+            }
+            Utils.showToast('Info', 'Auto-refresh disabled', 'info');
+        }
+    },
+
+    /**
+     * Download log file
+     */
+    async downloadLog() {
+        try {
+            const url = `/api/v2/logs/download/${encodeURIComponent(this.currentLogFile)}`;
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = this.currentLogFile;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        } catch (error) {
+            Utils.showToast('Error', 'Failed to download log file', 'error');
+        }
+    },
+
+    /**
+     * Clear log file
+     */
+    async clearLog() {
+        const confirmed = await Utils.confirm(
+            'Clear Log File',
+            `Are you sure you want to clear ${this.currentLogFile}? This action cannot be undone.`
+        );
+
+        if (!confirmed) return;
+
+        try {
+            const response = await fetch(`/api/v2/logs/${encodeURIComponent(this.currentLogFile)}`, {
+                method: 'DELETE',
+                headers: API.getAuthHeaders()
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                Utils.showToast('Success', 'Log file cleared', 'success');
+                await this.loadLogFiles();
+                await this.refreshLogs();
+            } else {
+                Utils.showToast('Error', data.error || 'Failed to clear log file', 'error');
+            }
+        } catch (error) {
+            Utils.showToast('Error', error.message, 'error');
+        }
+    },
+
+    // =====================================================
+    // UPDATES MANAGEMENT
+    // =====================================================
 
     /**
      * Load Updates Tab
