@@ -94,7 +94,23 @@ router.get('/check', async (req, res) => {
 
         // Check if update is available
         const latestCommit = commits[0]?.sha || null;
-        const updateAvailable = localCommit && latestCommit && localCommit !== latestCommit;
+
+        // Compare versions semantically (handles case when git commit is unknown)
+        const compareVersions = (local, remote) => {
+            if (!local || !remote) return false;
+            const localParts = local.split('.').map(Number);
+            const remoteParts = remote.split('.').map(Number);
+            for (let i = 0; i < 3; i++) {
+                if ((remoteParts[i] || 0) > (localParts[i] || 0)) return true;
+                if ((remoteParts[i] || 0) < (localParts[i] || 0)) return false;
+            }
+            return false; // versions are equal
+        };
+
+        // Update available if: commits differ OR remote version is higher
+        const commitsDiffer = localCommit && latestCommit && localCommit !== latestCommit;
+        const versionIsNewer = compareVersions(localVersion.version, remoteVersion?.version);
+        const updateAvailable = commitsDiffer || versionIsNewer;
 
         // Count commits behind
         let commitsBehind = 0;
