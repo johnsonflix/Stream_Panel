@@ -129,6 +129,52 @@ async function preWarmGuideCache() {
 // Start pre-warming after a short delay to let the server initialize
 setTimeout(preWarmGuideCache, 5000);
 
+/**
+ * Reload a specific source's guide data into memory cache
+ * Called after guide-cache-refresh job updates the database
+ * @param {string} sourceType - 'panel' or 'playlist'
+ * @param {number} sourceId - Panel or playlist ID
+ */
+async function reloadSourceCache(sourceType, sourceId) {
+    console.log(`[Guide Cache] Reloading ${sourceType}:${sourceId} into memory...`);
+    try {
+        const cacheData = await query(`
+            SELECT categories_json, channels_json, epg_json, last_updated, epg_last_updated
+            FROM guide_cache
+            WHERE source_type = ? AND source_id = ?
+        `, [sourceType, sourceId]);
+
+        if (cacheData.length === 0) {
+            console.log(`[Guide Cache] No cache data found for ${sourceType}:${sourceId}`);
+            return false;
+        }
+
+        const cache = cacheData[0];
+
+        // Reload categories and channels
+        if (cache.categories_json && cache.channels_json) {
+            const categories = JSON.parse(cache.categories_json);
+            const channels = JSON.parse(cache.channels_json);
+            guideCache.set(sourceType, sourceId, categories, channels, cache.last_updated, cache.epg_last_updated);
+            console.log(`[Guide Cache] ✓ Reloaded ${sourceType}:${sourceId} guide data (${categories.length} categories, ${channels.length} channels)`);
+        }
+
+        // Reload EPG
+        if (cache.epg_json) {
+            console.log(`[Guide Cache] Parsing EPG for ${sourceType}:${sourceId}...`);
+            const epg = JSON.parse(cache.epg_json);
+            epgCache.set(sourceType, sourceId, epg);
+            const programCount = epg.programsByChannel ? Object.values(epg.programsByChannel).reduce((sum, arr) => sum + arr.length, 0) : 0;
+            console.log(`[Guide Cache] ✓ Reloaded ${sourceType}:${sourceId} EPG data (${programCount} programs)`);
+        }
+
+        return true;
+    } catch (error) {
+        console.error(`[Guide Cache] Failed to reload ${sourceType}:${sourceId}:`, error.message);
+        return false;
+    }
+}
+
 // Initialize IPTV service manager for cancellation
 let iptvManager;
 (async () => {
@@ -3004,4 +3050,6 @@ router.get('/iptv/guide-channels', async (req, res) => {
     }
 });
 
+// Export router and cache reload function
 module.exports = router;
+module.exports.reloadSourceCache = reloadSourceCache;

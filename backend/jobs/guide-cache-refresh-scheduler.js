@@ -3,10 +3,21 @@
  *
  * Schedules automatic refresh of TV guide cache for IPTV panels every 2 hours.
  * Also provides functions for manual refresh and playlist guide refresh after auto-updater.
+ * After refreshing database, reloads data into portal in-memory cache for instant guide loading.
  */
 
 const cron = require('node-cron');
 const GuideCacheRefreshJob = require('./guide-cache-refresh');
+
+// Import the in-memory cache reload function from portal routes
+// This ensures guide loads instantly after refresh (no need to wait for cache warm-up)
+let reloadSourceCache = null;
+try {
+    const portalRoutes = require('../routes/portal-routes');
+    reloadSourceCache = portalRoutes.reloadSourceCache;
+} catch (e) {
+    console.warn('[Guide Cache] Could not import reloadSourceCache - in-memory cache will not auto-refresh');
+}
 
 // Every 2 hours for IPTV panels
 const PANEL_GUIDE_REFRESH_CRON = process.env.PANEL_GUIDE_REFRESH_CRON || '0 */2 * * *';
@@ -48,11 +59,26 @@ async function refreshAllPanelsGuide() {
     try {
         const job = new GuideCacheRefreshJob();
         const results = await job.refreshAllPanels();
+
+        // Get list of all panels to reload into memory
+        const panelIds = job.db.prepare(`
+            SELECT id FROM iptv_panels WHERE is_active = 1
+        `).all().map(p => p.id);
+
         job.close();
 
         const duration = Math.round((Date.now() - startTime) / 1000);
         console.log(`[Guide Cache] Panel guide refresh completed in ${duration}s`);
         console.log(`[Guide Cache] Results: ${results.success}/${results.total} successful, ${results.failed} failed, ${results.skipped} skipped`);
+
+        // Reload all panels into in-memory cache for instant guide loading
+        if (reloadSourceCache && panelIds.length > 0) {
+            console.log(`[Guide Cache] Reloading ${panelIds.length} panels into memory...`);
+            for (const panelId of panelIds) {
+                await reloadSourceCache('panel', panelId);
+            }
+            console.log(`[Guide Cache] ✅ Memory cache reloaded for all panels`);
+        }
 
         return results;
     } catch (error) {
@@ -77,6 +103,11 @@ async function refreshPanelGuide(panelId) {
         const result = await job.refreshPanel(panelId);
         job.close();
 
+        // Reload into in-memory cache for instant guide loading
+        if (reloadSourceCache && result.success) {
+            await reloadSourceCache('panel', panelId);
+        }
+
         return result;
     } catch (error) {
         console.error(`[Guide Cache] Panel ${panelId} guide refresh failed:`, error);
@@ -99,6 +130,11 @@ async function refreshPlaylistGuide(playlistId) {
         const result = await job.refreshPlaylist(playlistId);
         job.close();
 
+        // Reload into in-memory cache for instant guide loading
+        if (reloadSourceCache && result.success) {
+            await reloadSourceCache('playlist', playlistId);
+        }
+
         return result;
     } catch (error) {
         console.error(`[Guide Cache] Playlist ${playlistId} guide refresh failed:`, error);
@@ -119,11 +155,26 @@ async function refreshAllPlaylistsGuide() {
     try {
         const job = new GuideCacheRefreshJob();
         const results = await job.refreshAllPlaylists();
+
+        // Get list of all playlists to reload into memory
+        const playlistIds = job.db.prepare(`
+            SELECT id FROM iptv_editor_playlists WHERE is_active = 1
+        `).all().map(p => p.id);
+
         job.close();
 
         const duration = Math.round((Date.now() - startTime) / 1000);
         console.log(`[Guide Cache] Playlist guide refresh completed in ${duration}s`);
         console.log(`[Guide Cache] Results: ${results.success}/${results.total} successful, ${results.failed} failed`);
+
+        // Reload all playlists into in-memory cache for instant guide loading
+        if (reloadSourceCache && playlistIds.length > 0) {
+            console.log(`[Guide Cache] Reloading ${playlistIds.length} playlists into memory...`);
+            for (const playlistId of playlistIds) {
+                await reloadSourceCache('playlist', playlistId);
+            }
+            console.log(`[Guide Cache] ✅ Memory cache reloaded for all playlists`);
+        }
 
         return results;
     } catch (error) {

@@ -1,6 +1,6 @@
 {
-  "version": "1.0.8",
+  "version": "1.0.9",
   "name": "Stream Panel",
-  "releaseDate": "2025-12-13",
-  "description": "Fix portal apps/actions duplicating on every update"
+  "releaseDate": "2025-12-14",
+  "description": "Guide loads instantly after cache refresh - auto-reload into memory"
 }
