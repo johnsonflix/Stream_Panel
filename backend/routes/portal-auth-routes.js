@@ -68,7 +68,7 @@ router.post('/login', async (req, res) => {
         }
 
         // Search for user by IPTV credentials (either regular or editor credentials)
-        // ONLY regular users (NOT app users) can login via portal
+        // Allow app users (admins) who also have IPTV/Plex services to login to portal
         const users = await query(`
             SELECT u.*,
                    sp_iptv.name as iptv_subscription_name,
@@ -78,7 +78,6 @@ router.post('/login', async (req, res) => {
             LEFT JOIN subscription_plans sp_plex ON u.plex_package_id = sp_plex.id
             WHERE ((u.iptv_username = ? AND u.iptv_password = ?)
                OR (u.iptv_editor_username = ? AND u.iptv_editor_password = ?))
-               AND (u.is_app_user = 0 OR u.is_app_user IS NULL)
         `, [username, password, username, password]);
 
         if (users.length === 0) {
@@ -157,13 +156,12 @@ router.post('/email-login', async (req, res) => {
         // Always return success message for security (don't reveal if email exists)
         const successMessage = 'If an account exists with this email, your login credentials have been sent.';
 
-        // Search for user by email - ONLY regular users (NOT app users)
+        // Search for user by email - allow all users including admins with services
         const users = await query(`
             SELECT u.id, u.name, u.email, u.iptv_username, u.iptv_password,
                    u.iptv_editor_username, u.iptv_editor_password
             FROM users u
             WHERE u.email = ?
-            AND (u.is_app_user = 0 OR u.is_app_user IS NULL)
         `, [email]);
 
         if (users.length === 0) {
@@ -312,7 +310,7 @@ router.post('/plex/callback', async (req, res) => {
             });
         }
 
-        // Find user by plex_email - ONLY regular users (NOT app users)
+        // Find user by plex_email - allow all users including admins with Plex access
         const users = await query(`
             SELECT u.*,
                    sp_iptv.name as iptv_subscription_name,
@@ -321,7 +319,6 @@ router.post('/plex/callback', async (req, res) => {
             LEFT JOIN subscription_plans sp_iptv ON u.iptv_subscription_plan_id = sp_iptv.id
             LEFT JOIN subscription_plans sp_plex ON u.plex_package_id = sp_plex.id
             WHERE u.plex_email = ?
-            AND (u.is_app_user = 0 OR u.is_app_user IS NULL)
         `, [plexUserInfo.email]);
 
         if (users.length === 0) {

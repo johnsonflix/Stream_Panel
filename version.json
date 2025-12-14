@@ -1,6 +1,6 @@
 {
-  "version": "1.0.4",
+  "version": "1.0.7",
   "name": "Stream Panel",
   "releaseDate": "2025-12-13",
-  "description": "Fix migrations to run on every startup (ensures updates work when skipping versions)"
+  "description": "Fix instant TV Guide loading (pure memory cache) + admin/user portal login fix"
 }
