@@ -2,11 +2,19 @@
  * XMLTV EPG Parser
  *
  * Parses XMLTV format EPG data for TV Guide display
+ * Uses non-blocking processing to avoid freezing the app
  */
 
 const axios = require('axios');
 const https = require('https');
 const xml2js = require('xml2js');
+
+/**
+ * Yield to event loop - prevents blocking during large operations
+ */
+function yieldToEventLoop() {
+    return new Promise(resolve => setImmediate(resolve));
+}
 
 // Create an https agent that allows self-signed certificates
 const httpsAgent = new https.Agent({
@@ -41,12 +49,17 @@ function parseXMLTVDate(xmltvDate) {
 
 /**
  * Parse XMLTV EPG data from a string
+ * Uses non-blocking processing to prevent app freezing on large files
  * @param {string} xmlContent - Raw XMLTV XML content
  * @param {number} daysToKeep - Number of days of EPG data to keep (default 7)
  * @returns {Promise<Object>} Parsed EPG data with channels and programs
  */
 async function parseXMLTVFromString(xmlContent, daysToKeep = 7) {
-    console.log(`[EPG] Parsing XMLTV (${xmlContent.length} bytes)`);
+    const bytesInMB = (xmlContent.length / 1024 / 1024).toFixed(2);
+    console.log(`[EPG] Parsing XMLTV (${bytesInMB} MB)`);
+
+    // Yield before heavy XML parsing
+    await yieldToEventLoop();
 
     // Parse XML
     const parser = new xml2js.Parser({
@@ -55,6 +68,9 @@ async function parseXMLTVFromString(xmlContent, daysToKeep = 7) {
     });
 
     const result = await parser.parseStringPromise(xmlContent);
+
+    // Yield after XML parsing completes
+    await yieldToEventLoop();
 
     if (!result || !result.tv) {
         throw new Error('Invalid XMLTV format');
@@ -78,6 +94,8 @@ async function parseXMLTVFromString(xmlContent, daysToKeep = 7) {
         };
     }
 
+    console.log(`[EPG] Parsed ${Object.keys(channels).length} channels, processing programs...`);
+
     // Calculate time window for filtering
     const now = new Date();
     const cutoffStart = new Date(now.getTime() - (24 * 60 * 60 * 1000)); // 1 day ago
@@ -85,11 +103,13 @@ async function parseXMLTVFromString(xmlContent, daysToKeep = 7) {
     const cutoffStartTs = cutoffStart.getTime();
     const cutoffEndTs = cutoffEnd.getTime();
 
-    // Parse programs
+    // Parse programs in batches to avoid blocking
     const programs = [];
     const programList = Array.isArray(tv.programme) ? tv.programme : (tv.programme ? [tv.programme] : []);
+    const BATCH_SIZE = 5000; // Process 5000 programs at a time before yielding
 
-    for (const prog of programList) {
+    for (let i = 0; i < programList.length; i++) {
+        const prog = programList[i];
         const channelId = prog.channel;
         const start = parseXMLTVDate(prog.start);
         const stop = parseXMLTVDate(prog.stop);
@@ -116,6 +136,11 @@ async function parseXMLTVFromString(xmlContent, daysToKeep = 7) {
             description: Array.isArray(desc) ? desc[0] : (typeof desc === 'object' ? desc._ || desc : desc) || '',
             category: Array.isArray(category) ? category[0] : (typeof category === 'object' ? category._ || category : category) || ''
         });
+
+        // Yield to event loop every BATCH_SIZE programs
+        if (i > 0 && i % BATCH_SIZE === 0) {
+            await yieldToEventLoop();
+        }
     }
 
     console.log(`[EPG] Parsed ${Object.keys(channels).length} channels and ${programs.length} programs (${daysToKeep} day window)`);
@@ -129,6 +154,7 @@ async function parseXMLTVFromString(xmlContent, daysToKeep = 7) {
 
 /**
  * Download and parse XMLTV EPG data
+ * Uses non-blocking processing to prevent app freezing on large files
  * @param {string} url - EPG URL
  * @returns {Promise<Object>} Parsed EPG data with channels and programs
  */
@@ -137,16 +163,20 @@ async function parseXMLTVEPG(url) {
         console.log(`[EPG] Downloading XMLTV from: ${url}`);
 
         const response = await axios.get(url, {
-            timeout: 60000, // 60 second timeout
+            timeout: 120000, // 2 minute timeout for large files
             headers: {
                 'User-Agent': 'StreamPanel/2.0'
             },
-            maxContentLength: 50 * 1024 * 1024, // 50MB max
+            maxContentLength: 100 * 1024 * 1024, // 100MB max
             httpsAgent: httpsAgent
         });
 
         const xmlContent = response.data;
-        console.log(`[EPG] Downloaded XMLTV (${xmlContent.length} bytes)`);
+        const bytesInMB = (xmlContent.length / 1024 / 1024).toFixed(2);
+        console.log(`[EPG] Downloaded XMLTV (${bytesInMB} MB)`);
+
+        // Yield before heavy XML parsing
+        await yieldToEventLoop();
 
         // Parse XML
         const parser = new xml2js.Parser({
@@ -155,6 +185,9 @@ async function parseXMLTVEPG(url) {
         });
 
         const result = await parser.parseStringPromise(xmlContent);
+
+        // Yield after XML parsing
+        await yieldToEventLoop();
 
         if (!result || !result.tv) {
             throw new Error('Invalid XMLTV format');
@@ -178,11 +211,15 @@ async function parseXMLTVEPG(url) {
             };
         }
 
-        // Parse programs
+        console.log(`[EPG] Parsed ${Object.keys(channels).length} channels, processing programs...`);
+
+        // Parse programs in batches to avoid blocking
         const programs = [];
         const programList = Array.isArray(tv.programme) ? tv.programme : (tv.programme ? [tv.programme] : []);
+        const BATCH_SIZE = 5000;
 
-        for (const prog of programList) {
+        for (let i = 0; i < programList.length; i++) {
+            const prog = programList[i];
             const channelId = prog.channel;
             const start = parseXMLTVDate(prog.start);
             const stop = parseXMLTVDate(prog.stop);
@@ -203,6 +240,11 @@ async function parseXMLTVEPG(url) {
                 description: Array.isArray(desc) ? desc[0] : (typeof desc === 'object' ? desc._ || desc : desc) || '',
                 category: Array.isArray(category) ? category[0] : (typeof category === 'object' ? category._ || category : category) || ''
             });
+
+            // Yield to event loop every BATCH_SIZE programs
+            if (i > 0 && i % BATCH_SIZE === 0) {
+                await yieldToEventLoop();
+            }
         }
 
         console.log(`[EPG] Parsed ${Object.keys(channels).length} channels and ${programs.length} programs`);
