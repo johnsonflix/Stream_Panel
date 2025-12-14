@@ -1050,6 +1050,38 @@ tbody tr:hover {
     z-index: 1999;
 }
 
+/* Fix for modals used with backdrop only (not inside modal-overlay) */
+.modal-backdrop + .modal {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.modal-backdrop + .modal .modal-content {
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.modal-backdrop + .modal .modal-content form {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.modal-backdrop + .modal .modal-body {
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
+}
+
 /* Toast Notifications */
 #toast-container {
     position: fixed;
