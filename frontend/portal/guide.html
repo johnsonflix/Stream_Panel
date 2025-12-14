@@ -1415,6 +1415,10 @@
                 <i class="fas fa-arrow-left"></i>
                 <span>Back</span>
             </a>
+            <a href="player.html" class="back-btn" style="background: var(--primary-color);">
+                <i class="fas fa-play"></i>
+                <span>Player</span>
+            </a>
             <div class="header-title">
                 <i class="fas fa-tv"></i>
                 <span>TV Guide</span>
@@ -1640,7 +1644,7 @@
         // Load favicon from settings
         (async function loadFavicon() {
             try {
-                const response = await fetch();
+                const response = await fetch(`${API_BASE}/settings/app_favicon`);
                 const data = await response.json();
                 if (data.value) {
                     let link = document.querySelector("link[rel~='icon']");

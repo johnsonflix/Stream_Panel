@@ -313,7 +313,7 @@
         // Load favicon from settings
         (async function loadFavicon() {
             try {
-                const response = await fetch();
+                const response = await fetch(`${API_BASE}/settings/app_favicon`);
                 const data = await response.json();
                 if (data.value) {
                     let link = document.querySelector("link[rel~='icon']");

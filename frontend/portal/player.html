@@ -384,6 +384,13 @@
             display: flex;
             flex-direction: column;
             flex-shrink: 0;
+            transition: margin-right 0.3s ease, opacity 0.3s ease;
+        }
+
+        .sidebar:not(.visible) {
+            margin-right: -320px;
+            opacity: 0;
+            pointer-events: none;
         }
 
         .sidebar.hidden {
@@ -616,6 +623,21 @@
         .channel-group {
             font-size: 12px;
             color: var(--text-tertiary);
+        }
+
+        .channel-program {
+            font-size: 11px;
+            color: var(--text-secondary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-top: 2px;
+            opacity: 0.8;
+        }
+
+        .channel-program i {
+            margin-right: 4px;
+            color: var(--primary-color);
         }
 
         /* Controls Overlay */
@@ -1412,7 +1434,7 @@
                 <button class="btn-icon" onclick="addScreen()" title="Add Screen" id="addScreenBtn">
                     <i class="fas fa-plus"></i>
                 </button>
-                <button class="btn-icon" onclick="toggleSidebar()" title="Toggle Channel List" id="sidebarBtn">
+                <button class="btn-icon active" onclick="toggleSidebar()" title="Toggle Channel List" id="sidebarBtn">
                     <i class="fas fa-list"></i>
                 </button>
                 <button class="btn-icon" onclick="toggleFullscreen()" title="Fullscreen">
@@ -1608,7 +1630,7 @@
         // Load favicon from settings
         (async function loadFavicon() {
             try {
-                const response = await fetch();
+                const response = await fetch(`${API_BASE}/settings/app_favicon`);
                 const data = await response.json();
                 if (data.value) {
                     let link = document.querySelector("link[rel~='icon']");
@@ -1628,6 +1650,7 @@
         // State
         let channels = [];
         let categories = [];
+        let epgData = {}; // EPG data keyed by epg_channel_id
         let currentCategory = null;
         let favorites = JSON.parse(localStorage.getItem('iptv_favorites') || '[]');
         let isMultiview = false;
@@ -1671,36 +1694,35 @@
         // Load channels and categories from guide API
         async function loadChannels() {
             try {
-                // Load from guide API which has categories
-                const result = await api('/portal/iptv/guide');
-                if (result.success) {
+                // Load all categories and channels from guide API with category_id=all
+                // This returns all channels with proper category_id for grouping
+                const result = await api('/portal/iptv/guide?category_id=all');
+                if (result && result.success) {
                     categories = result.categories || [];
                     channels = result.channels || [];
-                    renderCategories();
+                }
 
-                    // Check for URL parameters
-                    const params = new URLSearchParams(window.location.search);
-                    const urlParam = params.get('url');
-                    const nameParam = params.get('name');
+                // If no categories from guide, create default
+                if (categories.length === 0) {
+                    categories = [{ category_id: 'all', category_name: 'All Channels' }];
+                }
 
-                    if (urlParam) {
-                        const channel = {
-                            name: nameParam || 'Stream',
-                            url: decodeURIComponent(urlParam)
-                        };
-                        playChannel(channel);
-                    }
+                renderCategories();
+
+                // Check for URL parameters
+                const params = new URLSearchParams(window.location.search);
+                const urlParam = params.get('url');
+                const nameParam = params.get('name');
+
+                if (urlParam) {
+                    const channel = {
+                        name: nameParam || 'Stream',
+                        url: decodeURIComponent(urlParam)
+                    };
+                    playChannel(channel);
                 }
             } catch (error) {
                 console.error('Failed to load channels:', error);
-                // Fallback to old channels API
-                const result = await api('/portal/iptv/channels');
-                if (result.success) {
-                    channels = result.channels;
-                    // Create a single "All Channels" category
-                    categories = [{ category_id: 'all', category_name: 'All Channels' }];
-                    renderCategories();
-                }
             }
         }
 
@@ -1765,13 +1787,34 @@
         }
 
         // Select a category
-        function selectCategory(categoryId, categoryName) {
+        async function selectCategory(categoryId, categoryName) {
             currentCategory = categoryId;
             document.getElementById('currentCategoryName').textContent = categoryName;
             document.getElementById('sidebarBack').style.display = 'flex';
             document.getElementById('categoryList').style.display = 'none';
             document.getElementById('channelList').style.display = 'block';
+
+            // Render channels immediately
             renderChannels();
+
+            // Fetch EPG data for this category in background (if not 'all')
+            if (categoryId && categoryId !== 'all') {
+                try {
+                    const result = await api(`/portal/iptv/guide?category_id=${categoryId}`);
+                    console.log('EPG API result:', result);
+                    if (result && result.success && result.epg) {
+                        console.log('EPG data keys:', Object.keys(result.epg).length);
+                        // Merge EPG data
+                        Object.assign(epgData, result.epg);
+                        // Re-render to show program names
+                        renderChannels();
+                    } else {
+                        console.log('No EPG in response');
+                    }
+                } catch (e) {
+                    console.warn('Failed to load EPG for category:', e);
+                }
+            }
         }
 
         // Show categories (back button)
@@ -1809,6 +1852,26 @@
             renderChannelList(filtered);
         }
 
+        // Get current program for a channel from EPG data
+        function getCurrentProgram(channel) {
+            if (!channel.epg_channel_id) {
+                return null;
+            }
+            if (!epgData[channel.epg_channel_id]) {
+                return null;
+            }
+            const programs = epgData[channel.epg_channel_id];
+            if (!programs || programs.length === 0) return null;
+
+            const now = Date.now();
+            return programs.find(p => {
+                // Use pre-computed timestamps if available, otherwise parse ISO strings
+                const start = p.start_timestamp || new Date(p.start).getTime();
+                const stop = p.stop_timestamp || new Date(p.stop).getTime();
+                return now >= start && now < stop;
+            });
+        }
+
         // Render channel list
         function renderChannelList(channelsList) {
             const container = document.getElementById('channelList');
@@ -1826,6 +1889,10 @@
             container.innerHTML = channelsList.map((channel, index) => {
                 const isActive = currentChannel && currentChannel.name === channel.name;
                 const channelIndex = channels.indexOf(channel);
+                const currentProg = getCurrentProgram(channel);
+                const programHtml = currentProg
+                    ? `<div class="channel-program"><i class="fas fa-play-circle"></i>${escapeHtml(currentProg.title)}</div>`
+                    : '';
                 return `
                     <div class="channel-item ${isActive ? 'active' : ''}"
                          onclick="playChannel(channels[${channelIndex}])">
@@ -1836,6 +1903,7 @@
                         </div>
                         <div class="channel-info">
                             <div class="channel-name">${channel.name}</div>
+                            ${programHtml}
                         </div>
                     </div>
                 `;
