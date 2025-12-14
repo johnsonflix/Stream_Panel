@@ -875,7 +875,17 @@ const PortalSettings = {
                 </div>
 
                 <div class="form-group">
-                    <label for="guide-content">Content <span class="required">*</span></label>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                        <label for="guide-content" style="margin-bottom: 0;">Content <span class="required">*</span></label>
+                        <div style="display: flex; gap: 8px;">
+                            <button type="button" class="btn btn-sm btn-secondary" onclick="PortalSettings.showGuideImageManager()">
+                                <i class="fas fa-images"></i> Manage Images
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline" onclick="PortalSettings.previewGuide()">
+                                <i class="fas fa-eye"></i> Preview
+                            </button>
+                        </div>
+                    </div>
                     <textarea id="guide-content" class="form-control" rows="15" style="font-family: monospace; font-size: 13px;" placeholder="# Guide Title
 
 Write your guide content here using Markdown...
@@ -886,7 +896,7 @@ Write your guide content here using Markdown...
 
 ## Section 2
 More content...">${Utils.escapeHtml(guide.content || '')}</textarea>
-                    <small class="form-text">Supports Markdown formatting (headers, lists, links, code blocks, etc.)</small>
+                    <small class="form-text">Supports Markdown formatting (headers, lists, links, code blocks, etc.). Use Manage Images to upload and insert images.</small>
                 </div>
 
                 <div class="form-row">
@@ -1364,5 +1374,375 @@ More content...">${Utils.escapeHtml(guide.content || '')}</textarea>
 
         // Clear file input
         input.value = '';
+    },
+
+    // ============ Guide Image Manager ============
+
+    /**
+     * Preview guide content
+     */
+    previewGuide() {
+        const content = document.getElementById('guide-content').value;
+        const contentType = document.getElementById('guide-content-type').value;
+        const title = document.getElementById('guide-title').value || 'Guide Preview';
+
+        let html;
+        if (contentType === 'markdown') {
+            html = this.renderMarkdown(content);
+        } else {
+            html = content;
+        }
+
+        Utils.showModal({
+            title: title,
+            size: 'xlarge',
+            body: `
+                <div class="guide-preview" style="
+                    padding: 1rem;
+                    background: var(--bg-secondary);
+                    border-radius: 8px;
+                    max-height: 60vh;
+                    overflow-y: auto;
+                ">
+                    ${html}
+                </div>
+            `,
+            buttons: [
+                { text: 'Close', class: 'btn-secondary', onClick: () => Utils.closeModal() }
+            ]
+        });
+    },
+
+    /**
+     * Simple markdown renderer
+     */
+    renderMarkdown(markdown) {
+        if (!markdown) return '';
+
+        return markdown
+            // Headers
+            .replace(/^### (.*$)/gim, '<h3>$1</h3>')
+            .replace(/^## (.*$)/gim, '<h2>$1</h2>')
+            .replace(/^# (.*$)/gim, '<h1>$1</h1>')
+            // Bold
+            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+            // Italic
+            .replace(/\*(.*?)\*/g, '<em>$1</em>')
+            // Code blocks
+            .replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>')
+            // Inline code
+            .replace(/`([^`]+)`/g, '<code>$1</code>')
+            // Images
+            .replace(/!\[(.*?)\]\((.*?)\)/g, '<img src="$2" alt="$1" style="max-width: 100%; border-radius: 8px; margin: 1rem 0;">')
+            // Links
+            .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
+            // Unordered lists
+            .replace(/^\s*[-*]\s+(.*$)/gim, '<li>$1</li>')
+            .replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>')
+            // Ordered lists
+            .replace(/^\d+\.\s+(.*$)/gim, '<li>$1</li>')
+            // Blockquotes
+            .replace(/^>\s+(.*$)/gim, '<blockquote>$1</blockquote>')
+            // Horizontal rules
+            .replace(/^---$/gim, '<hr>')
+            // Paragraphs
+            .replace(/\n\n/g, '</p><p>')
+            // Line breaks
+            .replace(/\n/g, '<br>')
+            // Wrap in paragraph
+            .replace(/^(.+)$/gim, '<p>$1</p>')
+            // Clean up empty paragraphs
+            .replace(/<p><\/p>/g, '')
+            .replace(/<p><(h[1-6]|ul|ol|pre|blockquote)/g, '<$1')
+            .replace(/<\/(h[1-6]|ul|ol|pre|blockquote)><\/p>/g, '</$1>');
+    },
+
+    /**
+     * Show guide image manager modal
+     */
+    async showGuideImageManager() {
+        Utils.showLoading();
+
+        try {
+            // Fetch existing images
+            const response = await API.request('/admin/portal/guide-images');
+            const images = response.images || [];
+
+            Utils.showModal({
+                title: 'Guide Images',
+                size: 'xlarge',
+                body: `
+                    <div class="guide-image-manager">
+                        <div class="image-upload-zone" id="image-drop-zone" style="
+                            border: 2px dashed var(--border-color);
+                            border-radius: 8px;
+                            padding: 2rem;
+                            text-align: center;
+                            margin-bottom: 1.5rem;
+                            cursor: pointer;
+                            transition: all 0.2s;
+                        " onclick="document.getElementById('guide-image-input').click()">
+                            <input type="file" id="guide-image-input" accept="image/*" multiple style="display: none;" onchange="PortalSettings.uploadGuideImages(this.files)">
+                            <i class="fas fa-cloud-upload-alt" style="font-size: 2.5rem; color: var(--text-tertiary); margin-bottom: 0.5rem;"></i>
+                            <p style="margin: 0; color: var(--text-secondary);">
+                                <strong>Click to upload</strong> or drag and drop<br>
+                                <small>PNG, JPG, GIF, WebP (max 5MB)</small>
+                            </p>
+                        </div>
+
+                        <div id="guide-images-gallery" style="
+                            display: grid;
+                            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+                            gap: 1rem;
+                            max-height: 400px;
+                            overflow-y: auto;
+                            padding: 0.5rem;
+                        ">
+                            ${images.length === 0 ? `
+                                <div style="grid-column: 1 / -1; text-align: center; padding: 2rem; color: var(--text-secondary);">
+                                    <i class="fas fa-images" style="font-size: 2rem; opacity: 0.5;"></i>
+                                    <p>No images uploaded yet</p>
+                                </div>
+                            ` : images.map(img => this.getImageCardHtml(img)).join('')}
+                        </div>
+                    </div>
+                `,
+                buttons: [
+                    { text: 'Close', class: 'btn-secondary', onClick: () => Utils.closeModal() }
+                ]
+            });
+
+            // Setup drag and drop
+            this.setupImageDropZone();
+
+        } catch (error) {
+            console.error('Error loading guide images:', error);
+            Utils.showToast('Error', error.message || 'Failed to load images', 'error');
+        } finally {
+            Utils.hideLoading();
+        }
+    },
+
+    /**
+     * Get HTML for an image card in the gallery
+     */
+    getImageCardHtml(img) {
+        const filename = img.filename || img;
+        const url = `/uploads/guide-images/${filename}`;
+        const markdownSyntax = `![${filename}](${url})`;
+
+        return `
+            <div class="image-card" style="
+                background: var(--bg-tertiary);
+                border-radius: 8px;
+                overflow: hidden;
+                position: relative;
+            ">
+                <img src="${url}" alt="${Utils.escapeHtml(filename)}" style="
+                    width: 100%;
+                    height: 120px;
+                    object-fit: cover;
+                    display: block;
+                ">
+                <div style="padding: 0.5rem;">
+                    <small style="
+                        display: block;
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                        white-space: nowrap;
+                        color: var(--text-secondary);
+                        margin-bottom: 0.5rem;
+                    " title="${Utils.escapeHtml(filename)}">${Utils.escapeHtml(filename)}</small>
+                    <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+                        <button class="btn btn-sm btn-outline" style="flex: 1; min-width: 45%;" onclick="PortalSettings.copyImageUrl('${Utils.escapeHtml(url)}')" title="Copy URL (for HTML)">
+                            <i class="fas fa-link"></i> URL
+                        </button>
+                        <button class="btn btn-sm btn-outline" style="flex: 1; min-width: 45%;" onclick="PortalSettings.copyImageMarkdown('${Utils.escapeHtml(markdownSyntax)}')" title="Copy Markdown">
+                            <i class="fas fa-code"></i> MD
+                        </button>
+                        <button class="btn btn-sm btn-primary" style="flex: 1; min-width: 70%;" onclick="PortalSettings.insertImageToContent('${Utils.escapeHtml(markdownSyntax)}')" title="Insert to Content">
+                            <i class="fas fa-plus"></i> Insert
+                        </button>
+                        <button class="btn btn-sm btn-danger" style="flex: 1; min-width: 20%;" onclick="PortalSettings.deleteGuideImage('${Utils.escapeHtml(filename)}')" title="Delete">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    },
+
+    /**
+     * Setup drag and drop for image upload zone
+     */
+    setupImageDropZone() {
+        const dropZone = document.getElementById('image-drop-zone');
+        if (!dropZone) return;
+
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+            });
+        });
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, () => {
+                dropZone.style.borderColor = 'var(--primary-color)';
+                dropZone.style.background = 'var(--bg-tertiary)';
+            });
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, () => {
+                dropZone.style.borderColor = 'var(--border-color)';
+                dropZone.style.background = 'transparent';
+            });
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                this.uploadGuideImages(files);
+            }
+        });
+    },
+
+    /**
+     * Upload guide images
+     */
+    async uploadGuideImages(files) {
+        const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+        const maxSize = 5 * 1024 * 1024; // 5MB
+
+        for (const file of files) {
+            if (!validTypes.includes(file.type)) {
+                Utils.showToast('Error', `${file.name}: Invalid file type. Only JPEG, PNG, GIF, WebP allowed.`, 'error');
+                continue;
+            }
+            if (file.size > maxSize) {
+                Utils.showToast('Error', `${file.name}: File too large. Max 5MB allowed.`, 'error');
+                continue;
+            }
+
+            try {
+                const formData = new FormData();
+                formData.append('image', file);
+
+                const response = await fetch('/api/v2/admin/portal/guides/upload-image', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+                    },
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    Utils.showToast('Success', `${file.name} uploaded`, 'success');
+                    // Refresh the gallery
+                    this.refreshImageGallery();
+                } else {
+                    throw new Error(result.message || 'Upload failed');
+                }
+            } catch (error) {
+                console.error('Image upload error:', error);
+                Utils.showToast('Error', `Failed to upload ${file.name}: ${error.message}`, 'error');
+            }
+        }
+    },
+
+    /**
+     * Refresh the image gallery
+     */
+    async refreshImageGallery() {
+        try {
+            const response = await API.request('/admin/portal/guide-images');
+            const images = response.images || [];
+            const gallery = document.getElementById('guide-images-gallery');
+
+            if (gallery) {
+                gallery.innerHTML = images.length === 0 ? `
+                    <div style="grid-column: 1 / -1; text-align: center; padding: 2rem; color: var(--text-secondary);">
+                        <i class="fas fa-images" style="font-size: 2rem; opacity: 0.5;"></i>
+                        <p>No images uploaded yet</p>
+                    </div>
+                ` : images.map(img => this.getImageCardHtml(img)).join('');
+            }
+        } catch (error) {
+            console.error('Error refreshing gallery:', error);
+        }
+    },
+
+    /**
+     * Copy image URL to clipboard (for HTML src attribute)
+     */
+    copyImageUrl(url) {
+        navigator.clipboard.writeText(url).then(() => {
+            Utils.showToast('Copied', 'URL copied to clipboard', 'success');
+        }).catch(err => {
+            console.error('Failed to copy:', err);
+            Utils.showToast('Error', 'Failed to copy to clipboard', 'error');
+        });
+    },
+
+    /**
+     * Copy image markdown to clipboard
+     */
+    copyImageMarkdown(markdown) {
+        navigator.clipboard.writeText(markdown).then(() => {
+            Utils.showToast('Copied', 'Markdown copied to clipboard', 'success');
+        }).catch(err => {
+            console.error('Failed to copy:', err);
+            Utils.showToast('Error', 'Failed to copy to clipboard', 'error');
+        });
+    },
+
+    /**
+     * Insert image markdown into content textarea
+     */
+    insertImageToContent(markdown) {
+        const textarea = document.getElementById('guide-content');
+        if (!textarea) {
+            Utils.showToast('Error', 'Content textarea not found', 'error');
+            return;
+        }
+
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        const text = textarea.value;
+
+        // Insert at cursor position
+        textarea.value = text.substring(0, start) + markdown + '\n' + text.substring(end);
+
+        // Move cursor after inserted text
+        textarea.selectionStart = textarea.selectionEnd = start + markdown.length + 1;
+        textarea.focus();
+
+        Utils.showToast('Inserted', 'Image added to content', 'success');
+    },
+
+    /**
+     * Delete a guide image
+     */
+    async deleteGuideImage(filename) {
+        if (!confirm(`Are you sure you want to delete "${filename}"?`)) return;
+
+        try {
+            const response = await API.request(`/admin/portal/guide-images/${encodeURIComponent(filename)}`, {
+                method: 'DELETE'
+            });
+
+            if (response.success) {
+                Utils.showToast('Success', 'Image deleted', 'success');
+                this.refreshImageGallery();
+            } else {
+                throw new Error(response.message || 'Delete failed');
+            }
+        } catch (error) {
+            console.error('Error deleting image:', error);
+            Utils.showToast('Error', error.message || 'Failed to delete image', 'error');
+        }
     }
 };

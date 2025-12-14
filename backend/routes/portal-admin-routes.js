@@ -46,6 +46,41 @@ const iconUpload = multer({
     }
 });
 
+// ============================================
+// GUIDE IMAGE UPLOAD CONFIGURATION
+// ============================================
+
+const guideImageStorage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        const uploadPath = path.join(__dirname, '../uploads/guide-images');
+        if (!fs.existsSync(uploadPath)) {
+            fs.mkdirSync(uploadPath, { recursive: true });
+        }
+        cb(null, uploadPath);
+    },
+    filename: (req, file, cb) => {
+        // Clean filename and add timestamp
+        const cleanName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
+        cb(null, `guide-${Date.now()}-${cleanName}`);
+    }
+});
+
+const guideImageUpload = multer({
+    storage: guideImageStorage,
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+    fileFilter: (req, file, cb) => {
+        const allowedTypes = /jpeg|jpg|png|gif|webp/;
+        const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+        const mimetype = allowedTypes.test(file.mimetype);
+
+        if (extname && mimetype) {
+            return cb(null, true);
+        } else {
+            cb(new Error('Only image files are allowed (jpeg, jpg, png, gif, webp)'));
+        }
+    }
+});
+
 /**
  * POST /api/v2/admin/portal/upload-icon
  * Upload an icon image and return the URL
@@ -1416,6 +1451,127 @@ router.delete('/guides/:id', async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Failed to delete portal guide'
+        });
+    }
+});
+
+// ============================================
+// GUIDE IMAGE MANAGEMENT
+// ============================================
+
+/**
+ * POST /api/v2/admin/portal/guides/upload-image
+ * Upload an image for use in guides
+ */
+router.post('/guides/upload-image', guideImageUpload.single('image'), async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({
+                success: false,
+                message: 'No file uploaded'
+            });
+        }
+
+        const imageUrl = `/uploads/guide-images/${req.file.filename}`;
+
+        res.json({
+            success: true,
+            message: 'Image uploaded successfully',
+            url: imageUrl,
+            filename: req.file.filename
+        });
+    } catch (error) {
+        console.error('Error uploading guide image:', error);
+        res.status(500).json({
+            success: false,
+            message: error.message || 'Failed to upload image'
+        });
+    }
+});
+
+/**
+ * GET /api/v2/admin/portal/guide-images
+ * List all uploaded guide images
+ */
+router.get('/guide-images', async (req, res) => {
+    try {
+        const uploadPath = path.join(__dirname, '../uploads/guide-images');
+
+        // Create directory if it doesn't exist
+        if (!fs.existsSync(uploadPath)) {
+            fs.mkdirSync(uploadPath, { recursive: true });
+            return res.json({
+                success: true,
+                images: []
+            });
+        }
+
+        // Read directory and get file info
+        const files = fs.readdirSync(uploadPath);
+        const images = files
+            .filter(file => /\.(jpg|jpeg|png|gif|webp)$/i.test(file))
+            .map(file => {
+                const stats = fs.statSync(path.join(uploadPath, file));
+                return {
+                    filename: file,
+                    url: `/uploads/guide-images/${file}`,
+                    size: stats.size,
+                    created: stats.birthtime
+                };
+            })
+            .sort((a, b) => new Date(b.created) - new Date(a.created)); // Newest first
+
+        res.json({
+            success: true,
+            images
+        });
+    } catch (error) {
+        console.error('Error listing guide images:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to list images'
+        });
+    }
+});
+
+/**
+ * DELETE /api/v2/admin/portal/guide-images/:filename
+ * Delete a guide image
+ */
+router.delete('/guide-images/:filename', async (req, res) => {
+    try {
+        const { filename } = req.params;
+
+        // Validate filename (prevent directory traversal)
+        if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid filename'
+            });
+        }
+
+        const filePath = path.join(__dirname, '../uploads/guide-images', filename);
+
+        // Check if file exists
+        if (!fs.existsSync(filePath)) {
+            return res.status(404).json({
+                success: false,
+                message: 'Image not found'
+            });
+        }
+
+        // Delete the file
+        fs.unlinkSync(filePath);
+
+        res.json({
+            success: true,
+            message: 'Image deleted successfully'
+        });
+    } catch (error) {
+        console.error('Error deleting guide image:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to delete image'
         });
     }
 });
