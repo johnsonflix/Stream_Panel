@@ -8749,7 +8749,7 @@ const Settings = {
                             <div style="flex: 1;">
                                 <h4 style="margin: 0 0 0.5rem 0; color: var(--warning-color);">Update Available!</h4>
                                 <p style="margin: 0 0 0.5rem 0;">
-                                    A new version is available. You are <strong>${data.commitsBehind}</strong> commit(s) behind.
+                                    A new version is available.${data.commitsBehind !== 'unknown' ? ` You are <strong>${data.commitsBehind}</strong> commit(s) behind.` : ''}
                                 </p>
                                 <p style="margin: 0; font-size: 0.875rem; color: var(--text-secondary);">
                                     Current: v${data.localVersion} (${data.localCommit}) &rarr; Latest: v${data.remoteVersion} (${data.latestCommit})

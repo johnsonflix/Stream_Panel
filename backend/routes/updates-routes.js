@@ -113,7 +113,7 @@ router.get('/check', async (req, res) => {
         const updateAvailable = commitsDiffer || versionIsNewer;
 
         // Count commits behind
-        let commitsBehind = 0;
+        let commitsBehind = null; // null means unknown
         if (localCommit && commits.length > 0) {
             for (let i = 0; i < commits.length; i++) {
                 if (commits[i].sha === localCommit) {
@@ -122,7 +122,7 @@ router.get('/check', async (req, res) => {
                 }
             }
             // If local commit not found in recent commits, we're more than 10 behind
-            if (commitsBehind === 0 && commits[0].sha !== localCommit) {
+            if (commitsBehind === null && commits[0].sha !== localCommit) {
                 commitsBehind = commits.length;
             }
         }
@@ -133,7 +133,7 @@ router.get('/check', async (req, res) => {
             remoteVersion: remoteVersion?.version || localVersion.version,
             localCommit: localCommit?.substring(0, 7) || 'unknown',
             latestCommit: latestCommit?.substring(0, 7) || 'unknown',
-            commitsBehind,
+            commitsBehind: commitsBehind !== null ? commitsBehind : (updateAvailable ? 'unknown' : 0),
             recentCommits: commits.slice(0, 5).map(c => ({
                 sha: c.sha.substring(0, 7),
                 message: c.commit.message.split('\n')[0],
