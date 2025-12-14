@@ -1,6 +1,6 @@
 {
-  "version": "1.0.7",
+  "version": "1.0.8",
   "name": "Stream Panel",
   "releaseDate": "2025-12-13",
-  "description": "Fix instant TV Guide loading (pure memory cache) + admin/user portal login fix"
+  "description": "Fix portal apps/actions duplicating on every update"
 }

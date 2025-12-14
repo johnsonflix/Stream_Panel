@@ -97,60 +97,75 @@ async function up() {
     `);
     console.log('  - Created portal_app_guides table');
 
-    // Insert some default apps
-    const defaultApps = [
-        // TV Apps
-        { name: 'IPTV Smarters Pro', description: 'Full-featured IPTV player', icon: '📺', service_type: 'iptv', platform_category: 'tv', app_type: 'downloader_code', downloader_code: '123456' },
-        { name: 'TiviMate', description: 'Premium IPTV player for Android TV', icon: '📺', service_type: 'iptv', platform_category: 'tv', app_type: 'store_link', store_url_android: 'https://play.google.com/store/apps/details?id=ar.tvplayer.tv' },
-        { name: 'Plex', description: 'Official Plex app', icon: '🎬', service_type: 'plex', platform_category: 'tv', app_type: 'store_link', store_url_android: 'https://play.google.com/store/apps/details?id=com.plexapp.android' },
+    // Check if data already exists before seeding
+    const existingApps = await db.query('SELECT COUNT(*) as count FROM portal_apps');
+    const existingActions = await db.query('SELECT COUNT(*) as count FROM portal_quick_actions');
+    const existingGuides = await db.query('SELECT COUNT(*) as count FROM portal_guides');
 
-        // Mobile Apps
-        { name: 'IPTV Smarters', description: 'IPTV player for mobile', icon: '📱', service_type: 'iptv', platform_category: 'mobile', app_type: 'store_link', store_url_ios: 'https://apps.apple.com/app/iptv-smarters-player/id1383614816', store_url_android: 'https://play.google.com/store/apps/details?id=com.nst.iptvsmarterstvbox' },
-        { name: 'Plex', description: 'Official Plex mobile app', icon: '🎬', service_type: 'plex', platform_category: 'mobile', app_type: 'store_link', store_url_ios: 'https://apps.apple.com/app/plex-movies-tv-music-more/id383457673', store_url_android: 'https://play.google.com/store/apps/details?id=com.plexapp.android' },
+    // Only seed if tables are empty (prevents duplicates on re-runs)
+    if (existingApps[0].count > 0) {
+        console.log('  - Skipping default apps (already seeded)');
+    } else {
+        // Insert some default apps
+        const defaultApps = [
+            // TV Apps
+            { name: 'IPTV Smarters Pro', description: 'Full-featured IPTV player', icon: '📺', service_type: 'iptv', platform_category: 'tv', app_type: 'downloader_code', downloader_code: '123456' },
+            { name: 'TiviMate', description: 'Premium IPTV player for Android TV', icon: '📺', service_type: 'iptv', platform_category: 'tv', app_type: 'store_link', store_url_android: 'https://play.google.com/store/apps/details?id=ar.tvplayer.tv' },
+            { name: 'Plex', description: 'Official Plex app', icon: '🎬', service_type: 'plex', platform_category: 'tv', app_type: 'store_link', store_url_android: 'https://play.google.com/store/apps/details?id=com.plexapp.android' },
+            // Mobile Apps
+            { name: 'IPTV Smarters', description: 'IPTV player for mobile', icon: '📱', service_type: 'iptv', platform_category: 'mobile', app_type: 'store_link', store_url_ios: 'https://apps.apple.com/app/iptv-smarters-player/id1383614816', store_url_android: 'https://play.google.com/store/apps/details?id=com.nst.iptvsmarterstvbox' },
+            { name: 'Plex', description: 'Official Plex mobile app', icon: '🎬', service_type: 'plex', platform_category: 'mobile', app_type: 'store_link', store_url_ios: 'https://apps.apple.com/app/plex-movies-tv-music-more/id383457673', store_url_android: 'https://play.google.com/store/apps/details?id=com.plexapp.android' },
+            // Desktop Apps
+            { name: 'Plex Desktop', description: 'Plex for Windows/Mac', icon: '💻', service_type: 'plex', platform_category: 'desktop', app_type: 'direct_url', direct_url: 'https://www.plex.tv/media-server-downloads/#plex-app' },
+            { name: 'VLC Player', description: 'Open source media player', icon: '🔶', service_type: 'iptv', platform_category: 'desktop', app_type: 'direct_url', direct_url: 'https://www.videolan.org/vlc/' }
+        ];
 
-        // Desktop Apps
-        { name: 'Plex Desktop', description: 'Plex for Windows/Mac', icon: '💻', service_type: 'plex', platform_category: 'desktop', app_type: 'direct_url', direct_url: 'https://www.plex.tv/media-server-downloads/#plex-app' },
-        { name: 'VLC Player', description: 'Open source media player', icon: '🔶', service_type: 'iptv', platform_category: 'desktop', app_type: 'direct_url', direct_url: 'https://www.videolan.org/vlc/' }
-    ];
-
-    for (let i = 0; i < defaultApps.length; i++) {
-        const app = defaultApps[i];
-        await db.query(`
-            INSERT INTO portal_apps (name, description, icon, service_type, platform_category, app_type, downloader_code, store_url_ios, store_url_android, direct_url, display_order)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `, [app.name, app.description, app.icon, app.service_type, app.platform_category, app.app_type, app.downloader_code || null, app.store_url_ios || null, app.store_url_android || null, app.direct_url || null, i]);
+        for (let i = 0; i < defaultApps.length; i++) {
+            const app = defaultApps[i];
+            await db.query(`
+                INSERT INTO portal_apps (name, description, icon, service_type, platform_category, app_type, downloader_code, store_url_ios, store_url_android, direct_url, display_order)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `, [app.name, app.description, app.icon, app.service_type, app.platform_category, app.app_type, app.downloader_code || null, app.store_url_ios || null, app.store_url_android || null, app.direct_url || null, i]);
+        }
+        console.log('  - Inserted default apps');
     }
-    console.log('  - Inserted default apps');
 
-    // Insert default quick actions
-    const defaultActions = [
-        { name: 'Open Web Player', description: 'Watch in your browser', icon: '🌐', service_type: 'iptv', action_type: 'internal_page', url: '/portal/player.html', button_style: 'primary' },
-        { name: 'TV Guide', description: 'Browse channels and schedule', icon: '📺', service_type: 'iptv', action_type: 'internal_page', url: '/portal/guide.html', button_style: 'secondary' },
-        { name: 'Open Plex', description: 'Launch Plex Web App', icon: '🎬', service_type: 'plex', action_type: 'dynamic', dynamic_field: 'plex_server_url', button_style: 'primary' },
-        { name: 'Request Content', description: 'Request movies and shows', icon: '📝', service_type: 'plex', action_type: 'dynamic', dynamic_field: 'request_site_url', button_style: 'secondary' }
-    ];
+    // Insert default quick actions (only if table is empty)
+    if (existingActions[0].count > 0) {
+        console.log('  - Skipping default quick actions (already seeded)');
+    } else {
+        const defaultActions = [
+            { name: 'Open Web Player', description: 'Watch in your browser', icon: '🌐', service_type: 'iptv', action_type: 'internal_page', url: '/portal/player.html', button_style: 'primary' },
+            { name: 'TV Guide', description: 'Browse channels and schedule', icon: '📺', service_type: 'iptv', action_type: 'internal_page', url: '/portal/guide.html', button_style: 'secondary' },
+            { name: 'Open Plex', description: 'Launch Plex Web App', icon: '🎬', service_type: 'plex', action_type: 'dynamic', dynamic_field: 'plex_server_url', button_style: 'primary' },
+            { name: 'Request Content', description: 'Request movies and shows', icon: '📝', service_type: 'plex', action_type: 'dynamic', dynamic_field: 'request_site_url', button_style: 'secondary' }
+        ];
 
-    for (let i = 0; i < defaultActions.length; i++) {
-        const action = defaultActions[i];
-        await db.query(`
-            INSERT INTO portal_quick_actions (name, description, icon, service_type, action_type, url, dynamic_field, button_style, display_order)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `, [action.name, action.description, action.icon, action.service_type, action.action_type, action.url || null, action.dynamic_field || null, action.button_style, i]);
+        for (let i = 0; i < defaultActions.length; i++) {
+            const action = defaultActions[i];
+            await db.query(`
+                INSERT INTO portal_quick_actions (name, description, icon, service_type, action_type, url, dynamic_field, button_style, display_order)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `, [action.name, action.description, action.icon, action.service_type, action.action_type, action.url || null, action.dynamic_field || null, action.button_style, i]);
+        }
+        console.log('  - Inserted default quick actions');
     }
-    console.log('  - Inserted default quick actions');
 
-    // Insert a sample guide
-    await db.query(`
-        INSERT INTO portal_guides (slug, title, icon, service_type, category, short_description, content, content_type)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `, [
-        'getting-started',
-        'Getting Started',
-        '🚀',
-        'general',
-        'setup',
-        'Learn how to get started with your services',
-        `# Getting Started
+    // Insert a sample guide (only if table is empty)
+    if (existingGuides[0].count > 0) {
+        console.log('  - Skipping sample guide (already seeded)');
+    } else {
+        await db.query(`
+            INSERT INTO portal_guides (slug, title, icon, service_type, category, short_description, content, content_type)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `, [
+            'getting-started',
+            'Getting Started',
+            '🚀',
+            'general',
+            'setup',
+            'Learn how to get started with your services',
+            `# Getting Started
 
 Welcome to your streaming services! This guide will help you get set up.
 
@@ -172,9 +187,10 @@ Welcome to your streaming services! This guide will help you get set up.
 
 If you have any issues, use the **Contact Support** button in the portal header.
 `,
-        'markdown'
-    ]);
-    console.log('  - Inserted sample guide');
+            'markdown'
+        ]);
+        console.log('  - Inserted sample guide');
+    }
 
     console.log('Portal customization tables created successfully!');
 }
