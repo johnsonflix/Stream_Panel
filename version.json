@@ -1,6 +1,6 @@
 {
-  "version": "1.0.3",
+  "version": "1.0.4",
   "name": "Stream Panel",
   "releaseDate": "2025-12-13",
-  "description": "Add log viewer to Settings page with category filtering and retention settings"
+  "description": "Fix migrations to run on every startup (ensures updates work when skipping versions)"
 }

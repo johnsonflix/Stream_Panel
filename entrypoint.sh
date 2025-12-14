@@ -1,18 +1,6 @@
 #!/bin/bash
 set -e
 
-# Initialize git repository for updates
-GITHUB_REPO="https://github.com/johnsonflix/Stream_Panel.git"
-if [ ! -d "/app/.git" ]; then
-    echo "🔧 Initializing git for update system..."
-    cd /app
-    git init
-    git remote add origin "$GITHUB_REPO" 2>/dev/null || git remote set-url origin "$GITHUB_REPO"
-    git fetch origin main --depth=1 2>/dev/null || echo "  (Could not fetch from remote)"
-    git reset --soft origin/main 2>/dev/null || echo "  (Could not reset to remote)"
-    echo "✅ Git initialized for updates"
-fi
-
 # Check if database exists and has tables
 DB_PATH="${DB_PATH:-/app/data/subsapp_v2.db}"
 RUN_SETUP=false
@@ -37,15 +25,17 @@ else
     fi
 fi
 
-# Run migrations if setup was run
+# Always run migrations (they're idempotent - safe to run multiple times)
+echo "🔄 Running migrations..."
+cd /app/backend/migrations
+for f in *.js; do
+    echo "  Running $f..."
+    node "$f" 2>/dev/null || true
+done
+echo "✅ Migrations completed!"
+
+# Create default admin only if setup was run
 if [ "$RUN_SETUP" = true ]; then
-    echo "🔄 Running migrations..."
-    cd /app/backend/migrations
-    for f in *.js; do
-        echo "  Running $f..."
-        node "$f" 2>/dev/null || true
-    done
-    echo "✅ Migrations completed!"
 
     # Create default admin using Node.js for proper bcrypt hashing
     echo "👤 Creating default admin..."
