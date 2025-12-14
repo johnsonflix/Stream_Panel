@@ -73,6 +73,19 @@ db.close();
 "
 fi
 
+# Initialize git for update system (if not already initialized)
+if [ ! -d "/app/.git" ]; then
+    echo "🔧 Initializing git for update system..."
+    cd /app
+    git init
+    git remote add origin https://github.com/johnsonflix/Stream_Panel.git
+    git fetch origin main
+    git reset --soft origin/main
+    echo "✅ Git initialized for updates!"
+else
+    echo "✅ Git already initialized"
+fi
+
 # Start the application
 echo "🚀 Starting StreamPanel..."
 cd /app/backend
