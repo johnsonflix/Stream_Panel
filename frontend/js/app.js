@@ -14,6 +14,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
     }
 
+    // Show the body now that auth is verified
+    document.body.style.display = '';
+
     // Load and apply branding (app name, logo, etc.)
     await loadBrandingSettings();
 
