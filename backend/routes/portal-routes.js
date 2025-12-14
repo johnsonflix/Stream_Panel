@@ -87,9 +87,12 @@ const guideCache = {
     }
 };
 
-// Pre-warm caches on startup - loads all guide data into memory
+// Helper to yield to event loop - prevents blocking during heavy JSON parsing
+const yieldToEventLoop = () => new Promise(resolve => setImmediate(resolve));
+
+// Pre-warm caches on startup - loads all guide data into memory (non-blocking)
 async function preWarmGuideCache() {
-    console.log('[Guide Cache] Pre-warming in-memory caches...');
+    console.log('[Guide Cache] Pre-warming in-memory caches (non-blocking)...');
     try {
         const caches = await query(`
             SELECT source_type, source_id, categories_json, channels_json, epg_json, last_updated, epg_last_updated
@@ -100,18 +103,25 @@ async function preWarmGuideCache() {
         let loaded = 0;
         for (const cache of caches) {
             try {
+                // Yield to event loop before each source to keep server responsive
+                await yieldToEventLoop();
+
                 // Pre-parse categories and channels
                 if (cache.categories_json && cache.channels_json) {
                     const categories = JSON.parse(cache.categories_json);
+                    await yieldToEventLoop();
                     const channels = JSON.parse(cache.channels_json);
                     guideCache.set(cache.source_type, cache.source_id, categories, channels, cache.last_updated, cache.epg_last_updated);
+                    await yieldToEventLoop();
                 }
 
                 // Pre-parse EPG (this is the big one - can take a few seconds per source)
                 if (cache.epg_json) {
                     console.log(`[Guide Cache] Parsing EPG for ${cache.source_type}:${cache.source_id}...`);
+                    await yieldToEventLoop();
                     const epg = JSON.parse(cache.epg_json);
                     epgCache.set(cache.source_type, cache.source_id, epg);
+                    await yieldToEventLoop();
                 }
 
                 loaded++;
