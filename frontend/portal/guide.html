@@ -293,7 +293,7 @@
         .timeline-times {
             display: flex;
             flex: 1;
-            overflow-x: auto;
+            overflow-x: hidden; /* Scrolling controlled by epg-container via JS sync */
             overflow-y: hidden;
         }
 
@@ -415,7 +415,6 @@
         }
 
         .epg-program {
-            min-width: 180px;
             padding: 8px 12px;
             border-right: 1px solid var(--border-color);
             cursor: pointer;
@@ -424,6 +423,8 @@
             flex-direction: column;
             justify-content: center;
             background: var(--bg-primary);
+            flex-shrink: 0;
+            overflow: hidden;
         }
 
         .epg-program:hover {
@@ -472,7 +473,6 @@
         }
 
         .epg-no-data {
-            min-width: 180px;
             padding: 12px;
             color: var(--text-tertiary);
             font-size: 12px;
@@ -480,6 +480,8 @@
             display: flex;
             align-items: center;
             background: var(--bg-primary);
+            flex-shrink: 0;
+            border-right: 1px solid var(--border-color);
         }
 
         /* Loading & Empty */
@@ -1777,15 +1779,18 @@
             const startHour = currentHour + currentTimeOffset;
 
             let html = '';
-            for (let i = 0; i < 8; i++) { // Show 8 hours
-                const hour = (startHour + i) % 24;
+            // 16 slots of 30 min each = 8 hours total
+            for (let i = 0; i < 16; i++) {
+                const totalMinutes = startHour * 60 + (i * 30);
+                const hour = Math.floor(totalMinutes / 60) % 24;
+                const minute = totalMinutes % 60;
                 const displayHour = hour === 0 ? 12 : (hour > 12 ? hour - 12 : hour);
                 const ampm = hour >= 12 ? 'PM' : 'AM';
                 const isCurrent = i === 0 && currentTimeOffset === 0;
 
                 html += `
                     <div class="timeline-slot ${isCurrent ? 'current' : ''}">
-                        ${displayHour}:00 ${ampm}
+                        ${displayHour}:${minute.toString().padStart(2, '0')} ${ampm}
                     </div>
                 `;
             }
@@ -1986,6 +1991,27 @@
             `;
 
             container.innerHTML = html;
+
+            // Setup scroll sync between timeline and EPG content
+            setupDesktopScrollSync();
+        }
+
+        // Sync horizontal scroll between timeline header and EPG content
+        function setupDesktopScrollSync() {
+            const epgContainer = document.getElementById('epgContainer');
+            const timelineSlots = document.getElementById('timelineSlots');
+
+            if (epgContainer && timelineSlots) {
+                // When EPG content scrolls, sync the timeline header
+                epgContainer.onscroll = () => {
+                    timelineSlots.scrollLeft = epgContainer.scrollLeft;
+                };
+
+                // When timeline header scrolls (shouldn't happen but just in case), sync EPG
+                timelineSlots.onscroll = () => {
+                    epgContainer.scrollLeft = timelineSlots.scrollLeft;
+                };
+            }
         }
 
         function renderEPGRow(channel) {
@@ -2017,51 +2043,79 @@
 
         function renderEPGCells(channelEpg, channel) {
             const now = new Date();
-            const startTime = new Date(now);
-            startTime.setHours(startTime.getHours() + currentTimeOffset);
-            startTime.setMinutes(0, 0, 0);
+            const windowStart = new Date(now);
+            windowStart.setHours(windowStart.getHours() + currentTimeOffset);
+            windowStart.setMinutes(0, 0, 0);
+            const windowEnd = new Date(windowStart.getTime() + 8 * 60 * 60 * 1000); // 8 hours
 
-            // If no EPG data, show empty slots
+            // Each 30 min = 180px (timeline-slot is per 30 min), so 1 hour = 360px
+            const pxPerMinute = 6; // 180px / 30 min = 6px per minute
+
+            // If no EPG data, show "No guide data" spanning full width (8 hours * 360px)
             if (!channelEpg || channelEpg.length === 0) {
-                let cells = '';
-                for (let i = 0; i < 8; i++) {
-                    cells += `<div class="epg-no-data">No guide data</div>`;
-                }
-                return cells;
+                return `<div class="epg-no-data" style="width: ${8 * 360}px;">No guide data</div>`;
             }
 
-            // Render actual EPG programs
+            // Filter programs within our time window
+            const programs = channelEpg.filter(p => {
+                const pStart = new Date(p.start);
+                const pEnd = new Date(p.stop);
+                return pEnd > windowStart && pStart < windowEnd;
+            }).sort((a, b) => new Date(a.start) - new Date(b.start));
+
+            if (programs.length === 0) {
+                return `<div class="epg-no-data" style="width: ${8 * 360}px;">No guide data</div>`;
+            }
+
+            // Render programs with calculated widths based on duration
             let cells = '';
-            for (let i = 0; i < 8; i++) {
-                const slotStart = new Date(startTime);
-                slotStart.setHours(slotStart.getHours() + i);
+            let lastEnd = windowStart.getTime();
 
-                // Find program at this time (API returns 'stop' not 'end')
-                const program = channelEpg.find(p => {
-                    const pStart = new Date(p.start);
-                    const pEnd = new Date(p.stop); // Backend uses 'stop'
-                    return slotStart >= pStart && slotStart < pEnd;
-                });
+            for (const program of programs) {
+                const pStart = new Date(program.start);
+                const pEnd = new Date(program.stop);
 
-                if (program) {
-                    const pStart = new Date(program.start);
-                    const pEnd = new Date(program.stop); // Backend uses 'stop'
-                    const isNow = now >= pStart && now < pEnd && currentTimeOffset === 0;
-                    const timeStr = `${formatTime(pStart)} - ${formatTime(pEnd)}`;
-                    const desc = program.description || program.desc || ''; // Backend uses 'description'
+                // Clamp to window boundaries
+                const displayStart = Math.max(pStart.getTime(), windowStart.getTime());
+                const displayEnd = Math.min(pEnd.getTime(), windowEnd.getTime());
 
-                    cells += `
-                        <div class="epg-program ${isNow ? 'now-playing' : ''}" title="${escapeHtml(program.title)}">
-                            <div class="epg-program-title">${escapeHtml(program.title)}</div>
-                            <div class="epg-program-time">
-                                ${isNow ? '<span class="live-badge">Live</span>' : ''}
-                                ${timeStr}
-                            </div>
-                            ${desc ? `<div class="epg-program-desc">${escapeHtml(desc.substring(0, 50))}...</div>` : ''}
+                // Fill gap if there's empty space before this program
+                if (displayStart > lastEnd) {
+                    const gapMinutes = (displayStart - lastEnd) / (60 * 1000);
+                    const gapWidth = Math.max(60, gapMinutes * pxPerMinute);
+                    cells += `<div class="epg-no-data" style="width: ${gapWidth}px; min-width: ${gapWidth}px;">No data</div>`;
+                }
+
+                // Calculate program width based on visible duration
+                const durationMinutes = (displayEnd - displayStart) / (60 * 1000);
+                const width = Math.max(90, durationMinutes * pxPerMinute); // Min 90px for readability
+
+                const isNow = now >= pStart && now < pEnd && currentTimeOffset === 0;
+                const timeStr = `${formatTime(pStart)} - ${formatTime(pEnd)}`;
+                const desc = program.description || program.desc || '';
+
+                cells += `
+                    <div class="epg-program ${isNow ? 'now-playing' : ''}"
+                         style="width: ${width}px; min-width: ${width}px;"
+                         title="${escapeHtml(program.title)}">
+                        <div class="epg-program-title">${escapeHtml(program.title)}</div>
+                        <div class="epg-program-time">
+                            ${isNow ? '<span class="live-badge">Live</span>' : ''}
+                            ${timeStr}
                         </div>
-                    `;
-                } else {
-                    cells += `<div class="epg-no-data">No data</div>`;
+                        ${desc && width > 150 ? `<div class="epg-program-desc">${escapeHtml(desc.substring(0, 50))}...</div>` : ''}
+                    </div>
+                `;
+
+                lastEnd = displayEnd;
+            }
+
+            // Fill remaining time if programs don't cover full window
+            if (lastEnd < windowEnd.getTime()) {
+                const remainingMinutes = (windowEnd.getTime() - lastEnd) / (60 * 1000);
+                const remainingWidth = remainingMinutes * pxPerMinute;
+                if (remainingWidth > 30) {
+                    cells += `<div class="epg-no-data" style="width: ${remainingWidth}px; min-width: ${remainingWidth}px;">No data</div>`;
                 }
             }
 
