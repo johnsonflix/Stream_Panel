@@ -1248,8 +1248,14 @@ const EditUser = {
             const newChannelGroupId = document.getElementById('edit-iptv-channel-group')?.value || null;
             const iptvExpirationValue = document.getElementById('edit-iptv-expiration')?.value;
 
+            // Get username and password from the form (may have been updated via sync)
+            const iptvUsername = document.getElementById('edit-iptv-username')?.value || null;
+            const iptvPassword = document.getElementById('edit-iptv-password')?.value || null;
+
             iptvUpdates.subscription_plan_id = newSubscriptionPlanId;
             iptvUpdates.channel_group_id = newChannelGroupId;
+            iptvUpdates.username = iptvUsername;
+            iptvUpdates.password = iptvPassword;
             if (iptvExpirationValue) {
                 iptvUpdates.expiration_date = iptvExpirationValue;
             }
@@ -1263,6 +1269,9 @@ const EditUser = {
             // Add to basic updates
             basicUpdates.iptv_subscription_plan_id = iptvUpdates.subscription_plan_id;
             basicUpdates.iptv_channel_group_id = iptvUpdates.channel_group_id;
+            // Include username and password so they persist after sync
+            basicUpdates.iptv_username = iptvUpdates.username;
+            basicUpdates.iptv_password = iptvUpdates.password;
             // Only include expiration date if it was set
             if (iptvUpdates.expiration_date !== undefined) {
                 basicUpdates.iptv_expiration_date = iptvUpdates.expiration_date;
