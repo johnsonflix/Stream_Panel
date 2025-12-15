@@ -901,6 +901,8 @@
             .mini-player { display: none !important; }
             .search-box { display: none; }
             .header-actions .btn-icon:not(.mobile-show) { display: none; }
+            .cache-info { display: none !important; }
+            .source-toggle { display: none !important; }
 
             /* Show mobile layout */
             .mobile-guide { display: flex !important; }
@@ -920,37 +922,323 @@
             background: var(--bg-primary);
         }
 
-        /* Mobile Categories Bar */
-        .mobile-categories {
+        /* Mobile Header Bar */
+        .mobile-guide-header {
             display: flex;
-            overflow-x: auto;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
             background: var(--bg-secondary);
             border-bottom: 1px solid var(--border-color);
-            padding: 8px 12px;
-            gap: 8px;
             flex-shrink: 0;
-            -webkit-overflow-scrolling: touch;
-            scrollbar-width: none;
         }
 
-        .mobile-categories::-webkit-scrollbar { display: none; }
-
-        .mobile-cat-btn {
-            flex-shrink: 0;
-            padding: 8px 16px;
+        .mobile-menu-btn {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             background: var(--bg-tertiary);
             border: none;
-            border-radius: 20px;
+            border-radius: 8px;
             color: var(--text-secondary);
-            font-size: 13px;
+            font-size: 18px;
             cursor: pointer;
-            white-space: nowrap;
-            transition: all 0.2s;
         }
 
-        .mobile-cat-btn.active {
+        .mobile-menu-btn:active {
+            background: var(--border-color);
+        }
+
+        .mobile-guide-search {
+            flex: 1;
+            position: relative;
+        }
+
+        .mobile-guide-search input {
+            width: 100%;
+            padding: 10px 16px 10px 40px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 14px;
+        }
+
+        .mobile-guide-search input:focus {
+            outline: none;
+            border-color: var(--iptv-color);
+        }
+
+        .mobile-guide-search i {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-tertiary);
+        }
+
+        .mobile-guide-search .clear-search {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 24px;
+            height: 24px;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            background: var(--border-color);
+            border: none;
+            border-radius: 50%;
+            color: var(--text-secondary);
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        .mobile-guide-search .clear-search.visible {
+            display: flex;
+        }
+
+        .mobile-selected-category {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 12px;
+            background: var(--iptv-color);
+            border-radius: 16px;
+            font-size: 12px;
+            color: white;
+            white-space: nowrap;
+            max-width: 120px;
+        }
+
+        .mobile-selected-category span {
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* Mobile Category Drawer */
+        .mobile-category-drawer-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.6);
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s, visibility 0.3s;
+        }
+
+        .mobile-category-drawer-overlay.visible {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .mobile-category-drawer {
+            position: fixed;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            width: 280px;
+            max-width: 85vw;
+            background: var(--bg-secondary);
+            z-index: 1001;
+            transform: translateX(-100%);
+            transition: transform 0.3s ease;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .mobile-category-drawer.open {
+            transform: translateX(0);
+        }
+
+        .mobile-drawer-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .mobile-drawer-title {
+            font-size: 16px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .mobile-drawer-title i {
+            color: var(--iptv-color);
+        }
+
+        .mobile-drawer-close {
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--bg-tertiary);
+            border: none;
+            border-radius: 8px;
+            color: var(--text-secondary);
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        .mobile-drawer-categories {
+            flex: 1;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .mobile-drawer-cat-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--border-color);
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .mobile-drawer-cat-item:active {
+            background: var(--bg-tertiary);
+        }
+
+        .mobile-drawer-cat-item.active {
+            background: rgba(139, 92, 246, 0.15);
+            border-left: 3px solid var(--iptv-color);
+        }
+
+        .mobile-drawer-cat-icon {
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            color: var(--text-tertiary);
+            font-size: 14px;
+        }
+
+        .mobile-drawer-cat-item.active .mobile-drawer-cat-icon {
             background: var(--iptv-color);
             color: white;
+        }
+
+        .mobile-drawer-cat-name {
+            flex: 1;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .mobile-drawer-cat-count {
+            font-size: 12px;
+            color: var(--text-tertiary);
+            background: var(--bg-tertiary);
+            padding: 2px 8px;
+            border-radius: 10px;
+        }
+
+        /* Mobile Search Results */
+        .mobile-search-results {
+            display: none;
+            flex: 1;
+            overflow-y: auto;
+            background: var(--bg-primary);
+        }
+
+        .mobile-search-results.active {
+            display: block;
+        }
+
+        .mobile-search-result-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border-color);
+            cursor: pointer;
+        }
+
+        .mobile-search-result-item:active {
+            background: var(--bg-tertiary);
+        }
+
+        .mobile-search-result-logo {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            background: var(--bg-tertiary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+
+        .mobile-search-result-logo img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .mobile-search-result-logo i {
+            color: var(--text-tertiary);
+        }
+
+        .mobile-search-result-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .mobile-search-result-channel {
+            font-size: 14px;
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .mobile-search-result-program {
+            font-size: 12px;
+            color: var(--iptv-color);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .mobile-search-result-play {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: var(--iptv-color);
+            border: none;
+            color: white;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            cursor: pointer;
+        }
+
+        .mobile-search-no-results {
+            padding: 40px 20px;
+            text-align: center;
+            color: var(--text-tertiary);
+        }
+
+        .mobile-search-no-results i {
+            font-size: 40px;
+            margin-bottom: 12px;
         }
 
         /* Mobile Time Navigation */
@@ -1501,13 +1789,49 @@
 
         <!-- Mobile Guide View (hidden on desktop) -->
         <div class="mobile-guide" id="mobileGuide">
-            <!-- Mobile Categories -->
-            <div class="mobile-categories" id="mobileCategories">
-                <!-- Categories will be rendered here -->
+            <!-- Mobile Header with Search -->
+            <div class="mobile-guide-header">
+                <button class="mobile-menu-btn" onclick="openMobileCategoryDrawer()">
+                    <i class="fas fa-bars"></i>
+                </button>
+                <div class="mobile-guide-search">
+                    <i class="fas fa-search"></i>
+                    <input type="text" id="mobileGuideSearch" placeholder="Search channels & shows..." oninput="mobileGuideSearchHandler()">
+                    <button class="clear-search" id="mobileSearchClear" onclick="clearMobileGuideSearch()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="mobile-selected-category" id="mobileSelectedCategoryBadge" onclick="openMobileCategoryDrawer()">
+                    <span id="mobileSelectedCategoryName">All</span>
+                </div>
+            </div>
+
+            <!-- Mobile Search Results (hidden until searching) -->
+            <div class="mobile-search-results" id="mobileSearchResults">
+                <!-- Search results rendered here -->
+            </div>
+
+            <!-- Mobile Category Drawer Overlay -->
+            <div class="mobile-category-drawer-overlay" id="mobileCategoryOverlay" onclick="closeMobileCategoryDrawer()"></div>
+
+            <!-- Mobile Category Drawer -->
+            <div class="mobile-category-drawer" id="mobileCategoryDrawer">
+                <div class="mobile-drawer-header">
+                    <div class="mobile-drawer-title">
+                        <i class="fas fa-folder"></i>
+                        <span>Categories</span>
+                    </div>
+                    <button class="mobile-drawer-close" onclick="closeMobileCategoryDrawer()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="mobile-drawer-categories" id="mobileDrawerCategories">
+                    <!-- Categories rendered here -->
+                </div>
             </div>
 
             <!-- Mobile Time Navigation -->
-            <div class="mobile-time-nav">
+            <div class="mobile-time-nav" id="mobileTimeNav">
                 <button class="mobile-time-btn" onclick="mobileNavigateTime(-2)">
                     <i class="fas fa-chevron-left"></i>
                 </button>
@@ -2532,24 +2856,161 @@
         let mobileTimeOffset = 0; // Hours offset from now
         let mobileSwipeHintShown = false;
 
-        // Render mobile categories
+        // Render mobile categories (into drawer)
         function renderMobileCategories() {
-            const container = document.getElementById('mobileCategories');
+            const container = document.getElementById('mobileDrawerCategories');
             if (!container || !categories.length) return;
 
             let html = categories.map(cat => `
-                <button class="mobile-cat-btn ${mobileCurrentCategory === cat.category_id ? 'active' : ''}"
-                        onclick="selectMobileCategory('${cat.category_id}')">
-                    ${escapeHtml(cat.category_name)}
-                </button>
+                <div class="mobile-drawer-cat-item ${mobileCurrentCategory === cat.category_id ? 'active' : ''}"
+                     onclick="selectMobileCategory('${cat.category_id}')">
+                    <div class="mobile-drawer-cat-icon">
+                        <i class="fas fa-${cat.category_id === 'all' ? 'globe' : 'folder'}"></i>
+                    </div>
+                    <span class="mobile-drawer-cat-name">${escapeHtml(cat.category_name)}</span>
+                    ${cat.channel_count ? `<span class="mobile-drawer-cat-count">${cat.channel_count}</span>` : ''}
+                </div>
             `).join('');
 
             container.innerHTML = html;
+
+            // Update selected category badge
+            const selectedCat = categories.find(c => c.category_id === mobileCurrentCategory);
+            const badge = document.getElementById('mobileSelectedCategoryName');
+            if (badge && selectedCat) {
+                badge.textContent = selectedCat.category_name;
+            }
+        }
+
+        // Open/close mobile category drawer
+        function openMobileCategoryDrawer() {
+            document.getElementById('mobileCategoryDrawer').classList.add('open');
+            document.getElementById('mobileCategoryOverlay').classList.add('visible');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeMobileCategoryDrawer() {
+            document.getElementById('mobileCategoryDrawer').classList.remove('open');
+            document.getElementById('mobileCategoryOverlay').classList.remove('visible');
+            document.body.style.overflow = '';
+        }
+
+        // Mobile search functionality
+        function mobileGuideSearchHandler() {
+            const searchInput = document.getElementById('mobileGuideSearch');
+            const clearBtn = document.getElementById('mobileSearchClear');
+            const searchResults = document.getElementById('mobileSearchResults');
+            const epgWrapper = document.querySelector('.mobile-epg-wrapper');
+            const timeNav = document.getElementById('mobileTimeNav');
+            const searchTerm = searchInput.value.trim().toLowerCase();
+
+            // Show/hide clear button
+            if (searchTerm.length > 0) {
+                clearBtn.classList.add('visible');
+            } else {
+                clearBtn.classList.remove('visible');
+            }
+
+            if (searchTerm.length >= 2) {
+                // Show search results, hide EPG
+                searchResults.classList.add('active');
+                epgWrapper.style.display = 'none';
+                timeNav.style.display = 'none';
+
+                // Search channels and programs
+                const results = [];
+                const now = new Date();
+
+                allChannels.forEach((channel, index) => {
+                    // Check channel name
+                    const channelMatches = channel.name.toLowerCase().includes(searchTerm);
+
+                    // Check current program
+                    let currentProgram = null;
+                    const channelEpg = epgData[channel.epg_channel_id] || epgCache[channel.epg_channel_id] || [];
+                    if (channelEpg.length > 0) {
+                        currentProgram = channelEpg.find(p => {
+                            const pStart = new Date(p.start);
+                            const pEnd = new Date(p.stop);
+                            return now >= pStart && now < pEnd;
+                        });
+                    }
+
+                    const programMatches = currentProgram && currentProgram.title &&
+                        currentProgram.title.toLowerCase().includes(searchTerm);
+
+                    if (channelMatches || programMatches) {
+                        results.push({
+                            channel,
+                            index,
+                            currentProgram,
+                            channelMatches,
+                            programMatches
+                        });
+                    }
+                });
+
+                if (results.length === 0) {
+                    searchResults.innerHTML = `
+                        <div class="mobile-search-no-results">
+                            <i class="fas fa-search"></i>
+                            <p>No channels or shows found for "${escapeHtml(searchTerm)}"</p>
+                        </div>
+                    `;
+                } else {
+                    searchResults.innerHTML = results.map(r => {
+                        const logo = r.channel.stream_icon
+                            ? `<img src="${escapeHtml(r.channel.stream_icon)}" onerror="this.parentNode.innerHTML='<i class=\\'fas fa-tv\\'></i>'" alt="">`
+                            : '<i class="fas fa-tv"></i>';
+
+                        const programText = r.currentProgram && r.currentProgram.title
+                            ? escapeHtml(r.currentProgram.title)
+                            : 'No program info';
+
+                        return `
+                            <div class="mobile-search-result-item" onclick="playMobileFromSearch(${r.index})">
+                                <div class="mobile-search-result-logo">${logo}</div>
+                                <div class="mobile-search-result-info">
+                                    <div class="mobile-search-result-channel">${escapeHtml(r.channel.name)}</div>
+                                    <div class="mobile-search-result-program">${programText}</div>
+                                </div>
+                                <button class="mobile-search-result-play" onclick="event.stopPropagation(); playMobileFromSearch(${r.index})">
+                                    <i class="fas fa-play"></i>
+                                </button>
+                            </div>
+                        `;
+                    }).join('');
+                }
+            } else {
+                // Hide search results, show EPG
+                searchResults.classList.remove('active');
+                epgWrapper.style.display = '';
+                timeNav.style.display = '';
+            }
+        }
+
+        function clearMobileGuideSearch() {
+            const searchInput = document.getElementById('mobileGuideSearch');
+            searchInput.value = '';
+            mobileGuideSearchHandler();
+            searchInput.focus();
+        }
+
+        function playMobileFromSearch(channelIndex) {
+            const channel = allChannels[channelIndex];
+            if (!channel) return;
+
+            // Clear search
+            clearMobileGuideSearch();
+
+            // Play the channel
+            playMobileChannel(channel);
         }
 
         // Select mobile category
         async function selectMobileCategory(categoryId) {
             mobileCurrentCategory = categoryId;
+            closeMobileCategoryDrawer();
             renderMobileCategories();
 
             // Show loading

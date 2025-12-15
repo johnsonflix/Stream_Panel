@@ -3028,6 +3028,15 @@
             renderMobileCategoryList();
         }
 
+        // Get mobile channel subtitle (current program or "Tap to play")
+        function getMobileChannelSubtitle(channel) {
+            const currentProg = getCurrentProgram(channel);
+            if (currentProg && currentProg.title) {
+                return `<span style="color: var(--primary-color);">${escapeHtml(currentProg.title)}</span>`;
+            }
+            return 'Tap to play';
+        }
+
         // Render mobile channel list
         function renderMobileChannelList() {
             const container = document.getElementById('mobileChannelListContent');
@@ -3059,12 +3068,13 @@
                     : '<i class="fas fa-tv"></i>';
 
                 const channelIndex = channels.indexOf(channel);
+                const subtitle = getMobileChannelSubtitle(channel);
                 return `
                     <div class="mobile-channel-row" onclick="mobilePlayChannel(${channelIndex})">
                         <div class="mobile-channel-logo">${logo}</div>
                         <div class="mobile-channel-details">
                             <div class="mobile-channel-title">${escapeHtml(channel.name)}</div>
-                            <div class="mobile-channel-subtitle">Tap to play</div>
+                            <div class="mobile-channel-subtitle">${subtitle}</div>
                         </div>
                         <button class="mobile-channel-play" onclick="event.stopPropagation(); mobilePlayChannel(${channelIndex})">
                             <i class="fas fa-play"></i>
@@ -3074,9 +3084,9 @@
             }).join('');
         }
 
-        // Mobile search channels
+        // Mobile search channels (searches both channel names and current program titles)
         function mobileSearchChannels() {
-            const searchTerm = document.getElementById('mobilePlayerSearch').value.toLowerCase();
+            const searchTerm = document.getElementById('mobilePlayerSearch').value.toLowerCase().trim();
 
             if (searchTerm.length > 0) {
                 // Show search results across all channels
@@ -3084,9 +3094,19 @@
                 document.getElementById('mobileChannelListView').classList.add('active');
                 document.getElementById('mobileSelectedCategoryName').textContent = `Search: "${searchTerm}"`;
 
-                const filtered = channels.filter(ch =>
-                    ch.name.toLowerCase().includes(searchTerm)
-                );
+                // Search channels by name and current program title
+                const filtered = channels.filter(ch => {
+                    // Check channel name
+                    if (ch.name.toLowerCase().includes(searchTerm)) {
+                        return true;
+                    }
+                    // Check current program title
+                    const currentProg = getCurrentProgram(ch);
+                    if (currentProg && currentProg.title && currentProg.title.toLowerCase().includes(searchTerm)) {
+                        return true;
+                    }
+                    return false;
+                });
 
                 const container = document.getElementById('mobileChannelListContent');
                 if (filtered.length === 0) {
@@ -3094,7 +3114,7 @@
                         <div class="mobile-empty">
                             <i class="fas fa-search"></i>
                             <h3>No Results</h3>
-                            <p>No channels match your search</p>
+                            <p>No channels or shows match your search</p>
                         </div>
                     `;
                 } else {
@@ -3104,12 +3124,13 @@
                             : '<i class="fas fa-tv"></i>';
 
                         const channelIndex = channels.indexOf(channel);
+                        const subtitle = getMobileChannelSubtitle(channel);
                         return `
                             <div class="mobile-channel-row" onclick="mobilePlayChannel(${channelIndex})">
                                 <div class="mobile-channel-logo">${logo}</div>
                                 <div class="mobile-channel-details">
                                     <div class="mobile-channel-title">${escapeHtml(channel.name)}</div>
-                                    <div class="mobile-channel-subtitle">Tap to play</div>
+                                    <div class="mobile-channel-subtitle">${subtitle}</div>
                                 </div>
                                 <button class="mobile-channel-play" onclick="event.stopPropagation(); mobilePlayChannel(${channelIndex})">
                                     <i class="fas fa-play"></i>

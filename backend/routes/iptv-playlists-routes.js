@@ -598,6 +598,22 @@ router.post('/:id/force-sync-user', async (req, res) => {
 
         console.log(`✅ Found full IPTV Editor user data:`, JSON.stringify(fullEditorUser, null, 2));
 
+        // Always update username and password in database from IPTV Editor (in case they changed)
+        if (fullEditorUser.username && fullEditorUser.password) {
+            const newUsername = fullEditorUser.username;
+            const newPassword = fullEditorUser.password;
+
+            // Check if credentials changed
+            if (newUsername !== editorUser.iptv_editor_username || newPassword !== editorUser.iptv_editor_password) {
+                await db.query(`
+                    UPDATE iptv_editor_users
+                    SET iptv_editor_username = ?, iptv_editor_password = ?, updated_at = datetime('now')
+                    WHERE id = ?
+                `, [newUsername, newPassword, editorUser.id]);
+                console.log(`✅ Updated IPTV Editor credentials in database (password changed from ${editorUser.iptv_editor_password} to ${newPassword})`);
+            }
+        }
+
         // NOTE: We don't update expiry_date here because this is the OLD data before sync.
         // The expiry_date is updated AFTER forceSync completes (see below) with the fresh data.
 
