@@ -148,12 +148,7 @@ function initializeIPTVEditorAutoUpdater() {
     });
 
     console.log(`[IPTV Auto-Updater] Job scheduled successfully - checks every 5 minutes`);
-
-    // Run initial check after 10 seconds (give server time to fully start)
-    setTimeout(() => {
-        console.log(`[IPTV Auto-Updater] Running initial check on startup...`);
-        checkAndRunAutoUpdaters();
-    }, 10000); // Wait 10 seconds after startup
+    console.log(`[IPTV Auto-Updater] Skipping startup check - will run on next scheduled interval`);
 
     return task;
 }

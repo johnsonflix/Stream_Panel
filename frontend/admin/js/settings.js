@@ -822,7 +822,7 @@ const Settings = {
                                             panel.panel_type.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 
                                         return `
-                                        <tr style="cursor: pointer;" onclick="Settings.openIPTVPanelDetails(${panel.id}, event)">
+                                        <tr id="iptv-panel-${panel.id}" style="cursor: pointer;" onclick="Settings.openIPTVPanelDetails(${panel.id}, event)">
                                             <td>
                                                 <strong>${Utils.escapeHtml(panel.name)}</strong>
                                                 ${panel.linked_playlist_name ? `

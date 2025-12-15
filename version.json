@@ -1,6 +1,6 @@
 {
-  "version": "1.2.0",
+  "version": "1.2.1",
   "name": "Stream Panel",
-  "releaseDate": "2025-12-14",
-  "description": "Add user portal renewal system for IPTV and Plex subscriptions"
+  "releaseDate": "2025-12-15",
+  "description": "Fix guide loading performance, IPTV panel status display, and auto-updater startup triggers"
 }

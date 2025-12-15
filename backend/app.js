@@ -45,7 +45,7 @@ const { initializePlexAutoSync } = require('./jobs/plex-auto-sync');
 const { initializeWatchStatsAutoRefresh } = require('./jobs/watch-stats-auto-refresh');
 const { initializeServiceCancellationProcessor } = require('./jobs/service-cancellation-processor');
 const { initializeDashboardStatsRefresh, runFullRefresh } = require('./jobs/dashboard-stats-refresh');
-const { initializeGuideCacheRefresh } = require('./jobs/guide-cache-refresh-scheduler');
+const { initializeGuideCacheRefresh, preloadAllGuideCaches } = require('./jobs/guide-cache-refresh-scheduler');
 // Note: plex-library-access-sync is now integrated with plex-sync-scheduler
 // and runs as part of each server's sync schedule (hourly/daily/weekly).
 const emailScheduler = require('./services/email/EmailScheduler');
@@ -1960,6 +1960,13 @@ async function startServer() {
         await loadIptvPanelsCacheFromDatabase();
     } catch (error) {
         console.error('[IPTV PANELS] Failed to load IPTV panels cache from database:', error);
+    }
+
+    // Pre-load EPG guide data into memory for instant guide loading
+    try {
+        await preloadAllGuideCaches();
+    } catch (error) {
+        console.error('[GUIDE CACHE] Failed to pre-load EPG caches:', error);
     }
 
     // Now start the server - cache will be available for first request

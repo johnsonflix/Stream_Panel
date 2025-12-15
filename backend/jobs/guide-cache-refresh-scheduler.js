@@ -12,11 +12,13 @@ const GuideCacheRefreshJob = require('./guide-cache-refresh');
 // Import the in-memory cache reload function from portal routes
 // This ensures guide loads instantly after refresh (no need to wait for cache warm-up)
 let reloadSourceCache = null;
+let clearUserCategoriesCache = null;
 try {
     const portalRoutes = require('../routes/portal-routes');
     reloadSourceCache = portalRoutes.reloadSourceCache;
+    clearUserCategoriesCache = portalRoutes.clearUserCategoriesCache;
 } catch (e) {
-    console.warn('[Guide Cache] Could not import reloadSourceCache - in-memory cache will not auto-refresh');
+    console.warn('[Guide Cache] Could not import portal-routes functions - in-memory cache will not auto-refresh');
 }
 
 // Every 2 hours for IPTV panels
@@ -80,6 +82,11 @@ async function refreshAllPanelsGuide() {
             console.log(`[Guide Cache] ✅ Memory cache reloaded for all panels`);
         }
 
+        // Clear user categories cache so users get fresh access data
+        if (clearUserCategoriesCache) {
+            clearUserCategoriesCache();
+        }
+
         return results;
     } catch (error) {
         console.error(`[Guide Cache] Panel guide refresh failed:`, error);
@@ -108,6 +115,11 @@ async function refreshPanelGuide(panelId) {
             await reloadSourceCache('panel', panelId);
         }
 
+        // Clear user categories cache so users get fresh access data
+        if (clearUserCategoriesCache && result.success) {
+            clearUserCategoriesCache();
+        }
+
         return result;
     } catch (error) {
         console.error(`[Guide Cache] Panel ${panelId} guide refresh failed:`, error);
@@ -133,6 +145,11 @@ async function refreshPlaylistGuide(playlistId) {
         // Reload into in-memory cache for instant guide loading
         if (reloadSourceCache && result.success) {
             await reloadSourceCache('playlist', playlistId);
+        }
+
+        // Clear user categories cache so users get fresh access data
+        if (clearUserCategoriesCache && result.success) {
+            clearUserCategoriesCache();
         }
 
         return result;
@@ -174,6 +191,11 @@ async function refreshAllPlaylistsGuide() {
                 await reloadSourceCache('playlist', playlistId);
             }
             console.log(`[Guide Cache] ✅ Memory cache reloaded for all playlists`);
+        }
+
+        // Clear user categories cache so users get fresh access data
+        if (clearUserCategoriesCache) {
+            clearUserCategoriesCache();
         }
 
         return results;
@@ -221,6 +243,59 @@ function getCacheStatus() {
     return status;
 }
 
+/**
+ * Pre-load all cached EPG data into memory at application startup
+ * This ensures guide loads instantly on the first request after server restart
+ */
+async function preloadAllGuideCaches() {
+    console.log('[Guide Cache] Pre-loading all EPG data into memory at startup...');
+
+    if (!reloadSourceCache) {
+        console.warn('[Guide Cache] reloadSourceCache not available - skipping pre-load');
+        return { loaded: 0, failed: 0 };
+    }
+
+    try {
+        const job = new GuideCacheRefreshJob();
+
+        // Get all sources that have cached EPG data
+        const cachedSources = job.db.prepare(`
+            SELECT source_type, source_id, epg_channel_count
+            FROM guide_cache
+            WHERE epg_json IS NOT NULL AND epg_channel_count > 0
+        `).all();
+
+        job.close();
+
+        if (cachedSources.length === 0) {
+            console.log('[Guide Cache] No cached EPG data to pre-load');
+            return { loaded: 0, failed: 0 };
+        }
+
+        console.log(`[Guide Cache] Found ${cachedSources.length} sources with cached EPG data`);
+
+        let loaded = 0;
+        let failed = 0;
+
+        for (const source of cachedSources) {
+            try {
+                await reloadSourceCache(source.source_type, source.source_id);
+                loaded++;
+            } catch (error) {
+                console.error(`[Guide Cache] Failed to pre-load ${source.source_type}:${source.source_id}:`, error.message);
+                failed++;
+            }
+        }
+
+        console.log(`[Guide Cache] ✅ Pre-loaded ${loaded} EPG caches into memory (${failed} failed)`);
+        return { loaded, failed };
+
+    } catch (error) {
+        console.error('[Guide Cache] Failed to pre-load EPG caches:', error);
+        return { loaded: 0, failed: 1, error: error.message };
+    }
+}
+
 module.exports = {
     initializeGuideCacheRefresh,
     refreshAllPanelsGuide,
@@ -228,5 +303,6 @@ module.exports = {
     refreshPlaylistGuide,
     refreshAllPlaylistsGuide,
     schedulePlaylistGuideRefresh,
-    getCacheStatus
+    getCacheStatus,
+    preloadAllGuideCaches
 };
