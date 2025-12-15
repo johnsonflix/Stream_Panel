@@ -16,15 +16,21 @@ const { parseXMLTVEPG, organizeForGuideGrid } = require('../utils/xmltv-parser')
 
 // In-memory cache for parsed EPG data to avoid re-parsing large JSON on each request
 const epgCache = {
-    data: new Map(), // key: "sourceType:sourceId", value: { parsedEpg, cachedAt }
-    maxAge: 2 * 60 * 60 * 1000, // 2 hour cache TTL (matches guide refresh schedule)
+    data: new Map(), // key: "sourceType:sourceId", value: { parsedEpg, lastUpdated }
+    maxAge: 5 * 60 * 1000, // 5 minute cache TTL
 
-    get(sourceType, sourceId) {
+    get(sourceType, sourceId, dbLastUpdated) {
         const key = `${sourceType}:${sourceId}`;
         const cached = this.data.get(key);
         if (!cached) return null;
 
-        // Check TTL only - stale check removed due to timezone parsing issues
+        // Check if cache is stale (db was updated after cache)
+        if (dbLastUpdated && new Date(dbLastUpdated) > cached.cachedAt) {
+            this.data.delete(key);
+            return null;
+        }
+
+        // Check TTL
         if (Date.now() - cached.cachedAt.getTime() > this.maxAge) {
             this.data.delete(key);
             return null;
@@ -36,154 +42,8 @@ const epgCache = {
     set(sourceType, sourceId, parsedEpg) {
         const key = `${sourceType}:${sourceId}`;
         this.data.set(key, { parsedEpg, cachedAt: new Date() });
-    },
-
-    // Manual invalidation when guide cache is refreshed
-    invalidate(sourceType, sourceId) {
-        const key = `${sourceType}:${sourceId}`;
-        this.data.delete(key);
     }
 };
-
-// In-memory cache for categories and channels to avoid re-parsing JSON on each request
-const guideCache = {
-    data: new Map(), // key: "sourceType:sourceId", value: { categories, channels, lastUpdated, epgLastUpdated, cachedAt }
-    maxAge: 2 * 60 * 60 * 1000, // 2 hour cache TTL (matches guide refresh schedule)
-
-    get(sourceType, sourceId) {
-        const key = `${sourceType}:${sourceId}`;
-        const cached = this.data.get(key);
-
-        if (!cached) {
-            console.log(`[GuideCache] MISS: key="${key}" not in memory`);
-            return null;
-        }
-
-        // Check TTL only - stale check removed due to timezone parsing issues
-        if (Date.now() - cached.cachedAt.getTime() > this.maxAge) {
-            console.log(`[GuideCache] EXPIRED: key="${key}"`);
-            this.data.delete(key);
-            return null;
-        }
-
-        console.log(`[GuideCache] HIT: key="${key}"`);
-        return {
-            categories: cached.categories,
-            channels: cached.channels,
-            lastUpdated: cached.lastUpdated,
-            epgLastUpdated: cached.epgLastUpdated
-        };
-    },
-
-    set(sourceType, sourceId, categories, channels, lastUpdated, epgLastUpdated) {
-        const key = `${sourceType}:${sourceId}`;
-        this.data.set(key, { categories, channels, lastUpdated, epgLastUpdated, cachedAt: new Date() });
-    },
-
-    // Manual invalidation when guide cache is refreshed
-    invalidate(sourceType, sourceId) {
-        const key = `${sourceType}:${sourceId}`;
-        this.data.delete(key);
-    }
-};
-
-// Helper to yield to event loop - prevents blocking during heavy JSON parsing
-const yieldToEventLoop = () => new Promise(resolve => setImmediate(resolve));
-
-// Pre-warm caches on startup - loads all guide data into memory (non-blocking)
-async function preWarmGuideCache() {
-    console.log('[Guide Cache] Pre-warming in-memory caches (non-blocking)...');
-    try {
-        const caches = await query(`
-            SELECT source_type, source_id, categories_json, channels_json, epg_json, last_updated, epg_last_updated
-            FROM guide_cache
-            WHERE categories_json IS NOT NULL
-        `);
-
-        let loaded = 0;
-        for (const cache of caches) {
-            try {
-                // Yield to event loop before each source to keep server responsive
-                await yieldToEventLoop();
-
-                // Pre-parse categories and channels
-                if (cache.categories_json && cache.channels_json) {
-                    const categories = JSON.parse(cache.categories_json);
-                    await yieldToEventLoop();
-                    const channels = JSON.parse(cache.channels_json);
-                    guideCache.set(cache.source_type, cache.source_id, categories, channels, cache.last_updated, cache.epg_last_updated);
-                    await yieldToEventLoop();
-                }
-
-                // Pre-parse EPG (this is the big one - can take a few seconds per source)
-                if (cache.epg_json) {
-                    console.log(`[Guide Cache] Parsing EPG for ${cache.source_type}:${cache.source_id}...`);
-                    await yieldToEventLoop();
-                    const epg = JSON.parse(cache.epg_json);
-                    epgCache.set(cache.source_type, cache.source_id, epg);
-                    await yieldToEventLoop();
-                }
-
-                loaded++;
-                console.log(`[Guide Cache] ✓ Loaded ${cache.source_type}:${cache.source_id} into memory`);
-            } catch (e) {
-                console.error(`[Guide Cache] Failed to pre-warm ${cache.source_type}:${cache.source_id}:`, e.message);
-            }
-        }
-        console.log(`[Guide Cache] ✅ Pre-warmed ${loaded}/${caches.length} sources into memory`);
-    } catch (error) {
-        console.error('[Guide Cache] Pre-warm failed:', error.message);
-    }
-}
-
-// Start pre-warming after a short delay to let the server initialize
-setTimeout(preWarmGuideCache, 5000);
-
-/**
- * Reload a specific source's guide data into memory cache
- * Called after guide-cache-refresh job updates the database
- * @param {string} sourceType - 'panel' or 'playlist'
- * @param {number} sourceId - Panel or playlist ID
- */
-async function reloadSourceCache(sourceType, sourceId) {
-    console.log(`[Guide Cache] Reloading ${sourceType}:${sourceId} into memory...`);
-    try {
-        const cacheData = await query(`
-            SELECT categories_json, channels_json, epg_json, last_updated, epg_last_updated
-            FROM guide_cache
-            WHERE source_type = ? AND source_id = ?
-        `, [sourceType, sourceId]);
-
-        if (cacheData.length === 0) {
-            console.log(`[Guide Cache] No cache data found for ${sourceType}:${sourceId}`);
-            return false;
-        }
-
-        const cache = cacheData[0];
-
-        // Reload categories and channels
-        if (cache.categories_json && cache.channels_json) {
-            const categories = JSON.parse(cache.categories_json);
-            const channels = JSON.parse(cache.channels_json);
-            guideCache.set(sourceType, sourceId, categories, channels, cache.last_updated, cache.epg_last_updated);
-            console.log(`[Guide Cache] ✓ Reloaded ${sourceType}:${sourceId} guide data (${categories.length} categories, ${channels.length} channels)`);
-        }
-
-        // Reload EPG
-        if (cache.epg_json) {
-            console.log(`[Guide Cache] Parsing EPG for ${sourceType}:${sourceId}...`);
-            const epg = JSON.parse(cache.epg_json);
-            epgCache.set(sourceType, sourceId, epg);
-            const programCount = epg.programsByChannel ? Object.values(epg.programsByChannel).reduce((sum, arr) => sum + arr.length, 0) : 0;
-            console.log(`[Guide Cache] ✓ Reloaded ${sourceType}:${sourceId} EPG data (${programCount} programs)`);
-        }
-
-        return true;
-    } catch (error) {
-        console.error(`[Guide Cache] Failed to reload ${sourceType}:${sourceId}:`, error.message);
-        return false;
-    }
-}
 
 // Initialize IPTV service manager for cancellation
 let iptvManager;
@@ -638,6 +498,8 @@ router.get('/user/full', async (req, res) => {
                 iptv_password: userData.iptv_password,
                 iptv_m3u_url: userData.iptv_m3u_url,
                 iptv_subscription_name: userData.iptv_subscription_name,
+                iptv_subscription_plan_id: userData.iptv_subscription_plan_id,
+                iptv_price: userData.iptv_price,
                 iptv_price_type: userData.iptv_price_type,
                 iptv_expiration_date: userData.iptv_expiration_date,
                 iptv_connections: userData.iptv_connections,
@@ -1111,7 +973,7 @@ router.post('/service-requests', async (req, res) => {
                 <p><strong>User:</strong> ${userData.name} (${userData.email})</p>
                 <p><strong>Service:</strong> ${planName}</p>
                 <p><strong>Price:</strong> ${planPrice}</p>
-                <p><strong>Request Type:</strong> ${request_type === 'renewal' ? 'Renewal' : 'New Service'}</p>
+                <p><strong>Request Type:</strong> ${rawRequestType === 'renewal' ? 'Renewal' : 'New Service'}</p>
                 <p><strong>Payment Status:</strong> ${statusText}</p>
                 ${transaction_reference ? `<p><strong>Transaction Reference:</strong> ${transaction_reference}</p>` : ''}
                 ${user_notes ? `<p><strong>User Notes:</strong> ${user_notes}</p>` : ''}
@@ -2276,9 +2138,6 @@ router.get('/iptv/channels', async (req, res) => {
  * GET /api/v2/portal/iptv/epg
  * Get EPG program guide data for the user's IPTV service
  * Returns channels with programs for a time window (default: current time + 6 hours)
- *
- * PERFORMANCE: Uses cached EPG data from guide_cache table for fast loading.
- * Only falls back to real-time XMLTV fetch if cache is unavailable.
  */
 router.get('/iptv/epg', async (req, res) => {
     try {
@@ -2291,31 +2150,23 @@ router.get('/iptv/epg', async (req, res) => {
             });
         }
 
-        // Determine source type and ID for cache lookup
-        let sourceType = null;
-        let sourceId = null;
+        // Get user's EPG URL
         let epgUrl = null;
 
         // Check for IPTV Editor credentials first
         if (user.iptv_editor_enabled) {
             const userData = await query(`
-                SELECT u.*, ieu.iptv_editor_username as ieu_username, ieu.iptv_editor_password as ieu_password,
-                       iep.id as playlist_id
+                SELECT u.*, ieu.iptv_editor_username as ieu_username, ieu.iptv_editor_password as ieu_password
                 FROM users u
                 LEFT JOIN iptv_editor_users ieu ON ieu.user_id = u.id
-                LEFT JOIN iptv_editor_playlists iep ON iep.id = ieu.playlist_id
                 WHERE u.id = ?
             `, [user.user_id]);
 
             if (userData.length > 0) {
                 const ud = userData[0];
-                if (ud.playlist_id) {
-                    sourceType = 'playlist';
-                    sourceId = ud.playlist_id;
-                }
-
-                // Build EPG URL for fallback
                 epgUrl = ud.iptv_editor_epg_url;
+
+                // If no stored URL, generate from editor_dns
                 if (!epgUrl) {
                     const editorDnsSettings = await query(
                         `SELECT setting_value FROM iptv_editor_settings WHERE setting_key = 'editor_dns'`
@@ -2331,24 +2182,26 @@ router.get('/iptv/epg', async (req, res) => {
             }
         }
 
-        // Fallback to panel
-        if (!sourceType && user.iptv_enabled) {
+        // Fallback to panel EPG URL
+        if (!epgUrl && user.iptv_enabled) {
             const userData = await query(`
-                SELECT u.*, ip.id as panel_id, ip.base_url as panel_url
+                SELECT u.*, ip.base_url as panel_url
                 FROM users u
                 LEFT JOIN iptv_panels ip ON ip.id = u.iptv_panel_id
                 WHERE u.id = ?
             `, [user.user_id]);
 
-            if (userData.length > 0 && userData[0].panel_id) {
+            if (userData.length > 0 && userData[0].panel_url && userData[0].iptv_username) {
                 const ud = userData[0];
-                sourceType = 'panel';
-                sourceId = ud.panel_id;
-
-                if (ud.panel_url && ud.iptv_username) {
-                    epgUrl = `${ud.panel_url}/xmltv.php?username=${ud.iptv_username}&password=${ud.iptv_password}`;
-                }
+                epgUrl = `${ud.panel_url}/xmltv.php?username=${ud.iptv_username}&password=${ud.iptv_password}`;
             }
+        }
+
+        if (!epgUrl) {
+            return res.status(400).json({
+                success: false,
+                message: 'No EPG URL available for this user'
+            });
         }
 
         // Parse time range from query params (default: 3 hours before to 6 hours after)
@@ -2358,60 +2211,12 @@ router.get('/iptv/epg', async (req, res) => {
 
         const startTime = new Date(now.getTime() - hoursBack * 60 * 60 * 1000);
         const endTime = new Date(now.getTime() + hoursForward * 60 * 60 * 1000);
-        const startTs = startTime.getTime();
-        const endTs = endTime.getTime();
 
-        let epgData = null;
-        let fromCache = false;
-
-        // Try to load from cache first (FAST PATH)
-        if (sourceType && sourceId) {
-            const cache = await query(`
-                SELECT epg_json, epg_last_updated FROM guide_cache
-                WHERE source_type = ? AND source_id = ? AND epg_json IS NOT NULL
-            `, [sourceType, sourceId]);
-
-            if (cache.length > 0 && cache[0].epg_json) {
-                try {
-                    // Check in-memory cache first
-                    let parsedEpg = epgCache.get(sourceType, sourceId);
-
-                    if (!parsedEpg) {
-                        console.log(`[EPG] Parsing cached EPG JSON for ${sourceType}:${sourceId}`);
-                        parsedEpg = JSON.parse(cache[0].epg_json);
-                        epgCache.set(sourceType, sourceId, parsedEpg);
-                    } else {
-                        console.log(`[EPG] Using in-memory cache for ${sourceType}:${sourceId}`);
-                    }
-
-                    epgData = parsedEpg;
-                    fromCache = true;
-                } catch (parseError) {
-                    console.warn(`[EPG] Failed to parse cached EPG: ${parseError.message}`);
-                }
-            }
-        }
-
-        // Fallback to real-time fetch if cache not available
-        if (!epgData) {
-            if (!epgUrl) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'No EPG data available. Please wait for the guide cache to refresh.'
-                });
-            }
-
-            console.log(`[EPG] Cache miss - fetching real-time from ${epgUrl}`);
-            epgData = await parseXMLTVEPG(epgUrl);
-        }
-
-        // Filter programs to time window
-        const filteredPrograms = epgData.programs.filter(prog => {
-            return prog.stop_timestamp > startTs && prog.start_timestamp < endTs;
-        });
+        // Parse XMLTV EPG data
+        const epgData = await parseXMLTVEPG(epgUrl);
 
         // Organize for guide grid
-        const grid = organizeForGuideGrid(filteredPrograms, epgData.channels, startTime, endTime);
+        const grid = organizeForGuideGrid(epgData.programs, epgData.channels, startTime, endTime);
 
         // Build response with channels and their programs
         const guideData = Object.entries(epgData.channels).map(([channelId, channel]) => ({
@@ -2426,7 +2231,6 @@ router.get('/iptv/epg', async (req, res) => {
 
         res.json({
             success: true,
-            fromCache,
             timeRange: {
                 start: startTime.toISOString(),
                 end: endTime.toISOString(),
@@ -2434,7 +2238,7 @@ router.get('/iptv/epg', async (req, res) => {
             },
             channels: guideData,
             totalChannels: guideData.length,
-            totalPrograms: filteredPrograms.length
+            totalPrograms: epgData.programs.length
         });
 
     } catch (error) {
@@ -2448,21 +2252,21 @@ router.get('/iptv/epg', async (req, res) => {
 
 /**
  * GET /api/v2/portal/iptv/guide
- * Get TV Guide data from local cache - FAST, no external API calls
+ * Get TV Guide data using Xtream API with admin-level caching and user-level filtering
  *
  * Architecture:
- * 1. Cache: Full guide data (categories + channels + EPG) cached at panel/playlist level
- * 2. Serve: Return cached data directly - all users on same panel see same guide
- * 3. Background: guide-cache-refresh job updates cache every 2 hours
+ * 1. Cache: Full guide data (categories + channels) cached at panel/playlist level using admin credentials
+ * 2. Filter: Quick Xtream API call with USER's credentials to get their allowed categories
+ * 3. Serve: Filter cached data to only show categories the user has access to
  *
  * Query params:
- *   - source: 'editor' (default for editor users) or 'direct'/'panel' (panel source)
+ *   - source: 'editor' (default for editor users) or 'direct' (panel fallback)
  *   - category_id: Filter by category ID (optional)
  */
 router.get('/iptv/guide', async (req, res) => {
     try {
         const user = req.portalUser;
-        const { buildStreamUrl } = require('../utils/xtream-api');
+        const { getLiveCategories, buildStreamUrl } = require('../utils/xtream-api');
         const requestedSource = req.query.source; // 'editor' or 'direct'
         const categoryFilter = req.query.category_id;
 
@@ -2578,72 +2382,53 @@ router.get('/iptv/guide', async (req, res) => {
             return res.status(400).json({ success: false, message: 'Missing IPTV credentials' });
         }
 
-        // Check memory cache first - avoids any database query if data is already cached
-        let allCategories, allChannels, cacheLastUpdated, epgLastUpdated;
-        const memCached = guideCache.get(sourceType, sourceId);
+        // Get cached guide data
+        const cacheData = await query(`
+            SELECT * FROM guide_cache WHERE source_type = ? AND source_id = ?
+        `, [sourceType, sourceId]);
 
-        if (memCached) {
-            // Fast path: use memory cache - NO database query at all!
-            allCategories = memCached.categories;
-            allChannels = memCached.channels;
-            cacheLastUpdated = memCached.lastUpdated;
-            epgLastUpdated = memCached.epgLastUpdated;
-        } else {
-            // Slow path: load from database (only happens on first request after restart)
-            const cacheData = await query(`
-                SELECT source_type, source_id, categories_json, channels_json,
-                       total_categories, total_channels, last_updated, last_error,
-                       epg_channel_count, epg_program_count, epg_last_updated
-                FROM guide_cache WHERE source_type = ? AND source_id = ?
-            `, [sourceType, sourceId]);
-
-            if (!cacheData.length || !cacheData[0].categories_json) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Guide data not cached yet. Please wait for the background job to run or ask admin to refresh.',
-                    needsRefresh: true
-                });
-            }
-
-            const cache = cacheData[0];
-            console.log(`📺 Parsing guide JSON for ${sourceType}:${sourceId} (not in memory)`);
-            allCategories = JSON.parse(cache.categories_json);
-            allChannels = JSON.parse(cache.channels_json);
-            cacheLastUpdated = cache.last_updated;
-            epgLastUpdated = cache.epg_last_updated;
-            guideCache.set(sourceType, sourceId, allCategories, allChannels, cacheLastUpdated, epgLastUpdated);
-        }
-
-        // Use all cached categories
-        const filteredCategories = allCategories;
-
-        // If no category filter, only return categories (not all 7000+ channels)
-        // Channels will be loaded on-demand when user selects a category
-        if (!categoryFilter) {
-            return res.json({
-                success: true,
-                source: useSource,
-                sourceName: useSource === 'editor' ? userData.playlist_name : userData.panel_name,
-                availableSources: {
-                    editor: hasEditor,
-                    direct: hasPanel
-                },
-                categories: allCategories,
-                channels: [],
-                totalCategories: allCategories.length,
-                totalChannels: 0,
-                cacheLastUpdated: cacheLastUpdated,
-                baseUrl: baseUrl,
-                epg: {},
-                epgLastUpdated: epgLastUpdated,
-                epgChannelCount: 0
+        if (!cacheData.length || !cacheData[0].categories_json) {
+            return res.status(400).json({
+                success: false,
+                message: 'Guide data not cached yet. Please wait for the background job to run or ask admin to refresh.',
+                needsRefresh: true
             });
         }
 
-        // Apply category filter - 'all' returns all channels (for player)
-        let filteredChannels = categoryFilter === 'all'
-            ? allChannels
-            : allChannels.filter(ch => String(ch.category_id) === String(categoryFilter));
+        const cache = cacheData[0];
+        const allCategories = JSON.parse(cache.categories_json);
+        const allChannels = JSON.parse(cache.channels_json);
+
+        // Quick API call with USER's credentials to get their allowed categories
+        console.log(`📺 Fetching user categories for ${userUsername} from ${baseUrl}`);
+        let userCategories;
+        try {
+            userCategories = await getLiveCategories(baseUrl, userUsername, userPassword);
+        } catch (error) {
+            console.error('Failed to fetch user categories:', error.message);
+            // Fallback: use all cached categories (less restrictive)
+            userCategories = allCategories;
+        }
+
+        // Create a set of category IDs the user has access to
+        const userCategoryIds = new Set(userCategories.map(c => String(c.category_id)));
+
+        // Filter categories to only those the user has (excluding 'all' pseudo-category for now)
+        const filteredCategories = allCategories.filter(cat =>
+            cat.category_id === 'all' || userCategoryIds.has(String(cat.category_id))
+        );
+
+        // Filter channels to only those in user's allowed categories
+        let filteredChannels = allChannels.filter(ch =>
+            userCategoryIds.has(String(ch.category_id))
+        );
+
+        // Apply category filter if specified
+        if (categoryFilter && categoryFilter !== 'all') {
+            filteredChannels = filteredChannels.filter(ch =>
+                String(ch.category_id) === String(categoryFilter)
+            );
+        }
 
         // Build user-specific stream URLs
         const channelsWithUrls = filteredChannels.map(ch => ({
@@ -2663,39 +2448,30 @@ router.get('/iptv/guide', async (req, res) => {
         let epgChannelCount = 0;
         const shouldLoadEpg = categoryFilter && categoryFilter !== 'all';
 
-        if (shouldLoadEpg) {
+        if (shouldLoadEpg && cache.epg_json) {
             try {
-                // Get EPG from memory cache (pre-warmed on startup)
-                let fullEpg = epgCache.get(sourceType, sourceId);
+                // Check in-memory cache first
+                let fullEpg = epgCache.get(sourceType, sourceId, cache.epg_last_updated);
 
-                // EPG should be in memory from pre-warming. If not, skip EPG for this request
-                // (will be available after next cache refresh)
-                if (fullEpg && fullEpg.programsByChannel) {
-                    // Calculate time window for EPG filtering (12 hours to allow navigation)
-                    const now = Date.now();
-                    const windowStart = now - (2 * 60 * 60 * 1000); // 2 hours ago
-                    const windowEnd = now + (12 * 60 * 60 * 1000); // 12 hours ahead
+                if (!fullEpg) {
+                    // Parse from database and cache in memory
+                    console.log(`📺 Parsing EPG JSON for ${sourceType}:${sourceId} (not in memory cache)`);
+                    fullEpg = JSON.parse(cache.epg_json);
+                    epgCache.set(sourceType, sourceId, fullEpg);
+                }
 
-                    // Only include EPG for channels we're returning, filtered to time window
+                if (fullEpg.programsByChannel) {
+                    // Only include EPG for channels we're returning
                     const epgChannelIds = new Set(channelsWithUrls.map(ch => ch.epg_channel_id).filter(Boolean));
-                    let totalPrograms = 0;
                     for (const epgId of epgChannelIds) {
-                        const channelPrograms = fullEpg.programsByChannel[epgId];
-                        if (channelPrograms && channelPrograms.length > 0) {
-                            // Filter programs to time window
-                            const filteredPrograms = channelPrograms.filter(p =>
-                                p.stop_timestamp > windowStart && p.start_timestamp < windowEnd
-                            );
-                            if (filteredPrograms.length > 0) {
-                                epgData[epgId] = filteredPrograms;
-                                epgChannelCount++;
-                                totalPrograms += filteredPrograms.length;
-                            }
+                        if (fullEpg.programsByChannel[epgId]) {
+                            epgData[epgId] = fullEpg.programsByChannel[epgId];
+                            epgChannelCount++;
                         }
                     }
                 }
             } catch (e) {
-                console.warn('Failed to get EPG from cache:', e.message);
+                console.warn('Failed to parse EPG cache:', e.message);
             }
         }
 
@@ -2712,12 +2488,14 @@ router.get('/iptv/guide', async (req, res) => {
             channels: channelsWithUrls,
             totalCategories: filteredCategories.length,
             totalChannels: channelsWithUrls.length,
-            cacheLastUpdated: cacheLastUpdated,
-            baseUrl: baseUrl,
-            epg: epgData,
-            epgLastUpdated: epgLastUpdated,
+            cacheLastUpdated: cache.last_updated,
+            baseUrl: baseUrl, // For client to build HLS URLs if needed
+            epg: epgData, // EPG program data keyed by epg_channel_id (filtered to visible channels only)
+            epgLastUpdated: cache.epg_last_updated,
             epgChannelCount: epgChannelCount
         };
+
+        console.log(`✅ Returning ${filteredCategories.length} categories, ${channelsWithUrls.length} channels, ${epgChannelCount} EPG channels for user ${user.user_id} (source: ${useSource})`);
 
         return res.json(response);
 
@@ -2814,27 +2592,16 @@ router.get('/iptv/guide/channels/:categoryId', async (req, res) => {
             userPassword = m3uCreds.password;
         }
 
-        // Get cached channels - check memory cache first
-        let allChannels;
-        const memCached = guideCache.get(sourceType, sourceId);
-        if (memCached) {
-            allChannels = memCached.channels;
-            console.log(`📺 Loading channels from MEMORY cache for ${sourceType}:${sourceId}`);
-        } else {
-            // Fallback to database
-            const cacheData = await query(`
-                SELECT channels_json, last_updated FROM guide_cache WHERE source_type = ? AND source_id = ?
-            `, [sourceType, sourceId]);
+        // Get cached channels
+        const cacheData = await query(`
+            SELECT channels_json FROM guide_cache WHERE source_type = ? AND source_id = ?
+        `, [sourceType, sourceId]);
 
-            if (!cacheData.length) {
-                return res.status(400).json({ success: false, message: 'Guide not cached' });
-            }
-
-            console.log(`📺 Parsing channels JSON for ${sourceType}:${sourceId} (not in memory)`);
-            allChannels = JSON.parse(cacheData[0].channels_json);
-            // Store in memory for next request (categories will be null but that's OK for this endpoint)
-            guideCache.set(sourceType, sourceId, null, allChannels);
+        if (!cacheData.length) {
+            return res.status(400).json({ success: false, message: 'Guide not cached' });
         }
+
+        const allChannels = JSON.parse(cacheData[0].channels_json);
 
         // Filter by category
         let channels;
@@ -2995,32 +2762,21 @@ router.get('/iptv/guide-channels', async (req, res) => {
             return res.status(400).json({ success: false, message: 'No IPTV service configured' });
         }
 
-        // Get cached data - check memory cache first
-        let allChannels, allCategories;
-        const memCached = guideCache.get(sourceType, sourceId);
-        if (memCached && memCached.channels && memCached.categories) {
-            allChannels = memCached.channels;
-            allCategories = memCached.categories;
-            console.log(`📺 Loading guide-channels from MEMORY cache for ${sourceType}:${sourceId}`);
-        } else {
-            // Fallback to database
-            const cacheData = await query(`
-                SELECT * FROM guide_cache WHERE source_type = ? AND source_id = ?
-            `, [sourceType, sourceId]);
+        // Get cached data
+        const cacheData = await query(`
+            SELECT * FROM guide_cache WHERE source_type = ? AND source_id = ?
+        `, [sourceType, sourceId]);
 
-            if (!cacheData.length || !cacheData[0].channels_json) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Guide data not cached. Please wait for refresh.',
-                    needsConfiguration: true
-                });
-            }
-
-            console.log(`📺 Parsing guide-channels JSON for ${sourceType}:${sourceId} (not in memory)`);
-            allChannels = JSON.parse(cacheData[0].channels_json);
-            allCategories = JSON.parse(cacheData[0].categories_json);
-            guideCache.set(sourceType, sourceId, allCategories, allChannels);
+        if (!cacheData.length || !cacheData[0].channels_json) {
+            return res.status(400).json({
+                success: false,
+                message: 'Guide data not cached. Please wait for refresh.',
+                needsConfiguration: true
+            });
         }
+
+        const allChannels = JSON.parse(cacheData[0].channels_json);
+        const allCategories = JSON.parse(cacheData[0].categories_json);
 
         // Build channels with URLs
         const channelsWithUrls = allChannels.map(ch => ({
@@ -3060,6 +2816,4 @@ router.get('/iptv/guide-channels', async (req, res) => {
     }
 });
 
-// Export router and cache reload function
 module.exports = router;
-module.exports.reloadSourceCache = reloadSourceCache;

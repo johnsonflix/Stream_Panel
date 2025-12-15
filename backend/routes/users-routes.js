@@ -13,17 +13,6 @@ const IPTVEditorService = require('../services/iptv-editor-service');
 const { autoAssignTagsForUser } = require('./tags-routes');
 const jobProcessor = require('../services/JobProcessor');
 
-/**
- * Convert a Date object to YYYY-MM-DD format using local timezone
- * This ensures expiration dates are consistent with the server's timezone (Central Time)
- */
-function toLocalDateString(date) {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-}
-
 // Initialize service managers
 let plexManager;
 let iptvManager;
@@ -85,8 +74,8 @@ router.get('/', async (req, res) => {
         const conditions = [];
         const values = [];
 
-        // Show regular users AND admin users who have subscriptions (so they can be managed)
-        conditions.push('(u.is_app_user = 0 OR u.is_app_user IS NULL OR (u.is_app_user = 1 AND (u.iptv_enabled = 1 OR u.plex_enabled = 1)))');
+        // IMPORTANT: Exclude app users (admins/staff) - only show subscription users
+        conditions.push('(u.is_app_user = 0 OR u.is_app_user IS NULL)');
 
         if (!includeInactive) {
             conditions.push('u.is_active = TRUE');
@@ -365,28 +354,6 @@ router.post('/', async (req, res) => {
         // Check if this is "Add Service" mode (adding services to existing user)
         const isAddServiceMode = !!existing_user_id;
 
-        // ═══════════════════════════════════════════════════════
-        // 📋 LOG INCOMING REQUEST DATA
-        // ═══════════════════════════════════════════════════════
-        console.log('═══════════════════════════════════════════════════════');
-        console.log('📥 [USER CREATION] Incoming request data:');
-        console.log('   Name:', name);
-        console.log('   Email:', email);
-        console.log('   Account Type:', account_type);
-        console.log('   Plex Enabled:', plex_enabled);
-        console.log('   Plex Package ID:', plex_package_id);
-        console.log('   Plex Email:', plex_email);
-        console.log('   IPTV Enabled:', iptv_enabled);
-        console.log('   IPTV Panel ID:', iptv_panel_id);
-        console.log('   IPTV Package ID:', iptv_package_id);
-        console.log('   IPTV Subscription Plan ID:', iptv_subscription_plan_id);
-        console.log('   IPTV Username:', iptv_username);
-        console.log('   IPTV Is Trial:', iptv_is_trial);
-        console.log('   IPTV Duration Months:', iptv_duration_months);
-        console.log('   Add Service Mode:', isAddServiceMode);
-        console.log('   Existing User ID:', existing_user_id);
-        console.log('═══════════════════════════════════════════════════════');
-
         // Validation - only require name/email for new users, not add service mode
         if (!isAddServiceMode && (!name || !email)) {
             await connection.rollback();
@@ -488,34 +455,15 @@ router.post('/', async (req, res) => {
 
         // Validate iptv_subscription_plan_id (subscription plan choice - saved to DB only)
         let validIPTVSubscriptionPlanId = null;
-        console.log('🔍 Validating iptv_subscription_plan_id:', iptv_subscription_plan_id);
         if (iptv_subscription_plan_id) {
             const [iptvSubPlanCheck] = await connection.execute(
                 "SELECT id FROM subscription_plans WHERE id = ? AND service_type IN ('iptv', 'combo')",
                 [iptv_subscription_plan_id]
             );
-            console.log('🔍 Subscription plan validation result:', iptvSubPlanCheck.length > 0 ? 'VALID' : 'INVALID');
             if (iptvSubPlanCheck.length > 0) {
                 validIPTVSubscriptionPlanId = iptv_subscription_plan_id;
-                console.log('✅ Setting validIPTVSubscriptionPlanId to:', validIPTVSubscriptionPlanId);
-            } else {
-                console.log('❌ Subscription plan ID not found or invalid service type');
             }
-        } else {
-            console.log('⚠️ iptv_subscription_plan_id is null/undefined/empty');
         }
-
-        // ═══════════════════════════════════════════════════════
-        // 📊 LOG PACKAGE VALIDATION RESULTS
-        // ═══════════════════════════════════════════════════════
-        console.log('═══════════════════════════════════════════════════════');
-        console.log('✅ [PACKAGE VALIDATION] Results:');
-        console.log('   Plex Package ID (incoming):', plex_package_id);
-        console.log('   Plex Package ID (validated):', validPlexPackageId);
-        console.log('   IPTV Package ID (incoming):', iptv_package_id);
-        console.log('   IPTV Package ID (validated):', validIPTVPackageId);
-        console.log('   Account Type (final):', validAccountType);
-        console.log('═══════════════════════════════════════════════════════');
 
         let userId;
 
@@ -603,11 +551,6 @@ router.post('/', async (req, res) => {
             await connection.execute(`
                 UPDATE users SET ${updates.join(', ')} WHERE id = ?
             `, values);
-
-            console.log('═══════════════════════════════════════════════════════');
-            console.log('💾 [DATABASE] User updated with ID:', userId);
-            console.log('   ADD SERVICE MODE - Updated fields:', updates.join(', '));
-            console.log('═══════════════════════════════════════════════════════');
         } else {
             // NEW USER MODE: Insert user record
             // Generate created_at timestamp in SQLite format
@@ -633,24 +576,6 @@ router.post('/', async (req, res) => {
             ]);
 
             userId = userResult.insertId;
-
-            // ═══════════════════════════════════════════════════════
-            // 💾 LOG DATABASE INSERT
-            // ═══════════════════════════════════════════════════════
-            console.log('═══════════════════════════════════════════════════════');
-            console.log('💾 [DATABASE] User inserted with ID:', userId);
-            console.log('   Saved Values:');
-            console.log('   - name:', name);
-            console.log('   - email:', email);
-            console.log('   - account_type:', validAccountType);
-            console.log('   - plex_enabled:', plex_enabled ? 1 : 0);
-            console.log('   - plex_package_id:', validPlexPackageId);
-            console.log('   - iptv_enabled:', iptv_enabled ? 1 : 0);
-            console.log('   - iptv_panel_id:', iptv_panel_id || null);
-            console.log('   - iptv_username:', iptv_username || null);
-            console.log('   - iptv_package_id:', validIPTVPackageId);
-            console.log('   - iptv_channel_group_id:', iptv_channel_group_id || null);
-            console.log('═══════════════════════════════════════════════════════');
         }
 
         // Assign manual tags if provided
@@ -777,13 +702,6 @@ router.post('/', async (req, res) => {
                     jobProcessor.updateJobStatus(jobId, 'iptvEditor', 'completed', 'IPTV package not found');
                 } else {
                     packageData = packageRows[0];
-                    // ═══════════════════════════════════════════════════════
-                    // 📦 LOG IPTV PACKAGE DATA FROM DATABASE
-                    // ═══════════════════════════════════════════════════════
-                    console.log('═══════════════════════════════════════════════════════');
-                    console.log('📦 [IPTV PACKAGE] Retrieved from database:');
-                    console.log(JSON.stringify(packageData, null, 2));
-                    console.log('═══════════════════════════════════════════════════════');
                 }
             }
 
@@ -838,14 +756,6 @@ router.post('/', async (req, res) => {
                         send_welcome_email: iptv_send_welcome_email || false,
                         welcome_email_template_id: iptv_welcome_email_template_id || null
                     };
-
-                    // ═══════════════════════════════════════════════════════
-                    // ⚙️  LOG JOB CONFIG FOR IPTV
-                    // ═══════════════════════════════════════════════════════
-                    console.log('═══════════════════════════════════════════════════════');
-                    console.log('⚙️  [JOB CONFIG] IPTV configuration being sent to JobProcessor:');
-                    console.log(JSON.stringify(jobConfig.iptv, null, 2));
-                    console.log('═══════════════════════════════════════════════════════');
 
                     // === IPTV EDITOR CONFIG ===
                     if (create_on_iptv_editor) {
@@ -1020,6 +930,7 @@ router.put('/:id', async (req, res) => {
             iptv_username,
             iptv_password,
             iptv_package_id,
+            iptv_subscription_plan_id,
             iptv_channel_group_id,
             iptv_expiration_date,
             // IPTV Editor updates
@@ -1165,6 +1076,10 @@ router.put('/:id', async (req, res) => {
         if (iptv_package_id !== undefined) {
             updates.push('iptv_package_id = ?');
             values.push(iptv_package_id);
+        }
+        if (iptv_subscription_plan_id !== undefined) {
+            updates.push('iptv_subscription_plan_id = ?');
+            values.push(iptv_subscription_plan_id);
         }
         if (iptv_channel_group_id !== undefined) {
             updates.push('iptv_channel_group_id = ?');
@@ -1742,8 +1657,7 @@ router.post('/:id/extend-iptv', async (req, res) => {
             });
         }
 
-        // TODO: Use IPTVServiceManager to extend user on panel
-        // For now, just update expiration date using proper month addition
+        // Update expiration date
         const currentExpiration = user.iptv_expiration_date ?
             new Date(user.iptv_expiration_date) : new Date();
 
@@ -1758,8 +1672,7 @@ router.post('/:id/extend-iptv', async (req, res) => {
         res.json({
             success: true,
             message: 'IPTV subscription extended successfully',
-            new_expiration_date: newExpiration,
-            note: 'Panel extension implementation pending'
+            new_expiration_date: newExpiration
         });
 
     } catch (error) {
@@ -1883,27 +1796,13 @@ router.post('/:id/iptv-editor/create', async (req, res) => {
             provider_base_url: playlist.provider_base_url
         };
 
-        console.log('\n========== CREATING IPTV EDITOR USER ==========');
-        console.log('📤 Sending CREATE USER request to IPTV Editor API');
-        console.log('Endpoint: /api/reseller/customer');
-        console.log('Payload:', JSON.stringify(createUserPayload, null, 2));
-
         // Use existing IPTV credentials (like the wizard does)
         const createResult = await editorService.createUser(createUserPayload);
 
-        console.log('\n📥 RECEIVED CREATE USER RESPONSE:');
-        console.log(JSON.stringify(createResult, null, 2));
-        console.log('===============================================\n');
-
         // Extract data from create response
         const editorId = createResult.id;
-        const m3uCode = createResult.m3u || null;  // API returns 'm3u', not 'm3u_code'
-        const epgCode = createResult.epg || null;  // API returns 'epg', not 'epg_code'
-
-        console.log('📊 IPTV Editor user created:');
-        console.log('   Editor ID:', editorId);
-        console.log('   M3U Code:', m3uCode);
-        console.log('   EPG Code:', epgCode);
+        const m3uCode = createResult.m3u || null;
+        const epgCode = createResult.epg || null;
 
         // Get the actual IPTV Editor playlist_id from database
         const [playlistIdRows] = await connection.execute(`
@@ -1922,46 +1821,19 @@ router.post('/:id/iptv-editor/create', async (req, res) => {
         const retryDelayMs = 3000;
 
         for (let attempt = 1; attempt <= maxRetries; attempt++) {
-            console.log(`\n⏳ Attempt ${attempt}/${maxRetries}: Waiting ${retryDelayMs/1000} seconds for IPTV Editor API to update...`);
             await new Promise(resolve => setTimeout(resolve, retryDelayMs));
-
-            console.log('\n========== SEARCHING FOR USER CREDENTIALS ==========');
-            console.log('📤 Sending GET-DATA request to IPTV Editor API');
-            console.log('Endpoint: /api/reseller/get-data');
-            console.log('Payload:', JSON.stringify(getDataPayload, null, 2));
-            console.log('Looking for newly created user with ID:', editorId);
 
             getDataResponse = await editorService.makeRequest('/api/reseller/get-data', getDataPayload);
 
-            console.log('\n📥 RECEIVED GET-DATA RESPONSE:');
-            console.log('Total users in response:', getDataResponse?.items?.length || 0);
-            console.log('====================================================\n');
-
             if (getDataResponse && getDataResponse.items && Array.isArray(getDataResponse.items)) {
-                console.log('🔍 Searching for user in get-data response...');
-                console.log('   Looking for editor ID:', editorId);
-                console.log('   Total items in response:', getDataResponse.items.length);
-
                 // Search by ID - this is the most reliable method
                 const createdUser = getDataResponse.items.find(item => item.id === editorId);
 
                 if (createdUser) {
                     // Use username and password fields from IPTV Editor API
-                    // The M3U URL is generated by the app using provider_base_url + these credentials
                     editorUsername = createdUser.username;
                     editorPassword = createdUser.password;
-                    console.log('✅ Found user in get-data response by ID');
-                    console.log('   IPTV Editor Username:', editorUsername);
-                    console.log('   IPTV Editor Password:', editorPassword);
                     break; // Found the user, exit retry loop
-                } else {
-                    console.log(`⚠️ Attempt ${attempt}: Could not find user with ID ${editorId} in get-data response`);
-                    if (attempt < maxRetries) {
-                        console.log('   Will retry in', retryDelayMs/1000, 'seconds...');
-                    } else {
-                        console.log('   Max retries reached. User might not appear in get-data immediately after creation.');
-                        console.log('   The user can click "Sync" later to fetch credentials.');
-                    }
                 }
             }
         }
@@ -1970,12 +1842,6 @@ router.post('/:id/iptv-editor/create', async (req, res) => {
         let m3uUrl = null;
         if (playlist.provider_base_url && editorUsername && editorPassword) {
             m3uUrl = `${playlist.provider_base_url}/get.php?username=${editorUsername}&password=${editorPassword}&type=m3u_plus&output=ts`;
-            console.log('✅ Generated M3U URL using IPTV Editor username and password:', m3uUrl);
-        } else {
-            console.log('⚠️ Missing required data for M3U URL generation');
-            console.log('   Provider Base URL:', playlist.provider_base_url);
-            console.log('   Editor Username:', editorUsername);
-            console.log('   Editor Password:', editorPassword);
         }
 
         // Try to call force-sync to get expiry and max_connections if panel credentials exist
@@ -2760,9 +2626,9 @@ router.post('/:id/renew-iptv', async (req, res) => {
             if (dateMatch) {
                 newExpiration = dateMatch[1];
             } else {
-                // Fallback: parse and use local timezone
-                const date = new Date(expireStr);
-                newExpiration = toLocalDateString(date);
+                // Fallback: parse as UTC to avoid timezone shift
+                const date = new Date(expireStr + (expireStr.includes('Z') || expireStr.includes('+') ? '' : 'Z'));
+                newExpiration = date.toISOString().split('T')[0];
             }
             console.log(`📅 1-Stream expire_at: "${expireStr}" → stored as: "${newExpiration}"`);
         } else if (result.exp_date) {
@@ -2777,8 +2643,8 @@ router.post('/:id/renew-iptv', async (req, res) => {
                 newExpiration = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
                 console.log(`📅 NXT Dash exp_date (DD-MM-YYYY): "${expDateStr}" → stored as: "${newExpiration}"`);
             } else if (!isNaN(parseInt(expDateStr))) {
-                // It's a Unix timestamp - use local timezone
-                newExpiration = toLocalDateString(new Date(parseInt(expDateStr) * 1000));
+                // It's a Unix timestamp
+                newExpiration = new Date(parseInt(expDateStr) * 1000).toISOString().split('T')[0];
                 console.log(`📅 NXT Dash exp_date (timestamp): ${expDateStr} → stored as: "${newExpiration}"`);
             } else {
                 // Fallback: try to extract YYYY-MM-DD from any format
@@ -2789,11 +2655,11 @@ router.post('/:id/renew-iptv', async (req, res) => {
                 }
             }
         } else if (packageInfo.duration_hours) {
-            // Calculate based on package duration - use local timezone
-            const currentExpiration = user.iptv_expiration_date ? new Date(user.iptv_expiration_date + 'T00:00:00') : new Date();
+            // Calculate based on package duration (use UTC to avoid timezone issues)
+            const currentExpiration = user.iptv_expiration_date ? new Date(user.iptv_expiration_date + 'T00:00:00Z') : new Date();
             const now = new Date();
             const baseDate = currentExpiration > now ? currentExpiration : now;
-            newExpiration = toLocalDateString(new Date(baseDate.getTime() + (packageInfo.duration_hours * 60 * 60 * 1000)));
+            newExpiration = new Date(baseDate.getTime() + (packageInfo.duration_hours * 60 * 60 * 1000)).toISOString().split('T')[0];
             console.log(`📅 Calculated expiration: "${newExpiration}"`);
         }
 

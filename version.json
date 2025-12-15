@@ -1,6 +1,6 @@
 {
-  "version": "1.1.6",
+  "version": "1.2.0",
   "name": "Stream Panel",
   "releaseDate": "2025-12-14",
-  "description": "Initialize git repo on container startup for update system"
+  "description": "Add user portal renewal system for IPTV and Plex subscriptions"
 }

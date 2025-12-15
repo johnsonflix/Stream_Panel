@@ -717,6 +717,24 @@
 
         .modal-body {
             padding: 20px;
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+
+        /* Custom Scrollbar Styles */
+        .modal-body::-webkit-scrollbar {
+            width: 8px;
+        }
+        .modal-body::-webkit-scrollbar-track {
+            background: var(--bg-primary);
+            border-radius: 4px;
+        }
+        .modal-body::-webkit-scrollbar-thumb {
+            background: var(--bg-tertiary);
+            border-radius: 4px;
+        }
+        .modal-body::-webkit-scrollbar-thumb:hover {
+            background: #475569;
         }
 
         .form-group {
@@ -1188,6 +1206,170 @@
         </div>
     </div>
 
+    <!-- Renew Service Modal -->
+    <div class="modal-overlay" id="renew-service-modal">
+        <div class="modal" style="max-width: 550px;">
+            <div class="modal-header">
+                <h3 id="renew-modal-title">Renew Subscription</h3>
+                <button class="modal-close" onclick="closeModal('renew-service-modal')">&times;</button>
+            </div>
+            <div class="modal-body" id="renew-modal-body">
+                <!-- Step 1: Select Service to Renew (if multiple services) -->
+                <div id="renew-step-select" style="display: none;">
+                    <p style="margin-bottom: 20px; color: var(--text-secondary);">Which service would you like to renew?</p>
+                    <div id="renew-service-options" style="display: flex; flex-direction: column; gap: 12px;"></div>
+                </div>
+
+                <!-- Step 2: Plex Renewal (simple) -->
+                <div id="renew-step-plex" style="display: none;">
+                    <div style="text-align: center; margin-bottom: 20px;">
+                        <div style="width: 60px; height: 60px; background: linear-gradient(135deg, #e5a00d, #c98d00); border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 12px;">
+                            <i class="fas fa-film" style="font-size: 28px; color: white;"></i>
+                        </div>
+                        <h4 style="margin: 0 0 4px 0;">Renew Plex Subscription</h4>
+                        <p style="font-size: 14px; color: var(--text-secondary); margin: 0;">Continue enjoying Movies & TV Shows</p>
+                    </div>
+
+                    <!-- Current Subscription Info -->
+                    <div style="background: var(--bg-tertiary); border-radius: 10px; padding: 16px; margin-bottom: 20px;">
+                        <div style="font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+                            <i class="fas fa-receipt"></i> Current Subscription
+                        </div>
+                        <div id="plex-renewal-details"></div>
+                    </div>
+
+                    <button class="action-btn primary" onclick="proceedToRenewalPayment('plex')" style="width: 100%; justify-content: center; padding: 14px;">
+                        <i class="fas fa-arrow-right"></i>
+                        Continue to Payment
+                    </button>
+                </div>
+
+                <!-- Step 2: IPTV Renewal (with plan change option) -->
+                <div id="renew-step-iptv" style="display: none;">
+                    <div style="text-align: center; margin-bottom: 20px;">
+                        <div style="width: 60px; height: 60px; background: linear-gradient(135deg, #8b5cf6, #7c3aed); border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 12px;">
+                            <i class="fas fa-tv" style="font-size: 28px; color: white;"></i>
+                        </div>
+                        <h4 style="margin: 0 0 4px 0;">Renew Live TV Subscription</h4>
+                        <p style="font-size: 14px; color: var(--text-secondary); margin: 0;">Continue enjoying Live TV & Sports</p>
+                    </div>
+
+                    <!-- Current Subscription Info -->
+                    <div style="background: var(--bg-tertiary); border-radius: 10px; padding: 16px; margin-bottom: 20px;">
+                        <div style="font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+                            <i class="fas fa-receipt"></i> Current Subscription
+                        </div>
+                        <div id="iptv-renewal-details"></div>
+                    </div>
+
+                    <!-- Renewal Options -->
+                    <div style="margin-bottom: 20px;">
+                        <div style="font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+                            <i class="fas fa-sync-alt"></i> Renewal Options
+                        </div>
+
+                        <!-- Keep Current Plan Option -->
+                        <div id="iptv-keep-current-option" class="renewal-option" onclick="selectRenewalOption('keep')" style="border: 2px solid var(--primary-color); border-radius: 10px; padding: 16px; margin-bottom: 12px; cursor: pointer; background: rgba(99, 102, 241, 0.1);">
+                            <div style="display: flex; align-items: center; gap: 12px;">
+                                <div id="keep-plan-radio" style="width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--primary-color); display: flex; align-items: center; justify-content: center;">
+                                    <i class="fas fa-check" style="font-size: 10px; color: var(--primary-color);"></i>
+                                </div>
+                                <div style="flex: 1;">
+                                    <div style="font-weight: 600;">Keep Current Plan</div>
+                                    <div id="iptv-current-plan-summary" style="font-size: 13px; color: var(--text-secondary);"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Change Plan Option -->
+                        <div id="iptv-change-plan-option" class="renewal-option" onclick="selectRenewalOption('change')" style="border: 2px solid var(--border-color); border-radius: 10px; padding: 16px; cursor: pointer;">
+                            <div style="display: flex; align-items: center; gap: 12px;">
+                                <div id="change-plan-radio" style="width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--border-color); display: flex; align-items: center; justify-content: center;">
+                                </div>
+                                <div style="flex: 1;">
+                                    <div style="font-weight: 600;">Change Plan</div>
+                                    <div style="font-size: 13px; color: var(--text-secondary);">Select different connections or duration</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Plan Selection (shown when Change Plan is selected) -->
+                        <div id="iptv-plan-change-section" style="display: none; margin-top: 16px; padding: 16px; background: var(--bg-tertiary); border-radius: 10px;">
+                            <div class="form-group" style="margin-bottom: 16px;">
+                                <label for="renew-connections-dropdown" style="font-size: 14px; font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 8px;">
+                                    <i class="fas fa-users" style="margin-right: 6px; color: var(--iptv-color);"></i>
+                                    Number of Connections
+                                </label>
+                                <select id="renew-connections-dropdown" style="width: 100%; padding: 12px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-primary); font-size: 14px;"></select>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 16px;">
+                                <label for="renew-duration-dropdown" style="font-size: 14px; font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 8px;">
+                                    <i class="fas fa-calendar-alt" style="margin-right: 6px; color: var(--iptv-color);"></i>
+                                    Subscription Duration
+                                </label>
+                                <select id="renew-duration-dropdown" style="width: 100%; padding: 12px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-primary); font-size: 14px;"></select>
+                            </div>
+                            <div id="renew-matching-plans"></div>
+                        </div>
+                    </div>
+
+                    <button id="iptv-renew-continue-btn" class="action-btn primary" onclick="proceedToRenewalPayment('iptv')" style="width: 100%; justify-content: center; padding: 14px;">
+                        <i class="fas fa-arrow-right"></i>
+                        Continue to Payment
+                    </button>
+                </div>
+
+                <!-- Step 3: Payment -->
+                <div id="renew-step-payment" style="display: none;">
+                    <div style="text-align: center; margin-bottom: 20px;">
+                        <div id="renew-payment-icon" style="width: 60px; height: 60px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 12px;"></div>
+                        <h4 id="renew-payment-service" style="margin: 0 0 4px 0;"></h4>
+                        <div id="renew-payment-price" style="font-size: 24px; font-weight: 700; color: var(--primary-color);"></div>
+                        <div id="renew-payment-duration" style="font-size: 14px; color: var(--text-secondary);"></div>
+                    </div>
+
+                    <div style="background: var(--bg-tertiary); border-radius: 10px; padding: 16px; margin-bottom: 20px;">
+                        <div style="font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+                            <i class="fas fa-credit-card"></i> Payment Methods
+                        </div>
+                        <div id="renew-payment-methods-list" style="display: flex; flex-direction: column; gap: 8px;"></div>
+                    </div>
+
+                    <div class="form-group" style="margin-bottom: 16px;">
+                        <label for="renew-transaction-reference" style="font-size: 14px; color: var(--text-secondary); margin-bottom: 6px; display: block;">
+                            Reference ID: <span id="renew-generated-ref-id" style="font-family: monospace; color: var(--primary-color);"></span>
+                        </label>
+                        <p style="font-size: 12px; color: var(--text-tertiary); margin-bottom: 8px;">
+                            Include this reference ID in your payment note, OR provide your payment app username/transaction ID below.
+                        </p>
+                        <input type="text" id="renew-transaction-reference" placeholder="Your Venmo/PayPal username or transaction ID..." style="width: 100%; padding: 12px; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-primary); font-size: 14px;">
+                    </div>
+
+                    <div style="display: flex; flex-direction: column; gap: 10px;">
+                        <button class="action-btn primary" onclick="submitRenewalRequest('submitted')" style="width: 100%; justify-content: center; padding: 14px;">
+                            <i class="fas fa-check-circle"></i>
+                            I've Completed Payment
+                        </button>
+                        <button class="action-btn secondary" onclick="submitRenewalRequest('pending')" style="width: 100%; justify-content: center; padding: 14px;">
+                            <i class="fas fa-clock"></i>
+                            I'll Pay Later
+                        </button>
+                    </div>
+
+                    <p style="text-align: center; margin-top: 16px; font-size: 13px; color: var(--text-tertiary);">
+                        Your subscription will be extended within 24 hours after we verify your payment.
+                    </p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="action-btn secondary" onclick="closeModal('renew-service-modal')">Cancel</button>
+                <button class="action-btn secondary" id="renew-back-btn" onclick="goBackRenewalStep()" style="display: none;">
+                    <i class="fas fa-arrow-left"></i> Back
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Toast Container -->
     <div id="toast" class="toast"></div>
 
@@ -1296,9 +1478,24 @@
                 // Render the dashboard
                 initDashboard(currentUser);
 
+                // Handle hash navigation (e.g., #renew from IPTV page)
+                handleHashNavigation();
+
             } catch (error) {
                 console.error('Error loading user data:', error);
                 showToast('Failed to load user data', 'error');
+            }
+        }
+
+        function handleHashNavigation() {
+            const hash = window.location.hash;
+            if (hash === '#renew') {
+                // Clear the hash to prevent re-triggering
+                history.replaceState(null, null, window.location.pathname);
+                // Small delay to ensure modal elements are ready
+                setTimeout(() => {
+                    showRenewOptions();
+                }, 100);
             }
         }
 
@@ -1363,17 +1560,28 @@
             const container = document.getElementById('account-actions');
             let html = '';
 
+            // Check if user has any active service
+            const isPlexCancellingCheck = (user.plex_enabled && (user.plex_cancelled_at || user.plex_scheduled_deletion)) || cancellingServices.has('plex');
+            const hasPlexActive = (user.plex_enabled && user.plex_servers && user.plex_servers.length > 0) && !isPlexCancellingCheck;
+            const hasIPTVEditorCheck = user.iptv_editor_enabled && user.iptv_editor;
+            const isIPTVCancellingCheck = ((user.iptv_enabled || hasIPTVEditorCheck) && (user.iptv_cancelled_at || user.iptv_scheduled_deletion)) || cancellingServices.has('iptv');
+            const hasIPTVActive = (user.iptv_enabled || hasIPTVEditorCheck) && !isIPTVCancellingCheck;
+            const hasActiveService = hasPlexActive || hasIPTVActive;
+
             // Use subscription_type from plan's price_type
             const subscriptionType = user.subscription_type || 'free';
 
-            if (subscriptionType === 'paid') {
-                html += `<button class="action-btn primary" onclick="showRenewOptions()">
-                    <i class="fas fa-sync-alt"></i> Renew Subscription
-                </button>`;
-            } else if (subscriptionType === 'donation') {
-                html += `<button class="action-btn donation" onclick="showDonateOptions()">
-                    <i class="fas fa-heart"></i> Support Us
-                </button>`;
+            // Show Renew button if user has any active service (regardless of subscription type for now)
+            if (hasActiveService) {
+                if (subscriptionType === 'donation') {
+                    html += `<button class="action-btn donation" onclick="showRenewOptions()">
+                        <i class="fas fa-heart"></i> Support Us
+                    </button>`;
+                } else {
+                    html += `<button class="action-btn primary" onclick="showRenewOptions()">
+                        <i class="fas fa-sync-alt"></i> Renew Subscription
+                    </button>`;
+                }
             }
 
             // Add Service option (if missing one of the services)
@@ -2538,14 +2746,561 @@
             }
         }
 
-        function showRenewOptions() {
-            // TODO: Implement renew flow
-            showToast('Renewal options coming soon!', 'info');
+        // ========== RENEWAL FLOW ==========
+        let renewalServiceType = null;
+        let renewalPlan = null;
+        let renewalOption = 'keep'; // 'keep' or 'change'
+        let renewalCurrentStep = null;
+
+        async function showRenewOptions() {
+            const user = currentUser;
+            const hasPlex = user.plex_enabled && user.plex_servers && user.plex_servers.length > 0;
+            const hasIPTV = user.iptv_enabled || user.iptv_editor_enabled;
+
+            // Reset renewal state
+            renewalServiceType = null;
+            renewalPlan = null;
+            renewalOption = 'keep';
+            renewalCurrentStep = null;
+
+            // Hide all steps first
+            document.getElementById('renew-step-select').style.display = 'none';
+            document.getElementById('renew-step-plex').style.display = 'none';
+            document.getElementById('renew-step-iptv').style.display = 'none';
+            document.getElementById('renew-step-payment').style.display = 'none';
+            document.getElementById('renew-back-btn').style.display = 'none';
+
+            // Load plans and payment methods
+            try {
+                const token = localStorage.getItem('portal_token');
+
+                // Load plans if not already loaded
+                if (!availablePlans.plex || availablePlans.plex.length === 0 || !availablePlans.iptv || availablePlans.iptv.length === 0) {
+                    const plansRes = await fetch(`${API_BASE}/portal/available-plans`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    const plansData = await plansRes.json();
+                    if (plansData.success) {
+                        availablePlans = plansData.plans;
+                        defaultPlans = plansData.defaults;
+                    }
+                }
+
+                // Load payment methods if not already loaded
+                if (!paymentMethods || paymentMethods.length === 0) {
+                    const paymentRes = await fetch(`${API_BASE}/portal/payment-methods`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    const paymentData = await paymentRes.json();
+                    if (paymentData.success) {
+                        paymentMethods = paymentData.payment_methods || [];
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading renewal data:', error);
+            }
+
+            // Determine which service(s) to show
+            if (hasPlex && hasIPTV) {
+                // User has both - show service selection
+                showRenewalServiceSelection();
+            } else if (hasPlex) {
+                // Only Plex
+                renewalServiceType = 'plex';
+                showPlexRenewal();
+            } else if (hasIPTV) {
+                // Only IPTV
+                renewalServiceType = 'iptv';
+                showIPTVRenewal();
+            } else {
+                showToast('No active services to renew', 'info');
+                return;
+            }
+
+            openModal('renew-service-modal');
+        }
+
+        function showRenewalServiceSelection() {
+            renewalCurrentStep = 'select';
+            document.getElementById('renew-step-select').style.display = 'block';
+            document.getElementById('renew-modal-title').textContent = 'Renew Subscription';
+
+            const container = document.getElementById('renew-service-options');
+            let html = '';
+
+            if (currentUser.plex_enabled) {
+                html += `
+                    <div class="service-option" onclick="selectRenewalService('plex')" style="border: 2px solid var(--border-color); border-radius: 12px; padding: 16px; cursor: pointer; transition: all 0.2s;">
+                        <div style="display: flex; align-items: center; gap: 16px;">
+                            <div style="width: 48px; height: 48px; background: linear-gradient(135deg, #e5a00d, #c98d00); border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                                <i class="fas fa-film" style="font-size: 24px; color: white;"></i>
+                            </div>
+                            <div style="flex: 1;">
+                                <div style="font-weight: 600; font-size: 16px;">Plex (Movies & TV)</div>
+                                <div style="font-size: 13px; color: var(--text-secondary);">
+                                    ${currentUser.plex_package_name || 'Standard'} •
+                                    Expires: ${currentUser.plex_expiration_date ? formatDateDisplay(currentUser.plex_expiration_date) : 'Never'}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            if (currentUser.iptv_enabled || currentUser.iptv_editor_enabled) {
+                html += `
+                    <div class="service-option" onclick="selectRenewalService('iptv')" style="border: 2px solid var(--border-color); border-radius: 12px; padding: 16px; cursor: pointer; transition: all 0.2s;">
+                        <div style="display: flex; align-items: center; gap: 16px;">
+                            <div style="width: 48px; height: 48px; background: linear-gradient(135deg, #8b5cf6, #7c3aed); border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                                <i class="fas fa-tv" style="font-size: 24px; color: white;"></i>
+                            </div>
+                            <div style="flex: 1;">
+                                <div style="font-weight: 600; font-size: 16px;">Live TV (IPTV)</div>
+                                <div style="font-size: 13px; color: var(--text-secondary);">
+                                    ${currentUser.iptv_subscription_name || 'Standard'} •
+                                    ${currentUser.iptv_connections || 1} connection${(currentUser.iptv_connections || 1) > 1 ? 's' : ''} •
+                                    Expires: ${currentUser.iptv_expiration_date ? formatDateDisplay(currentUser.iptv_expiration_date) : 'Never'}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            container.innerHTML = html;
+        }
+
+        function selectRenewalService(type) {
+            renewalServiceType = type;
+            if (type === 'plex') {
+                showPlexRenewal();
+            } else {
+                showIPTVRenewal();
+            }
+        }
+
+        function showPlexRenewal() {
+            renewalCurrentStep = 'plex';
+            document.getElementById('renew-step-select').style.display = 'none';
+            document.getElementById('renew-step-plex').style.display = 'block';
+            document.getElementById('renew-modal-title').textContent = 'Renew Plex';
+            document.getElementById('renew-back-btn').style.display =
+                (currentUser.plex_enabled && (currentUser.iptv_enabled || currentUser.iptv_editor_enabled)) ? 'inline-flex' : 'none';
+
+            // Find the user's current Plex plan
+            renewalPlan = defaultPlans.plex;
+
+            // Render current subscription details
+            const priceText = renewalPlan ?
+                (renewalPlan.price_type === 'free' ? 'Free' :
+                 renewalPlan.price_type === 'donation' ? 'Donation' :
+                 `$${renewalPlan.price?.toFixed(2) || '0.00'}`) : 'Contact Admin';
+            const durationText = renewalPlan ?
+                (renewalPlan.duration_months === 0 ? 'Unlimited' :
+                 `${renewalPlan.duration_months} month${renewalPlan.duration_months !== 1 ? 's' : ''}`) : '';
+
+            document.getElementById('plex-renewal-details').innerHTML = `
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <div style="display: flex; justify-content: space-between;">
+                        <span style="color: var(--text-secondary);">Plan</span>
+                        <span style="font-weight: 500;">${renewalPlan?.name || currentUser.plex_package_name || 'Standard'}</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between;">
+                        <span style="color: var(--text-secondary);">Duration</span>
+                        <span style="font-weight: 500;">${durationText}</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between;">
+                        <span style="color: var(--text-secondary);">Price</span>
+                        <span style="font-weight: 600; color: var(--primary-color);">${priceText}</span>
+                    </div>
+                    ${currentUser.plex_expiration_date ? `
+                    <div style="display: flex; justify-content: space-between; border-top: 1px solid var(--border-color); padding-top: 8px; margin-top: 4px;">
+                        <span style="color: var(--text-secondary);">Current Expiration</span>
+                        <span style="font-weight: 500;">${formatDateDisplay(currentUser.plex_expiration_date)}</span>
+                    </div>
+                    ` : ''}
+                </div>
+            `;
+        }
+
+        function showIPTVRenewal() {
+            renewalCurrentStep = 'iptv';
+            renewalOption = 'keep';
+            document.getElementById('renew-step-select').style.display = 'none';
+            document.getElementById('renew-step-iptv').style.display = 'block';
+            document.getElementById('renew-modal-title').textContent = 'Renew Live TV';
+            document.getElementById('renew-back-btn').style.display =
+                (currentUser.plex_enabled && (currentUser.iptv_enabled || currentUser.iptv_editor_enabled)) ? 'inline-flex' : 'none';
+
+            // Use the user's actual subscription data from the database
+            // This is the most accurate source since it's what's assigned to them
+            const currentPlanName = currentUser.iptv_subscription_name || 'Standard';
+            const currentConnections = currentUser.iptv_connections || currentUser.iptv_editor?.max_connections || 1;
+            const currentPrice = currentUser.iptv_price;
+            const currentPriceType = currentUser.iptv_price_type;
+
+            // Format price from user's actual subscription
+            const currentPriceText = currentPriceType === 'free' ? 'Free' :
+                (currentPrice !== null && currentPrice !== undefined ? `$${parseFloat(currentPrice).toFixed(2)}` : 'Contact Admin');
+
+            // Try to find the plan in available plans for renewal submission
+            // But display data comes from user's actual subscription
+            let userPlan = null;
+            if (currentUser.iptv_subscription_plan_id) {
+                userPlan = availablePlans.iptv.find(p => p.id === currentUser.iptv_subscription_plan_id);
+            }
+            if (!userPlan) {
+                // Fall back to matching by connections for the renewal plan
+                const matchingPlans = availablePlans.iptv.filter(p => p.iptv_connections === currentConnections);
+                userPlan = matchingPlans[0] || defaultPlans.iptv;
+            }
+            renewalPlan = userPlan;
+
+            document.getElementById('iptv-renewal-details').innerHTML = `
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <div style="display: flex; justify-content: space-between;">
+                        <span style="color: var(--text-secondary);">Plan</span>
+                        <span style="font-weight: 500;">${currentPlanName}</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between;">
+                        <span style="color: var(--text-secondary);">Connections</span>
+                        <span style="font-weight: 500;">${currentConnections}</span>
+                    </div>
+                    ${currentUser.iptv_expiration_date ? `
+                    <div style="display: flex; justify-content: space-between; border-top: 1px solid var(--border-color); padding-top: 8px; margin-top: 4px;">
+                        <span style="color: var(--text-secondary);">Current Expiration</span>
+                        <span style="font-weight: 500;">${formatDateDisplay(currentUser.iptv_expiration_date)}</span>
+                    </div>
+                    ` : ''}
+                </div>
+            `;
+
+            // Set the current plan summary - use the plan name and price from user's subscription
+            document.getElementById('iptv-current-plan-summary').textContent =
+                `${currentPlanName} • ${currentPriceText}`;
+
+            // Reset selection UI
+            selectRenewalOption('keep');
+
+            // Populate the change plan dropdowns
+            populateRenewalPlanDropdowns();
+        }
+
+        function selectRenewalOption(option) {
+            renewalOption = option;
+
+            const keepOption = document.getElementById('iptv-keep-current-option');
+            const changeOption = document.getElementById('iptv-change-plan-option');
+            const planSection = document.getElementById('iptv-plan-change-section');
+            const keepRadio = document.getElementById('keep-plan-radio');
+            const changeRadio = document.getElementById('change-plan-radio');
+
+            if (option === 'keep') {
+                // Select Keep Current Plan
+                keepOption.style.border = '2px solid var(--primary-color)';
+                keepOption.style.background = 'rgba(99, 102, 241, 0.1)';
+                keepRadio.innerHTML = '<i class="fas fa-check" style="font-size: 10px; color: var(--primary-color);"></i>';
+                keepRadio.style.borderColor = 'var(--primary-color)';
+
+                // Deselect Change Plan
+                changeOption.style.border = '2px solid var(--border-color)';
+                changeOption.style.background = 'transparent';
+                changeRadio.innerHTML = '';
+                changeRadio.style.borderColor = 'var(--border-color)';
+
+                planSection.style.display = 'none';
+
+                // Use the user's actual assigned plan first, fall back to connection matching
+                let userPlan = null;
+                if (currentUser.iptv_subscription_plan_id) {
+                    userPlan = availablePlans.iptv.find(p => p.id === currentUser.iptv_subscription_plan_id);
+                }
+                if (!userPlan) {
+                    const userConnections = currentUser.iptv_connections || currentUser.iptv_editor?.max_connections || 1;
+                    const matchingPlans = availablePlans.iptv.filter(p => p.iptv_connections === userConnections);
+                    userPlan = matchingPlans[0] || defaultPlans.iptv;
+                }
+                renewalPlan = userPlan;
+            } else {
+                // Deselect Keep Current Plan
+                keepOption.style.border = '2px solid var(--border-color)';
+                keepOption.style.background = 'transparent';
+                keepRadio.innerHTML = '';
+                keepRadio.style.borderColor = 'var(--border-color)';
+
+                // Select Change Plan
+                changeOption.style.border = '2px solid var(--primary-color)';
+                changeOption.style.background = 'rgba(99, 102, 241, 0.1)';
+                changeRadio.innerHTML = '<i class="fas fa-check" style="font-size: 10px; color: var(--primary-color);"></i>';
+                changeRadio.style.borderColor = 'var(--primary-color)';
+
+                planSection.style.display = 'block';
+                updateRenewalMatchingPlans();
+            }
+        }
+
+        function populateRenewalPlanDropdowns() {
+            const iptvPlans = availablePlans.iptv.filter(p => p.iptv_connections);
+            const uniqueConnections = [...new Set(iptvPlans.map(p => p.iptv_connections))].sort((a, b) => a - b);
+            const uniqueDurations = [...new Set(iptvPlans.map(p => p.duration_months))].sort((a, b) => a - b);
+
+            // Populate connections dropdown
+            const connectionsDropdown = document.getElementById('renew-connections-dropdown');
+            connectionsDropdown.innerHTML = uniqueConnections.map(c =>
+                `<option value="${c}">${c} Connection${c > 1 ? 's' : ''}</option>`
+            ).join('');
+
+            // Populate duration dropdown
+            const durationDropdown = document.getElementById('renew-duration-dropdown');
+            durationDropdown.innerHTML = uniqueDurations.map(d =>
+                `<option value="${d}">${d} Month${d !== 1 ? 's' : ''}</option>`
+            ).join('');
+
+            // Add change listeners
+            connectionsDropdown.onchange = function() {
+                updateRenewalDurationDropdown();
+                updateRenewalMatchingPlans();
+            };
+            durationDropdown.onchange = updateRenewalMatchingPlans;
+        }
+
+        function updateRenewalDurationDropdown() {
+            const connections = parseInt(document.getElementById('renew-connections-dropdown').value);
+            const durationDropdown = document.getElementById('renew-duration-dropdown');
+            const currentDuration = durationDropdown.value;
+
+            const matchingPlans = availablePlans.iptv.filter(p => p.iptv_connections === connections);
+            const availableDurations = [...new Set(matchingPlans.map(p => p.duration_months))].sort((a, b) => a - b);
+
+            durationDropdown.innerHTML = availableDurations.map(d =>
+                `<option value="${d}">${d} Month${d !== 1 ? 's' : ''}</option>`
+            ).join('');
+
+            if (availableDurations.includes(parseInt(currentDuration))) {
+                durationDropdown.value = currentDuration;
+            }
+        }
+
+        function updateRenewalMatchingPlans() {
+            const connections = parseInt(document.getElementById('renew-connections-dropdown').value);
+            const duration = parseInt(document.getElementById('renew-duration-dropdown').value);
+
+            const matchingPlans = availablePlans.iptv.filter(p =>
+                p.iptv_connections === connections && p.duration_months === duration
+            );
+
+            const plansContainer = document.getElementById('renew-matching-plans');
+
+            if (matchingPlans.length === 0) {
+                plansContainer.innerHTML = '<p style="color: var(--text-tertiary); text-align: center;">No plans available for this combination.</p>';
+                renewalPlan = null;
+                return;
+            }
+
+            if (matchingPlans.length === 1) {
+                renewalPlan = matchingPlans[0];
+                plansContainer.innerHTML = renderRenewalPlanCard(matchingPlans[0], true);
+            } else {
+                renewalPlan = null;
+                plansContainer.innerHTML = `
+                    <p style="font-size: 14px; color: var(--text-secondary); margin-bottom: 12px;">
+                        <i class="fas fa-info-circle" style="margin-right: 6px;"></i>
+                        Multiple plans available. Choose one:
+                    </p>
+                    ${matchingPlans.map(p => renderRenewalPlanCard(p, false)).join('')}
+                `;
+            }
+        }
+
+        function renderRenewalPlanCard(plan, isSelected) {
+            const priceText = plan.price_type === 'free' ? 'Free' : `$${plan.price?.toFixed(2) || '0.00'}`;
+            const durationText = `${plan.duration_months} month${plan.duration_months !== 1 ? 's' : ''}`;
+            const selectedStyle = isSelected ? 'border: 2px solid var(--primary-color); background: rgba(99, 102, 241, 0.1);' : 'border: 1px solid var(--border-color);';
+
+            return `
+                <div class="renewal-plan-option" onclick="selectRenewalPlan(${plan.id})"
+                     style="padding: 16px; border-radius: 10px; cursor: pointer; margin-bottom: 10px; ${selectedStyle} transition: all 0.2s;"
+                     data-plan-id="${plan.id}">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <div style="font-weight: 600; font-size: 16px;">${plan.name}</div>
+                            <div style="font-size: 12px; color: var(--text-tertiary); margin-top: 4px;">
+                                ${plan.iptv_connections} connection${plan.iptv_connections > 1 ? 's' : ''} • ${durationText}
+                            </div>
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="font-size: 20px; font-weight: 700; color: var(--primary-color);">${priceText}</div>
+                            ${isSelected ? '<div style="font-size: 12px; color: var(--success-color);"><i class="fas fa-check-circle"></i> Selected</div>' : ''}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function selectRenewalPlan(planId) {
+            renewalPlan = availablePlans.iptv.find(p => p.id === planId);
+
+            document.querySelectorAll('.renewal-plan-option').forEach(el => {
+                const isPlanSelected = parseInt(el.dataset.planId) === planId;
+                el.style.border = isPlanSelected ? '2px solid var(--primary-color)' : '1px solid var(--border-color)';
+                el.style.background = isPlanSelected ? 'rgba(99, 102, 241, 0.1)' : '';
+
+                const rightDiv = el.querySelector('div > div:last-child');
+                const existingCheck = rightDiv.querySelector('.selected-check');
+                if (existingCheck) existingCheck.remove();
+
+                if (isPlanSelected) {
+                    rightDiv.insertAdjacentHTML('beforeend', '<div class="selected-check" style="font-size: 12px; color: var(--success-color);"><i class="fas fa-check-circle"></i> Selected</div>');
+                }
+            });
+        }
+
+        async function proceedToRenewalPayment(serviceType) {
+            if (!renewalPlan) {
+                showToast('Please select a plan', 'error');
+                return;
+            }
+
+            renewalCurrentStep = 'payment';
+            document.getElementById('renew-step-plex').style.display = 'none';
+            document.getElementById('renew-step-iptv').style.display = 'none';
+            document.getElementById('renew-step-payment').style.display = 'block';
+            document.getElementById('renew-back-btn').style.display = 'inline-flex';
+            document.getElementById('renew-modal-title').textContent = 'Complete Payment';
+
+            // Set up payment UI
+            const iconEl = document.getElementById('renew-payment-icon');
+            if (serviceType === 'plex') {
+                iconEl.style.background = 'linear-gradient(135deg, #e5a00d, #c98d00)';
+                iconEl.innerHTML = '<i class="fas fa-film" style="font-size: 28px; color: white;"></i>';
+            } else {
+                iconEl.style.background = 'linear-gradient(135deg, #8b5cf6, #7c3aed)';
+                iconEl.innerHTML = '<i class="fas fa-tv" style="font-size: 28px; color: white;"></i>';
+            }
+
+            document.getElementById('renew-payment-service').textContent = renewalPlan.name || (serviceType === 'plex' ? 'Plex Renewal' : 'IPTV Renewal');
+
+            const priceText = renewalPlan.price_type === 'free' ? 'Free' :
+                renewalPlan.price_type === 'donation' ? 'Donation Based' :
+                `$${renewalPlan.price?.toFixed(2) || '0.00'}`;
+            document.getElementById('renew-payment-price').textContent = priceText;
+
+            const durationText = renewalPlan.duration_months === 0 || !renewalPlan.duration_months ?
+                'Unlimited' : `${renewalPlan.duration_months} month${renewalPlan.duration_months > 1 ? 's' : ''}`;
+            document.getElementById('renew-payment-duration').textContent = durationText;
+
+            // Render payment methods
+            const paymentListEl = document.getElementById('renew-payment-methods-list');
+            if (paymentMethods.length > 0) {
+                paymentListEl.innerHTML = paymentMethods.map(pm => {
+                    const config = getPaymentMethodConfig(pm.name);
+                    return `
+                        <a href="${escapeHtml(pm.payment_url)}" target="_blank" style="display: flex; align-items: center; justify-content: space-between; padding: 12px; background: var(--bg-secondary); border-radius: 8px; text-decoration: none; color: var(--text-primary); transition: all 0.2s; border: 1px solid transparent;" onmouseover="this.style.borderColor='${config.color}'; this.style.background='${config.hoverBg}'" onmouseout="this.style.borderColor='transparent'; this.style.background='var(--bg-secondary)'">
+                            <div style="display: flex; align-items: center; gap: 12px;">
+                                <div style="width: 40px; height: 40px; border-radius: 10px; background: ${config.bgColor}; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                                    ${config.icon}
+                                </div>
+                                <span style="font-weight: 500;">${escapeHtml(pm.name)}</span>
+                            </div>
+                            <i class="fas fa-external-link-alt" style="color: var(--text-tertiary); font-size: 12px;"></i>
+                        </a>
+                    `;
+                }).join('');
+            } else {
+                paymentListEl.innerHTML = '<p style="color: var(--text-tertiary); text-align: center;">No payment methods configured. Please contact support.</p>';
+            }
+
+            // Generate reference ID
+            const refId = String(Math.floor(100000 + Math.random() * 900000));
+            document.getElementById('renew-generated-ref-id').textContent = refId;
+            document.getElementById('renew-transaction-reference').value = '';
+        }
+
+        function goBackRenewalStep() {
+            if (renewalCurrentStep === 'payment') {
+                // Go back to service-specific step
+                document.getElementById('renew-step-payment').style.display = 'none';
+                if (renewalServiceType === 'plex') {
+                    showPlexRenewal();
+                } else {
+                    showIPTVRenewal();
+                }
+            } else if (renewalCurrentStep === 'plex' || renewalCurrentStep === 'iptv') {
+                // Go back to service selection (only if user has both)
+                if (currentUser.plex_enabled && (currentUser.iptv_enabled || currentUser.iptv_editor_enabled)) {
+                    document.getElementById('renew-step-plex').style.display = 'none';
+                    document.getElementById('renew-step-iptv').style.display = 'none';
+                    showRenewalServiceSelection();
+                }
+            }
+        }
+
+        async function submitRenewalRequest(paymentStatus) {
+            if (!renewalPlan) {
+                showToast('No plan selected', 'error');
+                return;
+            }
+
+            try {
+                const token = localStorage.getItem('portal_token');
+                const userRef = document.getElementById('renew-transaction-reference').value.trim();
+                const generatedRef = document.getElementById('renew-generated-ref-id').textContent;
+
+                let transactionRef = generatedRef;
+                if (userRef) {
+                    transactionRef = `${generatedRef} | ${userRef}`;
+                }
+
+                const response = await fetch(`${API_BASE}/portal/service-requests`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        service_type: renewalServiceType,
+                        subscription_plan_id: renewalPlan.id,
+                        request_type: 'renewal',
+                        payment_status: paymentStatus,
+                        transaction_reference: transactionRef || null,
+                        iptv_connections: renewalServiceType === 'iptv' ? renewalPlan.iptv_connections : null,
+                        user_notes: renewalOption === 'change' ? 'Plan change requested during renewal' : null
+                    })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    closeModal('renew-service-modal');
+                    const message = paymentStatus === 'submitted'
+                        ? 'Renewal request submitted! We\'ll verify your payment and extend your subscription shortly.'
+                        : 'Renewal request submitted! Complete your payment when ready and we\'ll extend your subscription.';
+                    showToast(message, 'success');
+                    await loadUserData();
+                } else {
+                    showToast(data.message || 'Failed to submit renewal request', 'error');
+                }
+            } catch (error) {
+                console.error('Error submitting renewal request:', error);
+                showToast('Failed to submit renewal request', 'error');
+            }
+        }
+
+        function formatDateDisplay(dateStr) {
+            if (!dateStr) return 'N/A';
+            const parts = dateStr.split('T')[0].split('-');
+            if (parts.length === 3) {
+                const month = parseInt(parts[1], 10);
+                const day = parseInt(parts[2], 10);
+                const year = parseInt(parts[0], 10);
+                return `${month}/${day}/${year}`;
+            }
+            return new Date(dateStr).toLocaleDateString();
         }
 
         function showDonateOptions() {
-            // TODO: Implement donate flow
-            showToast('Donation options coming soon!', 'info');
+            // For donation-based subscriptions, just show the renewal options
+            // since the flow is similar but user picks their own amount
+            showRenewOptions();
         }
 
         // Utility functions
