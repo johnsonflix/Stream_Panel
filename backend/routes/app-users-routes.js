@@ -133,8 +133,19 @@ router.post('/', async (req, res) => {
             });
         }
 
-        // Check if email already exists
-        const existingUsers = await query('SELECT id, is_app_user, name FROM users WHERE email = ?', [email]);
+        // IMPORTANT: Only check for existing ADMIN accounts with this email
+        // Subscription users can have the same email - they are completely separate
+        const existingAdmins = await query(
+            'SELECT id FROM users WHERE email = ? AND is_app_user = 1',
+            [email]
+        );
+
+        if (existingAdmins.length > 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'An admin account with this email already exists'
+            });
+        }
 
         let passwordHash = null;
         let setupToken = null;
@@ -151,61 +162,18 @@ router.post('/', async (req, res) => {
             }
             passwordHash = await bcrypt.hash(password, 10);
             isFirstLogin = 0;
-        } else {
-            // No password provided - generate setup token
+        }
+
+        // Generate setup token if sendWelcome is true (allows password change via email link)
+        // This works whether or not a password was provided
+        if (sendWelcome) {
             setupToken = crypto.randomBytes(32).toString('hex');
             setupExpires = new Date();
             setupExpires.setHours(setupExpires.getHours() + 24); // 24 hour expiration
         }
 
-        let result;
-        let wasPromoted = false;
-
-        if (existingUsers.length > 0) {
-            const existingUser = existingUsers[0];
-
-            // If already an app user, reject
-            if (existingUser.is_app_user) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'An admin account with this email already exists'
-                });
-            }
-
-            // Existing regular user - promote them to app user
-            await query(`
-                UPDATE users SET
-                    is_app_user = 1,
-                    password_hash = ?,
-                    password_reset_token = ?,
-                    password_reset_expires = ?,
-                    role = ?,
-                    is_first_login = ?,
-                    plex_sso_enabled = ?,
-                    plex_sso_required = ?,
-                    plex_sso_email = ?,
-                    plex_sso_server_ids = ?,
-                    updated_at = datetime('now')
-                WHERE id = ?
-            `, [
-                passwordHash,
-                setupToken,
-                setupExpires ? setupExpires.toISOString() : null,
-                role || 'user',
-                isFirstLogin,
-                plex_sso_enabled ? 1 : 0,
-                plex_sso_required ? 1 : 0,
-                plex_sso_email || null,
-                plex_sso_server_ids ? JSON.stringify(plex_sso_server_ids) : null,
-                existingUser.id
-            ]);
-
-            result = { insertId: existingUser.id };
-            wasPromoted = true;
-            console.log(`✅ Promoted existing user ${existingUser.name} (${email}) to app admin`);
-        } else {
-            // Create new app user
-            result = await query(`
+        // Always create a new row for admin - never modify subscription users
+        const result = await query(`
                 INSERT INTO users (
                     name,
                     email,
@@ -251,10 +219,10 @@ router.post('/', async (req, res) => {
                 plex_sso_email || null,
                 plex_sso_server_ids ? JSON.stringify(plex_sso_server_ids) : null
             ]);
-        }
 
-        // Send welcome email if no password was set and sendWelcome is true
-        if (!password && sendWelcome && setupToken) {
+        // Send welcome email if sendWelcome is true (works with or without password)
+        let emailSent = false;
+        if (sendWelcome && setupToken) {
             try {
                 const baseUrl = getBaseUrlFromRequest(req);
 
@@ -266,28 +234,22 @@ router.post('/', async (req, res) => {
 
                 await sendWelcomeEmail(email, name, setupToken, baseUrl, emailCustomization);
                 console.log(`✅ Welcome email sent to ${email}`);
+                emailSent = true;
             } catch (emailError) {
                 console.error('Failed to send welcome email:', emailError);
                 // Don't fail the request if email fails
             }
         }
 
-        let message;
-        if (wasPromoted) {
-            message = password ?
-                'Existing user promoted to admin successfully' :
-                'Existing user promoted to admin. Welcome email sent.';
-        } else {
-            message = password ?
-                'App user created successfully' :
-                'App user created successfully. Welcome email sent.';
+        let message = 'App user created successfully';
+        if (emailSent) {
+            message += '. Welcome email sent.';
         }
 
         res.json({
             success: true,
             message,
             user_id: result.insertId,
-            wasPromoted,
             requiresPasswordSetup: !password
         });
 
@@ -452,6 +414,10 @@ router.put('/:id', async (req, res) => {
 
 /**
  * DELETE /api/v2/app-users/:id - Delete app user
+ *
+ * Since admins and subscription users are completely separate rows,
+ * we simply delete the admin row. This does not affect any subscription
+ * users who may have the same email.
  */
 router.delete('/:id', async (req, res) => {
     try {
@@ -466,8 +432,10 @@ router.delete('/:id', async (req, res) => {
             });
         }
 
+        const user = users[0];
+
         // Prevent deleting the last admin
-        if (users[0].role === 'admin') {
+        if (user.role === 'admin') {
             const adminCount = await query('SELECT COUNT(*) as count FROM users WHERE role = ? AND is_app_user = 1', ['admin']);
             if (adminCount[0].count <= 1) {
                 return res.status(400).json({
@@ -477,14 +445,10 @@ router.delete('/:id', async (req, res) => {
             }
         }
 
-        // Delete user (temporarily disable foreign key checks to handle orphaned constraints)
-        // This is a workaround for legacy database constraints that reference non-existent tables
-        await query('PRAGMA foreign_keys = OFF');
-        try {
-            await query('DELETE FROM users WHERE id = ?', [id]);
-        } finally {
-            await query('PRAGMA foreign_keys = ON');
-        }
+        // Simply delete the admin - subscription users are separate rows
+        await query('DELETE FROM users WHERE id = ? AND is_app_user = 1', [id]);
+
+        console.log(`✅ Deleted admin user ${user.name} (${user.email})`);
 
         res.json({
             success: true,

@@ -319,6 +319,42 @@ class JobProcessor {
                             console.error(`[JobProcessor] Failed to send IPTV welcome email:`, emailError);
                         }
                     }
+
+                    // Link IPTV Editor account if one was found
+                    if (jobConfig.iptv.linked_editor_user_id && jobConfig.iptv.linked_editor_playlist_id) {
+                        this.updateJobStatus(jobId, 'iptvEditor', 'processing', 'Linking existing IPTV Editor account...');
+                        try {
+                            console.log(`[JobProcessor] 🔗 Linking existing IPTV Editor user (ID: ${jobConfig.iptv.linked_editor_user_id}) to user ${userData.user_id}`);
+
+                            // Insert into iptv_editor_users table
+                            await db.query(`
+                                INSERT INTO iptv_editor_users (user_id, iptv_editor_id, iptv_editor_playlist_id, iptv_editor_username, iptv_editor_password, created_at)
+                                VALUES (?, ?, ?, ?, ?, datetime('now'))
+                                ON CONFLICT(user_id, iptv_editor_playlist_id) DO UPDATE SET
+                                    iptv_editor_id = excluded.iptv_editor_id,
+                                    iptv_editor_username = excluded.iptv_editor_username,
+                                    iptv_editor_password = excluded.iptv_editor_password
+                            `, [
+                                userData.user_id,
+                                jobConfig.iptv.linked_editor_user_id,
+                                jobConfig.iptv.linked_editor_playlist_id,
+                                jobConfig.iptv.linked_editor_username || iptvCredentials?.username || '',
+                                jobConfig.iptv.linked_editor_password || iptvCredentials?.password || ''
+                            ]);
+
+                            // Update user's iptv_editor_enabled flag
+                            await db.query(`UPDATE users SET iptv_editor_enabled = 1 WHERE id = ?`, [userData.user_id]);
+
+                            this.updateJobStatus(jobId, 'iptvEditor', 'completed', 'Linked to existing IPTV Editor account');
+                            console.log(`[JobProcessor] ✅ Successfully linked user ${userData.user_id} to existing IPTV Editor account (ID: ${jobConfig.iptv.linked_editor_user_id})`);
+                        } catch (editorError) {
+                            console.error(`[JobProcessor] Error linking IPTV Editor account:`, editorError);
+                            this.updateJobStatus(jobId, 'iptvEditor', 'failed', editorError.message);
+                        }
+                    } else {
+                        // No IPTV Editor to link
+                        this.updateJobStatus(jobId, 'iptvEditor', 'completed', 'No IPTV Editor account to link');
+                    }
                 } catch (error) {
                     console.error(`[JobProcessor] Error linking IPTV account:`, error);
                     this.updateJobStatus(jobId, 'iptv', 'failed', error.message);

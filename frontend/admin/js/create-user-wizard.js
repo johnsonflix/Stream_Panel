@@ -2220,10 +2220,14 @@ const CreateUserWizard = {
                 try {
                     const editorResponse = await API.searchIPTVEditorForUser(editorUsername, selectedPanel.linked_playlist_id);
 
-                    if (editorResponse.found) {
-                        console.log(`✅ Found user "${username}" in IPTV Editor playlist ${selectedPanel.linked_playlist_id}`);
+                    if (editorResponse.found && editorResponse.users && editorResponse.users.length > 0) {
+                        const editorUser = editorResponse.users[0];
+                        console.log(`✅ Found user "${username}" in IPTV Editor playlist ${selectedPanel.linked_playlist_id} (ID: ${editorUser.id})`);
                         this.cache.linkedIPTVUser.iptv_editor_found = true;
-                        this.cache.linkedIPTVUser.iptv_editor_data = editorResponse.user_data;
+                        this.cache.linkedIPTVUser.iptv_editor_data = editorUser;
+                        this.cache.linkedIPTVUser.iptv_editor_user_id = editorUser.id;
+                        this.cache.linkedIPTVUser.iptv_editor_username = editorUser.username;
+                        this.cache.linkedIPTVUser.iptv_editor_password = editorUser.password;
                         this.cache.linkedIPTVUser.iptv_editor_playlist_id = selectedPanel.linked_playlist_id;
                     } else {
                         console.log(`❌ User "${username}" not found in IPTV Editor`);
@@ -2797,6 +2801,9 @@ const CreateUserWizard = {
             // If found in IPTV Editor, save that info too
             if (this.cache.linkedIPTVUser.iptv_editor_found && this.cache.linkedIPTVUser.iptv_editor_user_id) {
                 this.formData.iptv.linked_iptv_editor_user_id = this.cache.linkedIPTVUser.iptv_editor_user_id;
+                this.formData.iptv.linked_iptv_editor_username = this.cache.linkedIPTVUser.iptv_editor_username;
+                this.formData.iptv.linked_iptv_editor_password = this.cache.linkedIPTVUser.iptv_editor_password;
+                this.formData.iptv.linked_iptv_editor_playlist_id = this.cache.linkedIPTVUser.iptv_editor_playlist_id;
             }
 
             // Package/channel info will be pulled from the panel by backend
@@ -2915,7 +2922,10 @@ const CreateUserWizard = {
                     // Linked user fields
                     iptv_is_linked_user: this.formData.iptv.is_linked_user || false,
                     iptv_linked_panel_user_id: this.formData.iptv.linked_iptv_panel_user_id || null,
-                    iptv_linked_editor_user_id: this.formData.iptv.linked_iptv_editor_user_id || null
+                    iptv_linked_editor_user_id: this.formData.iptv.linked_iptv_editor_user_id || null,
+                    iptv_linked_editor_username: this.formData.iptv.linked_iptv_editor_username || null,
+                    iptv_linked_editor_password: this.formData.iptv.linked_iptv_editor_password || null,
+                    iptv_linked_editor_playlist_id: this.formData.iptv.linked_iptv_editor_playlist_id || null
                 })
             };
 

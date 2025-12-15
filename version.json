@@ -1,6 +1,6 @@
 {
-  "version": "1.2.2",
+  "version": "1.2.3",
   "name": "Stream Panel",
   "releaseDate": "2025-12-15",
-  "description": "Add Copy Subscription Plan button, fix root URL redirect, fix tags dropdown in user wizard"
+  "description": "IPTV Editor auto-linking, welcome email with/without password, admin/subscription user separation"
 }

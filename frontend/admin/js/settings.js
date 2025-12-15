@@ -6710,6 +6710,33 @@ const Settings = {
             e.preventDefault();
             await this.saveAppUser(userId);
         });
+
+        // Link password field and welcome email checkbox (only for new users)
+        if (!isEdit) {
+            const passwordField = document.getElementById('app-user-password');
+            const sendWelcomeCheckbox = document.getElementById('app-user-send-welcome');
+            const sendWelcomeLabel = sendWelcomeCheckbox?.closest('.form-group');
+
+            // Function to update help text based on password input
+            const updateWelcomeEmailState = () => {
+                if (!sendWelcomeCheckbox || !sendWelcomeLabel) return;
+
+                const hasPassword = passwordField.value.length > 0;
+
+                if (hasPassword) {
+                    // Password entered - keep checkbox enabled but update message
+                    sendWelcomeLabel.querySelector('small').textContent =
+                        'User can use password above OR click email link to change it';
+                } else {
+                    // No password - show default message
+                    sendWelcomeLabel.querySelector('small').textContent =
+                        'Uncheck to save without sending email (useful for Plex SSO only users)';
+                }
+            };
+
+            // Listen for password input changes
+            passwordField.addEventListener('input', updateWelcomeEmailState);
+        }
     },
 
     /**
@@ -6894,8 +6921,6 @@ const Settings = {
                 const response = await API.createAppUser(data);
                 if (response.requiresPasswordSetup && data.sendWelcome) {
                     Utils.showToast('Success', 'Admin created! Welcome email sent with password setup link.', 'success');
-                } else if (response.wasPromoted) {
-                    Utils.showToast('Success', 'Existing user promoted to admin successfully', 'success');
                 } else {
                     Utils.showToast('Success', 'Admin created successfully', 'success');
                 }
@@ -6926,7 +6951,7 @@ const Settings = {
      * Delete app user
      */
     async deleteAppUser(userId, userName) {
-        if (!confirm(`Are you sure you want to delete the app user "${userName}"?\n\nThis will permanently remove their login account and all active sessions.`)) {
+        if (!confirm(`Are you sure you want to delete the admin "${userName}"?\n\nThis only removes the admin account. Any subscription user with the same email will not be affected.`)) {
             return;
         }
 

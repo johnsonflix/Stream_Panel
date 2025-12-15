@@ -343,6 +343,7 @@ router.post('/', async (req, res) => {
             iptv_send_welcome_email, iptv_welcome_email_template_id,
             // IPTV Linked User
             iptv_is_linked_user, iptv_linked_panel_user_id, iptv_linked_editor_user_id,
+            iptv_linked_editor_username, iptv_linked_editor_password, iptv_linked_editor_playlist_id,
             // IPTV Editor
             create_on_iptv_editor,
             // Tags
@@ -364,9 +365,11 @@ router.post('/', async (req, res) => {
         }
 
         // Check for duplicate email (only for new user creation)
+        // IMPORTANT: Only check for existing SUBSCRIPTION users with this email
+        // Admins can have the same email - they are completely separate
         if (!isAddServiceMode) {
             const [existingUsers] = await connection.execute(
-                'SELECT id FROM users WHERE email = ?',
+                'SELECT id FROM users WHERE email = ? AND (is_app_user = 0 OR is_app_user IS NULL)',
                 [email]
             );
 
@@ -374,7 +377,7 @@ router.post('/', async (req, res) => {
                 await connection.rollback();
                 return res.status(409).json({
                     success: false,
-                    message: 'A user with this email already exists'
+                    message: 'A subscription user with this email already exists'
                 });
             }
         } else {
@@ -752,6 +755,9 @@ router.post('/', async (req, res) => {
                         is_linked_user: iptv_is_linked_user || false,
                         linked_panel_user_id: iptv_linked_panel_user_id || null,
                         linked_editor_user_id: iptv_linked_editor_user_id || null,
+                        linked_editor_username: iptv_linked_editor_username || null,
+                        linked_editor_password: iptv_linked_editor_password || null,
+                        linked_editor_playlist_id: iptv_linked_editor_playlist_id || null,
                         // Welcome email settings
                         send_welcome_email: iptv_send_welcome_email || false,
                         welcome_email_template_id: iptv_welcome_email_template_id || null
