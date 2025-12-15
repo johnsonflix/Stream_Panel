@@ -1,6 +1,6 @@
 {
-  "version": "1.2.1",
+  "version": "1.2.2",
   "name": "Stream Panel",
   "releaseDate": "2025-12-15",
-  "description": "Fix guide loading performance, IPTV panel status display, and auto-updater startup triggers"
+  "description": "Add Copy Subscription Plan button, fix root URL redirect, fix tags dropdown in user wizard"
 }

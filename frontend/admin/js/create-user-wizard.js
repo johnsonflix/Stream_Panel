@@ -278,7 +278,7 @@ const CreateUserWizard = {
             // Load all data in parallel
             const [appUsersRes, tagsRes, subscriptionPlansRes, plexServersRes, iptvPanelsRes, emailTemplatesRes] = await Promise.all([
                 API.getAppUsers().catch(() => ({ app_users: [] })),
-                API.getTags().catch(() => ({ tags: [] })),
+                API.getTags().catch(() => ({ data: [] })),
                 API.getSubscriptionPlans().catch(() => ({ plans: [] })),
                 API.getPlexServers().catch(() => ({ servers: [] })),
                 API.getIPTVPanels().catch(() => ({ panels: [] })),
@@ -287,7 +287,7 @@ const CreateUserWizard = {
 
             // Store in cache
             this.cache.appUsers = appUsersRes?.users || appUsersRes?.app_users || [];
-            this.cache.tags = tagsRes?.tags || [];
+            this.cache.tags = tagsRes?.data || tagsRes?.tags || [];
             this.cache.emailTemplates = emailTemplatesRes?.templates || [];
 
             // Filter subscription plans by service type

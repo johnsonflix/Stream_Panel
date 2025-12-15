@@ -3655,6 +3655,9 @@ const Settings = {
                                             <td>${plan.iptv_connections || '-'}</td>
                                             <td>${Utils.getStatusBadge(plan.is_active, 'Active', 'Inactive')}</td>
                                             <td>
+                                                <button class="btn btn-sm btn-outline" onclick="Settings.copySubscriptionPlan(${plan.id})" title="Copy">
+                                                    <i class="fas fa-copy"></i>
+                                                </button>
                                                 <button class="btn btn-sm btn-outline" onclick="Settings.editSubscriptionPlan(${plan.id})" title="Edit">
                                                     <i class="fas fa-edit"></i>
                                                 </button>
@@ -4158,6 +4161,163 @@ const Settings = {
                         text: 'Save Changes',
                         class: 'btn-primary',
                         onClick: () => this.submitEditSubscriptionPlan(planId)
+                    }
+                ]
+            });
+
+        } catch (error) {
+            Utils.hideLoading();
+            Utils.showToast('Error', error.message, 'error');
+        }
+    },
+
+    /**
+     * Copy subscription plan - opens add modal with pre-filled data
+     */
+    async copySubscriptionPlan(planId) {
+        Utils.showLoading();
+        try {
+            const response = await API.getSubscriptionPlan(planId);
+            const plan = response.plan;
+            Utils.hideLoading();
+
+            Utils.showModal({
+                title: 'Copy Subscription Plan',
+                body: `
+                    <form id="add-subscription-plan-form">
+                        <div class="form-group">
+                            <label class="form-label required">Plan Name</label>
+                            <input type="text" name="name" class="form-input" required
+                                   value="${Utils.escapeHtml(plan.name)}">
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Description</label>
+                            <textarea name="description" class="form-input" rows="2"
+                                      placeholder="Optional description of this plan">${Utils.escapeHtml(plan.description || '')}</textarea>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label required">Service Type</label>
+                            <select name="service_type" class="form-input" required onchange="Settings.handleSubscriptionPlanServiceTypeChange(this)">
+                                <option value="plex" ${plan.service_type === 'plex' ? 'selected' : ''}>Plex</option>
+                                <option value="iptv" ${plan.service_type === 'iptv' ? 'selected' : ''}>IPTV</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label required">Duration</label>
+                            <div style="display: flex; gap: 1rem; align-items: center;">
+                                <div style="flex: 1;">
+                                    <input type="number" name="duration_months" class="form-input" min="0" value="${plan.duration_months || 0}" id="add-duration-input" ${plan.duration_months === 0 || plan.duration_months === null ? 'disabled' : ''}>
+                                    <small class="form-text">Months (0 = Unlimited)</small>
+                                </div>
+                                <div class="form-checkbox-group" style="white-space: nowrap;">
+                                    <input type="checkbox" name="unlimited_duration" class="form-checkbox" id="add-unlimited-duration"
+                                           ${plan.duration_months === 0 || plan.duration_months === null ? 'checked' : ''}
+                                           onchange="Settings.handleUnlimitedDurationChange(this, 'add-duration-input')">
+                                    <label for="add-unlimited-duration">Unlimited (No Expiration)</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label required">Pricing Type</label>
+                            <div style="display: flex; gap: 1.5rem; margin-bottom: 0.5rem;">
+                                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                    <input type="radio" name="price_type" value="fixed" ${(plan.price_type || 'fixed') === 'fixed' ? 'checked' : ''} onchange="Settings.handlePriceTypeChange(this)">
+                                    <span>Fixed Price</span>
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                    <input type="radio" name="price_type" value="free" ${plan.price_type === 'free' ? 'checked' : ''} onchange="Settings.handlePriceTypeChange(this)">
+                                    <span>Free</span>
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                    <input type="radio" name="price_type" value="donation" ${plan.price_type === 'donation' ? 'checked' : ''} onchange="Settings.handlePriceTypeChange(this)">
+                                    <span>Donation</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="form-group" id="price-input-group" style="display: ${plan.price_type === 'free' ? 'none' : 'block'};">
+                            <label class="form-label" id="price-label">${plan.price_type === 'donation' ? 'Suggested Donation' : 'Price'}</label>
+                            <div style="display: flex; gap: 0.5rem;">
+                                <select name="currency" class="form-input" style="flex: 0 0 80px;">
+                                    <option value="USD" ${plan.currency === 'USD' ? 'selected' : ''}>USD</option>
+                                    <option value="EUR" ${plan.currency === 'EUR' ? 'selected' : ''}>EUR</option>
+                                    <option value="GBP" ${plan.currency === 'GBP' ? 'selected' : ''}>GBP</option>
+                                    <option value="CAD" ${plan.currency === 'CAD' ? 'selected' : ''}>CAD</option>
+                                </select>
+                                <input type="number" name="price" class="form-input" min="0" step="0.01" value="${plan.price}" style="flex: 1;" id="add-price-input" ${plan.price_type === 'fixed' ? 'required' : ''}>
+                            </div>
+                            <small class="form-text" id="price-help-text">${plan.price_type === 'donation' ? 'Optional: Enter a suggested donation amount' : ''}</small>
+                        </div>
+
+                        <!-- IPTV-specific fields -->
+                        <div id="iptv-fields" style="display: ${plan.service_type === 'iptv' || plan.service_type === 'combo' ? 'block' : 'none'};">
+                            <div class="form-group">
+                                <label class="form-label required">IPTV Connections</label>
+                                <input type="number" name="iptv_connections" class="form-input" min="1" value="${plan.iptv_connections || 1}"
+                                       placeholder="Number of concurrent connections"
+                                       ${plan.service_type === 'iptv' || plan.service_type === 'combo' ? 'required' : ''}>
+                            </div>
+                        </div>
+
+                        <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Display Order</label>
+                                <input type="number" name="display_order" class="form-input" min="0" value="${plan.display_order || 0}"
+                                       placeholder="0 (lower numbers appear first)">
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Status</label>
+                                <div class="form-checkbox-group">
+                                    <input type="checkbox" name="is_active" class="form-checkbox" id="add-plan-active" ${plan.is_active ? 'checked' : ''}>
+                                    <label for="add-plan-active">Plan is Active</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style="border-top: 1px solid var(--border-color); padding-top: 1rem; margin-top: 1rem;">
+                            <h4 style="margin: 0 0 1rem 0; font-size: 0.9rem; color: var(--text-secondary);">
+                                <i class="fas fa-globe"></i> Portal Visibility
+                            </h4>
+                            <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                                <div class="form-group">
+                                    <div class="form-checkbox-group">
+                                        <input type="checkbox" name="show_on_portal" class="form-checkbox" id="add-show-on-portal" ${plan.show_on_portal !== 0 ? 'checked' : ''}>
+                                        <label for="add-show-on-portal">Show on User Portal</label>
+                                    </div>
+                                    <small class="form-text">Users can see this plan when requesting new services</small>
+                                </div>
+                                <div class="form-group">
+                                    <div class="form-checkbox-group">
+                                        <input type="checkbox" name="is_portal_default" class="form-checkbox" id="add-portal-default" ${plan.is_portal_default ? 'checked' : ''}>
+                                        <label for="add-portal-default">Portal Default Plan</label>
+                                    </div>
+                                    <small class="form-text">Pre-selected when users request this service type</small>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Portal Description</label>
+                                <textarea name="portal_description" class="form-input" rows="2"
+                                          placeholder="Optional: Short description shown to users on the portal">${Utils.escapeHtml(plan.portal_description || '')}</textarea>
+                                <small class="form-text">If empty, the main description will be used</small>
+                            </div>
+                        </div>
+                    </form>
+                `,
+                buttons: [
+                    {
+                        text: 'Cancel',
+                        class: 'btn-outline',
+                        onClick: () => Utils.closeModal()
+                    },
+                    {
+                        text: 'Create Copy',
+                        class: 'btn-primary',
+                        onClick: () => this.submitAddSubscriptionPlan()
                     }
                 ]
             });
