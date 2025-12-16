@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web Player</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #0f0f0f;
+            color: #fff;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .loading {
+            text-align: center;
+        }
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid #333;
+            border-top-color: #8b5cf6;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 16px;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="loading">
+        <div class="spinner"></div>
+        <p>Loading player...</p>
+    </div>
+
+    <script>
+        const API_BASE = '/api/v2';
+        const PLAYER_URL = '/portal/player.html';
+        const LOGIN_URL = '/login.html';
+
+        async function checkAuthAndRedirect() {
+            const token = localStorage.getItem('portal_token');
+
+            // No token - redirect to login with redirect back to player
+            if (!token) {
+                window.location.href = `${LOGIN_URL}?redirect=${encodeURIComponent(PLAYER_URL)}`;
+                return;
+            }
+
+            // Verify token is still valid
+            try {
+                const response = await fetch(`${API_BASE}/portal/auth/verify`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (response.ok) {
+                    // Token valid - go to player
+                    window.location.href = PLAYER_URL;
+                } else {
+                    // Token invalid - clear and redirect to login
+                    localStorage.removeItem('portal_token');
+                    localStorage.removeItem('portal_user');
+                    window.location.href = `${LOGIN_URL}?redirect=${encodeURIComponent(PLAYER_URL)}`;
+                }
+            } catch (error) {
+                console.error('Auth check failed:', error);
+                // On error, try player anyway (might work if network issue)
+                window.location.href = PLAYER_URL;
+            }
+        }
+
+        // Run on page load
+        checkAuthAndRedirect();
+    </script>
+</body>
+</html>

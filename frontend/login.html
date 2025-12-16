@@ -569,6 +569,10 @@
         const API_BASE = '/api/v2';
         let loginType = 'user'; // Default to End User
 
+        // Get redirect URL from query params (for direct player access etc)
+        const urlParams = new URLSearchParams(window.location.search);
+        const redirectUrl = urlParams.get('redirect') || '/portal/';
+
         // Initialize on page load
         loadBrandingSettings();
         checkExistingSession();
@@ -709,11 +713,11 @@
             const portalToken = localStorage.getItem('portal_token');
             if (portalToken) {
                 try {
-                    const response = await fetch(`${API_BASE}/portal/auth/me`, {
+                    const response = await fetch(`${API_BASE}/portal/auth/verify`, {
                         headers: { 'Authorization': `Bearer ${portalToken}` }
                     });
                     if (response.ok) {
-                        window.location.href = '/portal/';
+                        window.location.href = redirectUrl;
                         return;
                     }
                 } catch (error) {
@@ -757,7 +761,7 @@
 
                     showAlert('success', 'Login successful! Redirecting...');
                     setTimeout(() => {
-                        window.location.href = '/portal/';
+                        window.location.href = redirectUrl;
                     }, 1000);
                 } else {
                     showAlert('error', data.message || 'Invalid credentials');
@@ -868,7 +872,6 @@
         });
 
         // Handle Plex callback for portal
-        const urlParams = new URLSearchParams(window.location.search);
         if (urlParams.has('plex_token')) {
             handlePortalPlexCallback(urlParams.get('plex_token'));
         }
@@ -894,7 +897,7 @@
 
                     showAlert('success', 'Login successful! Redirecting...');
                     setTimeout(() => {
-                        window.location.href = '/portal/';
+                        window.location.href = redirectUrl;
                     }, 1000);
                 } else {
                     showAlert('error', data.message || 'Failed to verify Plex account');
