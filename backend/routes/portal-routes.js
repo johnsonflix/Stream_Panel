@@ -2759,6 +2759,167 @@ router.get('/iptv/guide/channels/:categoryId', async (req, res) => {
 });
 
 /**
+ * GET /api/v2/portal/iptv/guide/search
+ * Search channels and program titles across the EPG cache
+ * Returns matching channels with their EPG data
+ */
+router.get('/iptv/guide/search', async (req, res) => {
+    try {
+        const user = req.portalUser;
+        const { buildStreamUrl } = require('../utils/xtream-api');
+        const searchTerm = (req.query.q || '').toLowerCase().trim();
+
+        if (!searchTerm || searchTerm.length < 2) {
+            return res.json({ success: true, channels: [], epg: {} });
+        }
+
+        // Get user data
+        const users = await query(`
+            SELECT u.*,
+                   ieu.iptv_editor_playlist_id,
+                   ieu.iptv_editor_username as editor_username,
+                   ieu.iptv_editor_password as editor_password,
+                   ip.id as panel_id,
+                   ip.provider_base_url as panel_provider_url,
+                   ip.m3u_url as panel_m3u_url,
+                   iep.provider_base_url as playlist_provider_url
+            FROM users u
+            LEFT JOIN iptv_editor_users ieu ON ieu.user_id = u.id
+            LEFT JOIN iptv_panels ip ON u.iptv_panel_id = ip.id
+            LEFT JOIN iptv_editor_playlists iep ON ieu.iptv_editor_playlist_id = iep.id
+            WHERE u.id = ?
+        `, [user.user_id]);
+
+        if (users.length === 0) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+
+        const userData = users[0];
+        const hasEditor = userData.iptv_editor_enabled === 1 && userData.iptv_editor_playlist_id;
+        const hasPanel = userData.iptv_enabled === 1 && userData.panel_id;
+        const useSource = hasEditor ? 'editor' : 'panel';
+
+        // Get source info
+        let sourceType, sourceId, baseUrl, userUsername, userPassword;
+
+        if (useSource === 'editor') {
+            sourceType = 'playlist';
+            sourceId = userData.iptv_editor_playlist_id;
+            const editorDnsSettings = await query(`
+                SELECT setting_value FROM iptv_editor_settings WHERE setting_key = 'editor_dns'
+            `);
+            baseUrl = (editorDnsSettings.length > 0 && editorDnsSettings[0].setting_value)
+                ? editorDnsSettings[0].setting_value
+                : userData.playlist_provider_url;
+            userUsername = userData.editor_username;
+            userPassword = userData.editor_password;
+        } else if (hasPanel) {
+            sourceType = 'panel';
+            sourceId = userData.panel_id;
+            // Parse M3U URL for credentials
+            function parseM3uCredentials(m3uUrl) {
+                if (!m3uUrl) return null;
+                try {
+                    const url = new URL(m3uUrl);
+                    const username = url.searchParams.get('username');
+                    const password = url.searchParams.get('password');
+                    if (username && password) {
+                        return { baseUrl: url.origin, username, password };
+                    }
+                    return null;
+                } catch (e) { return null; }
+            }
+            const m3uCreds = parseM3uCredentials(userData.panel_m3u_url);
+            if (m3uCreds) {
+                baseUrl = m3uCreds.baseUrl;
+                userUsername = m3uCreds.username;
+                userPassword = m3uCreds.password;
+            } else {
+                baseUrl = userData.panel_provider_url;
+                userUsername = userData.iptv_username;
+                userPassword = userData.iptv_password;
+            }
+        } else {
+            return res.status(400).json({ success: false, message: 'No IPTV source configured' });
+        }
+
+        // Get cached data
+        const cachedData = channelDataCache.get(sourceType, sourceId);
+        const cachedEpgData = epgCache.get(sourceType, sourceId);
+
+        if (!cachedData || !cachedData.channels) {
+            return res.json({ success: true, channels: [], epg: {}, message: 'No cached data available' });
+        }
+
+        const allChannels = cachedData.channels;
+        const now = new Date();
+
+        // Search channels and programs
+        const matchingChannels = [];
+        const epgData = {};
+
+        for (const channel of allChannels) {
+            let matches = false;
+
+            // Check channel name
+            if (channel.name.toLowerCase().includes(searchTerm)) {
+                matches = true;
+            }
+
+            // Check current program title in EPG
+            if (!matches && cachedEpgData && cachedEpgData.programsByChannel) {
+                const channelEpg = cachedEpgData.programsByChannel[channel.epg_channel_id];
+                if (channelEpg) {
+                    const currentProgram = channelEpg.find(p => {
+                        const pStart = new Date(p.start);
+                        const pEnd = new Date(p.stop);
+                        return now >= pStart && now < pEnd;
+                    });
+                    if (currentProgram && currentProgram.title &&
+                        currentProgram.title.toLowerCase().includes(searchTerm)) {
+                        matches = true;
+                    }
+                }
+            }
+
+            if (matches) {
+                // Add channel with stream URL
+                matchingChannels.push({
+                    stream_id: channel.stream_id,
+                    name: channel.name,
+                    stream_icon: channel.stream_icon,
+                    category_id: channel.category_id,
+                    epg_channel_id: channel.epg_channel_id,
+                    url: buildStreamUrl(baseUrl, userUsername, userPassword, channel.stream_id, 'm3u8')
+                });
+
+                // Add EPG data for this channel
+                if (cachedEpgData && cachedEpgData.programsByChannel && channel.epg_channel_id) {
+                    const channelEpg = cachedEpgData.programsByChannel[channel.epg_channel_id];
+                    if (channelEpg) {
+                        epgData[channel.epg_channel_id] = channelEpg;
+                    }
+                }
+
+                // Limit results for performance
+                if (matchingChannels.length >= 100) break;
+            }
+        }
+
+        return res.json({
+            success: true,
+            channels: matchingChannels,
+            epg: epgData,
+            totalMatches: matchingChannels.length
+        });
+
+    } catch (error) {
+        console.error('Error searching guide:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+/**
  * POST /api/v2/portal/iptv/guide/refresh
  * Trigger a guide cache refresh for the user's source (admin use or manual refresh)
  */

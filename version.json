@@ -1,6 +1,6 @@
 {
-  "version": "1.2.12",
+  "version": "1.2.13",
   "name": "Stream Panel",
   "releaseDate": "2025-12-16",
-  "description": "All Channels EPG message + mobile search improvements"
+  "description": "Server-side EPG search, mobile fixes, UI improvements"
 }

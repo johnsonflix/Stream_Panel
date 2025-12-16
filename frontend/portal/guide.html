@@ -1758,9 +1758,6 @@
                     <i class="fas fa-search"></i>
                     <input type="text" id="searchInput" placeholder="Search channels..." oninput="filterChannels()">
                 </div>
-                <button class="search-scope-btn" id="searchAllBtn" onclick="toggleSearchScope()" title="Search all categories">
-                    <i class="fas fa-globe"></i> All
-                </button>
             </div>
             <div class="source-toggle" id="sourceToggle" style="display: none;">
                 <button class="source-btn" id="sourceEditor" onclick="switchSource('editor')">
@@ -2057,7 +2054,6 @@
         let baseUrl = '';
         let currentTimeOffset = 0;  // Hours offset from now
         let timeSlotWidth = 180;    // Width of each 30-min slot
-        let searchAllCategories = false;  // When true, search across all categories
         let allChannelsCache = [];  // Cache of all channels for global search
         let epgCache = {};  // Persistent EPG cache keyed by epg_channel_id
         let showingGlobalSearchResults = false;  // When true, bypass category filter in renderEPG
@@ -2341,6 +2337,17 @@
             showingGlobalSearchResults = false;  // Reset global search flag
             renderCategories();
 
+            // Update search placeholder based on category
+            const searchInput = document.getElementById('searchInput');
+            if (categoryId === 'all') {
+                searchInput.placeholder = 'Search channels & shows...';
+            } else {
+                searchInput.placeholder = 'Search channels...';
+            }
+
+            // Clear search when switching categories
+            searchInput.value = '';
+
             // Fetch EPG data for this category from the API
             // For 'all', we fetch without category filter to get all channels
             try {
@@ -2571,36 +2578,14 @@
         function filterChannels() {
             const searchTerm = document.getElementById('searchInput').value.trim();
 
-            // If searching all categories and there's a search term, fetch from API
-            if (searchAllCategories && searchTerm.length >= 2) {
+            // When in All Channels category and there's a search term, use server-side search
+            // This searches both channel names AND current program titles
+            if (currentCategory === 'all' && searchTerm.length >= 2) {
                 searchAllCategoriesAPI(searchTerm);
             } else {
-                // Reset global search flag when doing category-specific search
+                // Reset global search flag when doing category-specific search or clearing search
                 showingGlobalSearchResults = false;
                 renderEPG();
-            }
-        }
-
-        async function toggleSearchScope() {
-            searchAllCategories = !searchAllCategories;
-            const btn = document.getElementById('searchAllBtn');
-            btn.classList.toggle('active', searchAllCategories);
-
-            // Update placeholder text
-            const input = document.getElementById('searchInput');
-            input.placeholder = searchAllCategories ? 'Search all categories...' : 'Search channels...';
-
-            // If toggling off global search, reset to current category
-            if (!searchAllCategories) {
-                showingGlobalSearchResults = false;
-                // Reload current category data
-                await selectCategory(currentCategory);
-            } else {
-                // Re-run search if there's a term
-                const searchTerm = input.value.trim();
-                if (searchTerm.length >= 2) {
-                    filterChannels();
-                }
             }
         }
 
@@ -2615,71 +2600,40 @@
                     document.getElementById('epgContainer').innerHTML = `
                         <div class="loading">
                             <i class="fas fa-spinner"></i>
-                            <span>Searching all categories...</span>
+                            <span>Searching channels and shows...</span>
                         </div>
                     `;
 
-                    // Search without category filter to get all channels, then filter on frontend
-                    // We need to fetch all channels for search - use cached data if available
-                    if (allChannelsCache.length === 0) {
-                        const result = await api(`/portal/iptv/guide?source=${currentSource}`);
-                        if (result.success) {
-                            allChannelsCache = result.channels || [];
+                    // Use server-side search which searches both channel names AND program titles
+                    const result = await api(`/portal/iptv/guide/search?q=${encodeURIComponent(searchTerm)}`);
+
+                    if (result.success) {
+                        // Display results - includes channels matching by name OR current program
+                        allChannels = result.channels || [];
+                        showingGlobalSearchResults = true;  // Flag to bypass category filter
+
+                        // Merge EPG data from search results into cache
+                        if (result.epg) {
+                            Object.assign(epgCache, result.epg);
                         }
-                    }
-
-                    // Filter cached channels by search term
-                    const searchLower = searchTerm.toLowerCase();
-                    const matchingChannels = allChannelsCache.filter(ch =>
-                        ch.name.toLowerCase().includes(searchLower)
-                    );
-
-                    // Display results
-                    allChannels = matchingChannels;
-                    showingGlobalSearchResults = true;  // Flag to bypass category filter
-
-                    // Update title
-                    const titleEl = document.getElementById('contentTitle').querySelector('span');
-                    titleEl.textContent = `Search Results: "${searchTerm}"`;
-
-                    // Find categories that need EPG data
-                    const categoriesNeedingEpg = new Set();
-                    for (const ch of matchingChannels) {
-                        // Check if we already have EPG for this channel
-                        if (!epgCache[ch.epg_channel_id]) {
-                            categoriesNeedingEpg.add(ch.category_id);
-                        }
-                    }
-
-                    // Use cached EPG data
-                    epgData = epgCache;
-
-                    // If we need EPG for some categories, fetch them (limit to 5 to avoid too many requests)
-                    const categoriesToFetch = Array.from(categoriesNeedingEpg).slice(0, 5);
-                    if (categoriesToFetch.length > 0) {
-                        // First render with whatever EPG we have
-                        renderEPG();
-
-                        // Then fetch missing EPG in background
-                        for (const catId of categoriesToFetch) {
-                            try {
-                                const result = await api(`/portal/iptv/guide?source=${currentSource}&category_id=${catId}`);
-                                if (result.success && result.epg) {
-                                    Object.assign(epgCache, result.epg);
-                                }
-                            } catch (e) {
-                                console.warn('Failed to fetch EPG for category', catId);
-                            }
-                        }
-                        // Update epgData and re-render with new EPG
                         epgData = epgCache;
-                        renderEPG();
-                    } else {
+
+                        // Update title
+                        const titleEl = document.getElementById('contentTitle').querySelector('span');
+                        titleEl.textContent = `Search Results: "${searchTerm}" (${allChannels.length} matches)`;
+
                         renderEPG();
                     }
 
                 } catch (error) {
-                    console.error('Error searching all categories:', error);
+                    console.error('Error searching:', error);
+                    document.getElementById('epgContainer').innerHTML = `
+                        <div class="empty-state">
+                            <i class="fas fa-exclamation-circle"></i>
+                            <h3>Search Failed</h3>
+                            <p>Try again or select a category</p>
+                        </div>
+                    `;
                 }
             }, 300);
         }
@@ -3007,8 +2961,9 @@
 
         // Mobile search state
         let mobileSearchTerm = '';
+        let mobileSearchResults = null; // Stores search results from API
 
-        // Mobile search functionality - shows filtered EPG grid
+        // Mobile search functionality - uses server-side search for full EPG access
         async function mobileGuideSearchHandler() {
             const searchInput = document.getElementById('mobileGuideSearch');
             const clearBtn = document.getElementById('mobileSearchClear');
@@ -3025,31 +2980,37 @@
                 // Store search term for filtering
                 mobileSearchTerm = searchTerm;
 
-                // For All Channels mode, make sure we have all channels loaded
-                if (mobileCurrentCategory === 'all' && allChannelsCache.length === 0) {
-                    // Show loading
-                    document.getElementById('mobileEpgTable').innerHTML = `
-                        <div class="mobile-empty-state">
-                            <i class="fas fa-spinner fa-spin"></i>
-                            <h3>Loading...</h3>
-                        </div>
-                    `;
-                    try {
-                        const result = await api(`/portal/iptv/guide?source=${currentSource}`);
-                        if (result.success) {
-                            allChannelsCache = result.channels || [];
-                            allChannels = allChannelsCache;
-                        }
-                    } catch (e) {
-                        console.error('Failed to load all channels for search:', e);
+                // Use server-side search to search both channel names AND program titles
+                // This works even in All Channels mode because server has full EPG cache
+                document.getElementById('mobileEpgTable').innerHTML = `
+                    <div class="mobile-empty-state">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        <h3>Searching...</h3>
+                    </div>
+                `;
+
+                try {
+                    const result = await api(`/portal/iptv/guide/search?q=${encodeURIComponent(searchTerm)}`);
+                    if (result.success) {
+                        // Store search results
+                        mobileSearchResults = {
+                            channels: result.channels || [],
+                            epg: result.epg || {}
+                        };
+                        // Merge EPG data into cache for display
+                        Object.assign(epgCache, result.epg);
                     }
+                } catch (e) {
+                    console.error('Failed to search:', e);
+                    mobileSearchResults = { channels: [], epg: {} };
                 }
 
-                // Re-render EPG grid with search filter applied
+                // Re-render EPG grid with search results
                 renderMobileEpgGrid();
             } else {
-                // Clear search term and re-render
+                // Clear search and restore normal view
                 mobileSearchTerm = '';
+                mobileSearchResults = null;
                 renderMobileEpgGrid();
             }
         }
@@ -3162,34 +3123,16 @@
                 <div class="mobile-time-slot ${slot.isCurrent ? 'current' : ''}">${slot.label}</div>
             `).join('');
 
-            // Filter channels by category
-            let filtered = mobileCurrentCategory === 'all'
-                ? allChannels
-                : allChannels.filter(ch => String(ch.category_id) === String(mobileCurrentCategory));
-
-            // Apply search filter if searching
-            if (mobileSearchTerm) {
-                const now = new Date();
-                filtered = filtered.filter(ch => {
-                    // Check channel name
-                    if (ch.name.toLowerCase().includes(mobileSearchTerm)) {
-                        return true;
-                    }
-                    // Check current program title
-                    const channelEpg = epgData[ch.epg_channel_id] || epgCache[ch.epg_channel_id] || [];
-                    if (channelEpg.length > 0) {
-                        const currentProgram = channelEpg.find(p => {
-                            const pStart = new Date(p.start);
-                            const pEnd = new Date(p.stop);
-                            return now >= pStart && now < pEnd;
-                        });
-                        if (currentProgram && currentProgram.title &&
-                            currentProgram.title.toLowerCase().includes(mobileSearchTerm)) {
-                            return true;
-                        }
-                    }
-                    return false;
-                });
+            // Filter channels - use search results if available, otherwise filter by category
+            let filtered;
+            if (mobileSearchResults && mobileSearchTerm) {
+                // Use server-side search results (includes EPG-based matches)
+                filtered = mobileSearchResults.channels;
+            } else {
+                // Normal category filtering
+                filtered = mobileCurrentCategory === 'all'
+                    ? allChannels
+                    : allChannels.filter(ch => String(ch.category_id) === String(mobileCurrentCategory));
             }
 
             if (filtered.length === 0) {
