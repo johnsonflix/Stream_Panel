@@ -3,7 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#0f172a">
     <title>TV Guide - User Portal</title>
+    <link rel="apple-touch-icon" href="/api/v2/settings/app_logo">
+    <link rel="manifest" href="/api/v2/public/manifest.json">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <style>
@@ -1958,6 +1964,9 @@
                 <i class="fas fa-volume-up" id="mobileVolumeIcon"></i>
             </button>
             <input type="range" class="mobile-volume-slider" id="mobileVolumeSlider" min="0" max="100" value="100" oninput="setMobileVolume(this.value)">
+            <button class="mobile-ctrl-btn pip-btn" id="mobilePipBtn" onclick="toggleMobilePiP()" title="Picture-in-Picture" style="display: none;">
+                <i class="fas fa-external-link-alt"></i>
+            </button>
         </div>
     </div>
 
@@ -3235,7 +3244,11 @@
 
         // Open mobile fullscreen player
         function openMobilePlayer(streamId) {
-            const channel = allChannels.find(ch => ch.stream_id === streamId);
+            // Check both allChannels and search results (search results may not be in allChannels)
+            let channel = allChannels.find(ch => ch.stream_id === streamId);
+            if (!channel && mobileSearchResults && mobileSearchResults.channels) {
+                channel = mobileSearchResults.channels.find(ch => ch.stream_id === streamId);
+            }
             if (!channel) return;
 
             currentChannel = channel;
@@ -3251,6 +3264,9 @@
             video.volume = savedVolume;
             document.getElementById('mobileVolumeSlider').value = savedVolume * 100;
             updateMobileVolumeIcon();
+
+            // Check PiP support and show button if available
+            checkMobilePiPSupport();
 
             // Play stream
             playMobileStream(channel.url);
@@ -3451,6 +3467,52 @@
             } else {
                 icon.className = 'fas fa-volume-up';
             }
+        }
+
+        // Check if Picture-in-Picture is supported
+        function checkMobilePiPSupport() {
+            const video = document.getElementById('mobileVideo');
+            const pipBtn = document.getElementById('mobilePipBtn');
+
+            // Check for standard PiP API or Safari's webkit API
+            const standardPiP = document.pictureInPictureEnabled;
+            const webkitPiP = video && typeof video.webkitSetPresentationMode === 'function';
+
+            if (standardPiP || webkitPiP) {
+                pipBtn.style.display = 'flex';
+            } else {
+                pipBtn.style.display = 'none';
+            }
+        }
+
+        // Toggle Picture-in-Picture mode
+        async function toggleMobilePiP() {
+            const video = document.getElementById('mobileVideo');
+
+            try {
+                // Safari on iOS uses webkitSetPresentationMode
+                if (typeof video.webkitSetPresentationMode === 'function') {
+                    if (video.webkitPresentationMode === 'picture-in-picture') {
+                        video.webkitSetPresentationMode('inline');
+                    } else {
+                        video.webkitSetPresentationMode('picture-in-picture');
+                    }
+                }
+                // Standard Picture-in-Picture API
+                else if (document.pictureInPictureEnabled) {
+                    if (document.pictureInPictureElement) {
+                        await document.exitPictureInPicture();
+                    } else {
+                        await video.requestPictureInPicture();
+                    }
+                }
+            } catch (error) {
+                console.error('PiP error:', error);
+                // Some browsers require user gesture or video must be playing
+                alert('Picture-in-Picture is not available. Make sure the video is playing.');
+            }
+
+            showMobileControls();
         }
 
         // Override loadGuide to also render mobile views

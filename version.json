@@ -1,6 +1,6 @@
 {
-  "version": "1.2.13",
+  "version": "1.2.14",
   "name": "Stream Panel",
   "releaseDate": "2025-12-16",
-  "description": "Server-side EPG search, mobile fixes, UI improvements"
+  "description": "Picture-in-Picture support, home screen app icons, mobile search fix"
 }

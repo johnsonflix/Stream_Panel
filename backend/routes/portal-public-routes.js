@@ -129,4 +129,72 @@ router.get('/branding', async (req, res) => {
     }
 });
 
+// ============================================
+// WEB APP MANIFEST (For Add to Home Screen)
+// ============================================
+
+/**
+ * GET /api/v2/public/manifest.json
+ * Generate web app manifest for home screen icons
+ */
+router.get('/manifest.json', async (req, res) => {
+    try {
+        // Get portal branding
+        const nameResult = await query(
+            "SELECT setting_value FROM settings WHERE setting_key = 'portal_name'"
+        );
+        const logoResult = await query(
+            "SELECT setting_value FROM settings WHERE setting_key = 'portal_logo'"
+        );
+        const colorResult = await query(
+            "SELECT setting_value FROM settings WHERE setting_key = 'portal_primary_color'"
+        );
+
+        const appName = nameResult.length > 0 ? nameResult[0].setting_value : 'Stream Panel';
+        const appLogo = logoResult.length > 0 ? logoResult[0].setting_value : '/api/v2/settings/app_logo';
+        const themeColor = colorResult.length > 0 ? colorResult[0].setting_value : '#8b5cf6';
+
+        const manifest = {
+            name: appName,
+            short_name: appName.substring(0, 12),
+            description: 'Stream your content anywhere',
+            start_url: '/portal/',
+            display: 'standalone',
+            orientation: 'any',
+            background_color: '#0f0f0f',
+            theme_color: themeColor,
+            icons: [
+                {
+                    src: appLogo,
+                    sizes: '192x192',
+                    type: 'image/png',
+                    purpose: 'any maskable'
+                },
+                {
+                    src: appLogo,
+                    sizes: '512x512',
+                    type: 'image/png',
+                    purpose: 'any maskable'
+                }
+            ]
+        };
+
+        res.setHeader('Content-Type', 'application/manifest+json');
+        res.json(manifest);
+
+    } catch (error) {
+        console.error('Error generating manifest:', error);
+        // Return a default manifest on error
+        res.setHeader('Content-Type', 'application/manifest+json');
+        res.json({
+            name: 'Stream Panel',
+            short_name: 'Stream',
+            start_url: '/portal/',
+            display: 'standalone',
+            background_color: '#0f0f0f',
+            theme_color: '#8b5cf6'
+        });
+    }
+});
+
 module.exports = router;
