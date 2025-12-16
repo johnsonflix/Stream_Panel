@@ -3001,13 +3001,13 @@
             document.body.style.overflow = '';
         }
 
-        // Mobile search functionality
+        // Mobile search state
+        let mobileSearchTerm = '';
+
+        // Mobile search functionality - shows filtered EPG grid
         async function mobileGuideSearchHandler() {
             const searchInput = document.getElementById('mobileGuideSearch');
             const clearBtn = document.getElementById('mobileSearchClear');
-            const searchResults = document.getElementById('mobileSearchResults');
-            const epgWrapper = document.querySelector('.mobile-epg-wrapper');
-            const timeNav = document.getElementById('mobileTimeNav');
             const searchTerm = searchInput.value.trim().toLowerCase();
 
             // Show/hide clear button
@@ -3018,105 +3018,35 @@
             }
 
             if (searchTerm.length >= 2) {
-                // Show search results, hide EPG
-                searchResults.classList.add('active');
-                epgWrapper.style.display = 'none';
-                timeNav.style.display = 'none';
+                // Store search term for filtering
+                mobileSearchTerm = searchTerm;
 
-                // For All Channels mode, use allChannelsCache (fetch if needed)
-                let channelsToSearch = allChannels;
-                if (mobileCurrentCategory === 'all') {
-                    if (allChannelsCache.length === 0) {
-                        // Show loading
-                        searchResults.innerHTML = `
-                            <div class="mobile-search-no-results">
-                                <i class="fas fa-spinner fa-spin"></i>
-                                <p>Loading channels...</p>
-                            </div>
-                        `;
-                        try {
-                            const result = await api(`/portal/iptv/guide?source=${currentSource}`);
-                            if (result.success) {
-                                allChannelsCache = result.channels || [];
-                                // Also update allChannels for consistency
-                                allChannels = allChannelsCache;
-                            }
-                        } catch (e) {
-                            console.error('Failed to load all channels for search:', e);
-                        }
-                    }
-                    channelsToSearch = allChannelsCache.length > 0 ? allChannelsCache : allChannels;
-                }
-
-                // Search channels and programs
-                const results = [];
-                const now = new Date();
-
-                channelsToSearch.forEach((channel, index) => {
-                    // Check channel name
-                    const channelMatches = channel.name.toLowerCase().includes(searchTerm);
-
-                    // Check current program
-                    let currentProgram = null;
-                    const channelEpg = epgData[channel.epg_channel_id] || epgCache[channel.epg_channel_id] || [];
-                    if (channelEpg.length > 0) {
-                        currentProgram = channelEpg.find(p => {
-                            const pStart = new Date(p.start);
-                            const pEnd = new Date(p.stop);
-                            return now >= pStart && now < pEnd;
-                        });
-                    }
-
-                    const programMatches = currentProgram && currentProgram.title &&
-                        currentProgram.title.toLowerCase().includes(searchTerm);
-
-                    if (channelMatches || programMatches) {
-                        results.push({
-                            channel,
-                            index,
-                            currentProgram,
-                            channelMatches,
-                            programMatches
-                        });
-                    }
-                });
-
-                if (results.length === 0) {
-                    searchResults.innerHTML = `
-                        <div class="mobile-search-no-results">
-                            <i class="fas fa-search"></i>
-                            <p>No channels or shows found for "${escapeHtml(searchTerm)}"</p>
+                // For All Channels mode, make sure we have all channels loaded
+                if (mobileCurrentCategory === 'all' && allChannelsCache.length === 0) {
+                    // Show loading
+                    document.getElementById('mobileEpgTable').innerHTML = `
+                        <div class="mobile-empty-state">
+                            <i class="fas fa-spinner fa-spin"></i>
+                            <h3>Loading...</h3>
                         </div>
                     `;
-                } else {
-                    searchResults.innerHTML = results.map(r => {
-                        const logo = r.channel.stream_icon
-                            ? `<img src="${escapeHtml(r.channel.stream_icon)}" onerror="this.parentNode.innerHTML='<i class=\\'fas fa-tv\\'></i>'" alt="">`
-                            : '<i class="fas fa-tv"></i>';
-
-                        const programText = r.currentProgram && r.currentProgram.title
-                            ? escapeHtml(r.currentProgram.title)
-                            : 'No program info';
-
-                        return `
-                            <div class="mobile-search-result-item" onclick="playMobileFromSearch(${r.channel.stream_id})">
-                                <div class="mobile-search-result-logo">${logo}</div>
-                                <div class="mobile-search-result-info">
-                                    <div class="mobile-search-result-channel">${escapeHtml(r.channel.name)}</div>
-                                    <div class="mobile-search-result-program">${programText}</div>
-                                </div>
-                                <button class="mobile-search-result-play" onclick="event.stopPropagation(); playMobileFromSearch(${r.channel.stream_id})">
-                                    <i class="fas fa-play"></i>
-                                </button>
-                            </div>
-                        `;
-                    }).join('');
+                    try {
+                        const result = await api(`/portal/iptv/guide?source=${currentSource}`);
+                        if (result.success) {
+                            allChannelsCache = result.channels || [];
+                            allChannels = allChannelsCache;
+                        }
+                    } catch (e) {
+                        console.error('Failed to load all channels for search:', e);
+                    }
                 }
+
+                // Re-render EPG grid with search filter applied
+                renderMobileEpgGrid();
             } else {
-                // Hide search results, show EPG
-                searchResults.classList.remove('active');
-                epgWrapper.style.display = '';
-                timeNav.style.display = '';
+                // Clear search term and re-render
+                mobileSearchTerm = '';
+                renderMobileEpgGrid();
             }
         }
 
@@ -3233,12 +3163,37 @@
                 ? allChannels
                 : allChannels.filter(ch => String(ch.category_id) === String(mobileCurrentCategory));
 
+            // Apply search filter if searching
+            if (mobileSearchTerm) {
+                const now = new Date();
+                filtered = filtered.filter(ch => {
+                    // Check channel name
+                    if (ch.name.toLowerCase().includes(mobileSearchTerm)) {
+                        return true;
+                    }
+                    // Check current program title
+                    const channelEpg = epgData[ch.epg_channel_id] || epgCache[ch.epg_channel_id] || [];
+                    if (channelEpg.length > 0) {
+                        const currentProgram = channelEpg.find(p => {
+                            const pStart = new Date(p.start);
+                            const pEnd = new Date(p.stop);
+                            return now >= pStart && now < pEnd;
+                        });
+                        if (currentProgram && currentProgram.title &&
+                            currentProgram.title.toLowerCase().includes(mobileSearchTerm)) {
+                            return true;
+                        }
+                    }
+                    return false;
+                });
+            }
+
             if (filtered.length === 0) {
                 container.innerHTML = `
                     <div class="mobile-empty-state">
-                        <i class="fas fa-tv"></i>
-                        <h3>No Channels</h3>
-                        <p>No channels in this category</p>
+                        <i class="fas fa-${mobileSearchTerm ? 'search' : 'tv'}"></i>
+                        <h3>${mobileSearchTerm ? 'No Results' : 'No Channels'}</h3>
+                        <p>${mobileSearchTerm ? 'No channels or shows match your search' : 'No channels in this category'}</p>
                     </div>
                 `;
                 return;

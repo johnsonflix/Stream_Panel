@@ -1170,6 +1170,17 @@
             background: var(--bg-tertiary);
         }
 
+        .mobile-search-section-header {
+            padding: 10px 16px 6px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            color: var(--primary-color);
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            letter-spacing: 0.5px;
+        }
+
         .mobile-channel-logo {
             width: 52px;
             height: 52px;
@@ -1672,7 +1683,7 @@
         async function api(endpoint) {
             const token = getToken();
             if (!token) {
-                window.location.href = '/login.html';
+                window.location.href = '/login.html?redirect=/portal/player.html';
                 return;
             }
 
@@ -1684,7 +1695,7 @@
 
             if (response.status === 401) {
                 localStorage.removeItem('portal_token');
-                window.location.href = '/login.html';
+                window.location.href = '/login.html?redirect=/portal/player.html';
                 return;
             }
 
@@ -3100,23 +3111,26 @@
             }).join('');
         }
 
-        // Mobile search channels (searches both channel names and current program titles)
+        // Mobile search channels (searches categories, channel names, and current program titles)
         function mobileSearchChannels() {
             const searchTerm = document.getElementById('mobilePlayerSearch').value.toLowerCase().trim();
 
             if (searchTerm.length > 0) {
-                // Show search results across all channels
+                // Show search results across all categories and channels
                 document.getElementById('mobileCategoryList').style.display = 'none';
                 document.getElementById('mobileChannelListView').classList.add('active');
                 document.getElementById('mobileSelectedCategoryName').textContent = `Search: "${searchTerm}"`;
 
+                // Search categories by name
+                const matchingCategories = categories.filter(cat =>
+                    cat.category_name && cat.category_name.toLowerCase().includes(searchTerm)
+                );
+
                 // Search channels by name and current program title
-                const filtered = channels.filter(ch => {
-                    // Check channel name
+                const matchingChannels = channels.filter(ch => {
                     if (ch.name.toLowerCase().includes(searchTerm)) {
                         return true;
                     }
-                    // Check current program title
                     const currentProg = getCurrentProgram(ch);
                     if (currentProg && currentProg.title && currentProg.title.toLowerCase().includes(searchTerm)) {
                         return true;
@@ -3125,35 +3139,64 @@
                 });
 
                 const container = document.getElementById('mobileChannelListContent');
-                if (filtered.length === 0) {
+
+                if (matchingCategories.length === 0 && matchingChannels.length === 0) {
                     container.innerHTML = `
                         <div class="mobile-empty">
                             <i class="fas fa-search"></i>
                             <h3>No Results</h3>
-                            <p>No channels or shows match your search</p>
+                            <p>No categories, channels, or shows match your search</p>
                         </div>
                     `;
                 } else {
-                    container.innerHTML = filtered.map((channel) => {
-                        const logo = channel.stream_icon || channel.logo
-                            ? `<img src="${escapeHtml(channel.stream_icon || channel.logo)}" onerror="this.parentNode.innerHTML='<i class=\\'fas fa-tv\\'></i>'" alt="">`
-                            : '<i class="fas fa-tv"></i>';
+                    let html = '';
 
-                        const channelIndex = channels.indexOf(channel);
-                        const subtitle = getMobileChannelSubtitle(channel);
-                        return `
-                            <div class="mobile-channel-row" onclick="mobilePlayChannel(${channelIndex})">
-                                <div class="mobile-channel-logo">${logo}</div>
-                                <div class="mobile-channel-details">
-                                    <div class="mobile-channel-title">${escapeHtml(channel.name)}</div>
-                                    <div class="mobile-channel-subtitle">${subtitle}</div>
+                    // Show matching categories first
+                    if (matchingCategories.length > 0) {
+                        html += `<div class="mobile-search-section-header">Categories</div>`;
+                        html += matchingCategories.map(cat => {
+                            const count = channels.filter(ch => String(ch.category_id) === String(cat.category_id)).length;
+                            return `
+                                <div class="mobile-channel-row" onclick="mobileSelectCategory('${cat.category_id}', '${escapeHtml(cat.category_name).replace(/'/g, "\\'")}'); document.getElementById('mobilePlayerSearch').value = '';">
+                                    <div class="mobile-channel-logo"><i class="fas fa-folder"></i></div>
+                                    <div class="mobile-channel-details">
+                                        <div class="mobile-channel-title">${escapeHtml(cat.category_name)}</div>
+                                        <div class="mobile-channel-subtitle">${count} channel${count !== 1 ? 's' : ''}</div>
+                                    </div>
+                                    <i class="fas fa-chevron-right" style="color: var(--text-secondary);"></i>
                                 </div>
-                                <button class="mobile-channel-play" onclick="event.stopPropagation(); mobilePlayChannel(${channelIndex})">
-                                    <i class="fas fa-play"></i>
-                                </button>
-                            </div>
-                        `;
-                    }).join('');
+                            `;
+                        }).join('');
+                    }
+
+                    // Show matching channels
+                    if (matchingChannels.length > 0) {
+                        if (matchingCategories.length > 0) {
+                            html += `<div class="mobile-search-section-header">Channels</div>`;
+                        }
+                        html += matchingChannels.map((channel) => {
+                            const logo = channel.stream_icon || channel.logo
+                                ? `<img src="${escapeHtml(channel.stream_icon || channel.logo)}" onerror="this.parentNode.innerHTML='<i class=\\'fas fa-tv\\'></i>'" alt="">`
+                                : '<i class="fas fa-tv"></i>';
+
+                            const channelIndex = channels.indexOf(channel);
+                            const subtitle = getMobileChannelSubtitle(channel);
+                            return `
+                                <div class="mobile-channel-row" onclick="mobilePlayChannel(${channelIndex})">
+                                    <div class="mobile-channel-logo">${logo}</div>
+                                    <div class="mobile-channel-details">
+                                        <div class="mobile-channel-title">${escapeHtml(channel.name)}</div>
+                                        <div class="mobile-channel-subtitle">${subtitle}</div>
+                                    </div>
+                                    <button class="mobile-channel-play" onclick="event.stopPropagation(); mobilePlayChannel(${channelIndex})">
+                                        <i class="fas fa-play"></i>
+                                    </button>
+                                </div>
+                            `;
+                        }).join('');
+                    }
+
+                    container.innerHTML = html;
                 }
             } else {
                 // Clear search - show categories or channel list
