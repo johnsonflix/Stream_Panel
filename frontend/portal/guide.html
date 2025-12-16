@@ -3002,7 +3002,7 @@
         }
 
         // Mobile search functionality
-        function mobileGuideSearchHandler() {
+        async function mobileGuideSearchHandler() {
             const searchInput = document.getElementById('mobileGuideSearch');
             const clearBtn = document.getElementById('mobileSearchClear');
             const searchResults = document.getElementById('mobileSearchResults');
@@ -3023,11 +3023,36 @@
                 epgWrapper.style.display = 'none';
                 timeNav.style.display = 'none';
 
+                // For All Channels mode, use allChannelsCache (fetch if needed)
+                let channelsToSearch = allChannels;
+                if (mobileCurrentCategory === 'all') {
+                    if (allChannelsCache.length === 0) {
+                        // Show loading
+                        searchResults.innerHTML = `
+                            <div class="mobile-search-no-results">
+                                <i class="fas fa-spinner fa-spin"></i>
+                                <p>Loading channels...</p>
+                            </div>
+                        `;
+                        try {
+                            const result = await api(`/portal/iptv/guide?source=${currentSource}`);
+                            if (result.success) {
+                                allChannelsCache = result.channels || [];
+                                // Also update allChannels for consistency
+                                allChannels = allChannelsCache;
+                            }
+                        } catch (e) {
+                            console.error('Failed to load all channels for search:', e);
+                        }
+                    }
+                    channelsToSearch = allChannelsCache.length > 0 ? allChannelsCache : allChannels;
+                }
+
                 // Search channels and programs
                 const results = [];
                 const now = new Date();
 
-                allChannels.forEach((channel, index) => {
+                channelsToSearch.forEach((channel, index) => {
                     // Check channel name
                     const channelMatches = channel.name.toLowerCase().includes(searchTerm);
 
@@ -3074,13 +3099,13 @@
                             : 'No program info';
 
                         return `
-                            <div class="mobile-search-result-item" onclick="playMobileFromSearch(${r.index})">
+                            <div class="mobile-search-result-item" onclick="playMobileFromSearch(${r.channel.stream_id})">
                                 <div class="mobile-search-result-logo">${logo}</div>
                                 <div class="mobile-search-result-info">
                                     <div class="mobile-search-result-channel">${escapeHtml(r.channel.name)}</div>
                                     <div class="mobile-search-result-program">${programText}</div>
                                 </div>
-                                <button class="mobile-search-result-play" onclick="event.stopPropagation(); playMobileFromSearch(${r.index})">
+                                <button class="mobile-search-result-play" onclick="event.stopPropagation(); playMobileFromSearch(${r.channel.stream_id})">
                                     <i class="fas fa-play"></i>
                                 </button>
                             </div>
@@ -3102,8 +3127,12 @@
             searchInput.focus();
         }
 
-        function playMobileFromSearch(channelIndex) {
-            const channel = allChannels[channelIndex];
+        function playMobileFromSearch(streamId) {
+            // Look up channel by stream_id (works with both allChannels and allChannelsCache)
+            let channel = allChannels.find(ch => ch.stream_id === streamId);
+            if (!channel) {
+                channel = allChannelsCache.find(ch => ch.stream_id === streamId);
+            }
             if (!channel) return;
 
             // Clear search

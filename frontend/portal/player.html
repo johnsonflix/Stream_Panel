@@ -3005,7 +3005,7 @@
         }
 
         // Mobile select category
-        function mobileSelectCategory(categoryId, categoryName) {
+        async function mobileSelectCategory(categoryId, categoryName) {
             mobileSelectedCategory = categoryId;
             document.getElementById('mobileSelectedCategoryName').textContent = categoryName;
 
@@ -3016,8 +3016,23 @@
             // Clear search
             document.getElementById('mobilePlayerSearch').value = '';
 
-            // Render channels
+            // Render channels immediately
             renderMobileChannelList();
+
+            // Fetch EPG data for this category in background (like desktop does)
+            if (categoryId && categoryId !== 'all') {
+                try {
+                    const result = await api(`/portal/iptv/guide?category_id=${categoryId}`);
+                    if (result && result.success && result.epg) {
+                        // Merge EPG data
+                        Object.assign(epgData, result.epg);
+                        // Re-render to show program names
+                        renderMobileChannelList();
+                    }
+                } catch (e) {
+                    console.warn('Failed to load EPG for category:', e);
+                }
+            }
         }
 
         // Show categories (back button)
