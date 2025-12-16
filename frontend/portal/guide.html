@@ -3127,18 +3127,20 @@
                 </div>
             `;
 
-            // Fetch channels for this category
-            if (categoryId && categoryId !== 'all') {
-                try {
-                    const result = await api(`/portal/iptv/guide?source=${currentSource}&category_id=${categoryId}`);
-                    if (result.success) {
-                        allChannels = result.channels || [];
-                        epgData = result.epg || {};
-                        Object.assign(epgCache, epgData);
-                    }
-                } catch (error) {
-                    console.error('Error loading category:', error);
+            // Fetch channels for this category (for 'all', omit category_id to get all channels)
+            try {
+                let apiUrl = `/portal/iptv/guide?source=${currentSource}`;
+                if (categoryId && categoryId !== 'all') {
+                    apiUrl += `&category_id=${categoryId}`;
                 }
+                const result = await api(apiUrl);
+                if (result.success) {
+                    allChannels = result.channels || [];
+                    epgData = result.epg || {};
+                    Object.assign(epgCache, epgData);
+                }
+            } catch (error) {
+                console.error('Error loading category:', error);
             }
 
             renderMobileEpgGrid();

@@ -1806,8 +1806,9 @@
                         console.log('EPG data keys:', Object.keys(result.epg).length);
                         // Merge EPG data
                         Object.assign(epgData, result.epg);
-                        // Re-render to show program names
+                        // Re-render to show program names (both desktop and mobile)
                         renderChannels();
+                        renderMobileChannelList();
                     } else {
                         console.log('No EPG in response');
                     }

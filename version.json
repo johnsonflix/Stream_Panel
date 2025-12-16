@@ -1,6 +1,6 @@
 {
-  "version": "1.2.7",
+  "version": "1.2.8",
   "name": "Stream Panel",
   "releaseDate": "2025-12-15",
-  "description": "Guide category search + All Channels fix"
+  "description": "Mobile player/guide fixes - show current program, All Channels search"
 }
