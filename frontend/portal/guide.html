@@ -165,6 +165,48 @@
             gap: 8px;
         }
 
+        /* Category Search */
+        .category-search-wrapper {
+            padding: 8px 12px;
+            border-bottom: 1px solid var(--border-color);
+            background: var(--bg-secondary);
+        }
+
+        .category-search {
+            display: flex;
+            align-items: center;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 8px 12px;
+            gap: 8px;
+        }
+
+        .category-search i { color: var(--text-tertiary); font-size: 14px; }
+
+        .category-search input {
+            flex: 1;
+            background: none;
+            border: none;
+            outline: none;
+            color: var(--text-primary);
+            font-size: 13px;
+        }
+
+        .category-search input::placeholder { color: var(--text-tertiary); }
+
+        .category-search .clear-btn {
+            background: none;
+            border: none;
+            color: var(--text-tertiary);
+            cursor: pointer;
+            padding: 0;
+            display: none;
+        }
+
+        .category-search .clear-btn.visible { display: block; }
+        .category-search .clear-btn:hover { color: var(--text-primary); }
+
         .category-item {
             padding: 12px 16px;
             display: flex;
@@ -1743,6 +1785,15 @@
                     <i class="fas fa-folder"></i>
                     <span>Categories</span>
                 </div>
+                <div class="category-search-wrapper">
+                    <div class="category-search">
+                        <i class="fas fa-search"></i>
+                        <input type="text" id="categorySearchInput" placeholder="Search categories..." oninput="filterCategories()">
+                        <button class="clear-btn" id="categorySearchClear" onclick="clearCategorySearch()">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </div>
                 <div id="categoriesList">
                     <div class="loading"><i class="fas fa-spinner"></i></div>
                 </div>
@@ -1824,6 +1875,15 @@
                     <button class="mobile-drawer-close" onclick="closeMobileCategoryDrawer()">
                         <i class="fas fa-times"></i>
                     </button>
+                </div>
+                <div class="category-search-wrapper">
+                    <div class="category-search">
+                        <i class="fas fa-search"></i>
+                        <input type="text" id="mobileCategorySearchInput" placeholder="Search categories..." oninput="filterCategories()">
+                        <button class="clear-btn" id="mobileCategorySearchClear" onclick="clearCategorySearch()">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
                 </div>
                 <div class="mobile-drawer-categories" id="mobileDrawerCategories">
                     <!-- Categories rendered here -->
@@ -2188,10 +2248,17 @@
             }
         }
 
-        function renderCategories() {
+        function renderCategories(filterTerm = '') {
             const container = document.getElementById('categoriesList');
+            const mobileContainer = document.getElementById('mobileDrawerCategories');
+            const searchLower = filterTerm.toLowerCase().trim();
 
-            let html = categories.map(cat => {
+            // Filter categories by search term (always show 'All Channels' category)
+            const filteredCategories = searchLower
+                ? categories.filter(cat => cat.category_id === 'all' || cat.category_name.toLowerCase().includes(searchLower))
+                : categories;
+
+            let html = filteredCategories.map(cat => {
                 const isAll = cat.category_id === 'all';
                 const icon = isAll ? 'fas fa-globe' : getCategoryIcon(cat.category_name);
 
@@ -2206,7 +2273,41 @@
                 `;
             }).join('');
 
+            // Show no results message if filter yields nothing
+            if (filteredCategories.length === 0) {
+                html = '<div class="category-item" style="color: var(--text-tertiary); cursor: default;"><i class="fas fa-search"></i><span class="category-name">No matching categories</span></div>';
+            }
+
             container.innerHTML = html;
+            if (mobileContainer) mobileContainer.innerHTML = html;
+        }
+
+        // Filter categories based on search input
+        function filterCategories() {
+            const desktopInput = document.getElementById('categorySearchInput');
+            const mobileInput = document.getElementById('mobileCategorySearchInput');
+            const desktopClear = document.getElementById('categorySearchClear');
+            const mobileClear = document.getElementById('mobileCategorySearchClear');
+
+            // Get value from whichever input was used (sync them)
+            const term = desktopInput.value || mobileInput.value;
+            desktopInput.value = term;
+            mobileInput.value = term;
+
+            // Show/hide clear buttons
+            desktopClear.classList.toggle('visible', term.length > 0);
+            mobileClear.classList.toggle('visible', term.length > 0);
+
+            renderCategories(term);
+        }
+
+        // Clear category search
+        function clearCategorySearch() {
+            document.getElementById('categorySearchInput').value = '';
+            document.getElementById('mobileCategorySearchInput').value = '';
+            document.getElementById('categorySearchClear').classList.remove('visible');
+            document.getElementById('mobileCategorySearchClear').classList.remove('visible');
+            renderCategories();
         }
 
         function getCategoryIcon(category) {
@@ -2241,28 +2342,33 @@
             renderCategories();
 
             // Fetch EPG data for this category from the API
-            if (categoryId && categoryId !== 'all') {
-                try {
-                    // Show loading in EPG area
-                    document.getElementById('epgContainer').innerHTML = `
-                        <div class="loading">
-                            <i class="fas fa-spinner"></i>
-                            <span>Loading guide data...</span>
-                        </div>
-                    `;
+            // For 'all', we fetch without category filter to get all channels
+            try {
+                // Show loading in EPG area
+                document.getElementById('epgContainer').innerHTML = `
+                    <div class="loading">
+                        <i class="fas fa-spinner"></i>
+                        <span>Loading guide data...</span>
+                    </div>
+                `;
 
-                    const result = await api(`/portal/iptv/guide?source=${currentSource}&category_id=${categoryId}`);
-                    if (result.success) {
-                        // Update channels and EPG data for this category
-                        allChannels = result.channels || [];
-                        epgData = result.epg || {};
-
-                        // Merge EPG into persistent cache for global search
-                        Object.assign(epgCache, epgData);
-                    }
-                } catch (error) {
-                    console.error('Error loading category EPG:', error);
+                // Build API URL - include category_id only if not 'all'
+                let apiUrl = `/portal/iptv/guide?source=${currentSource}`;
+                if (categoryId && categoryId !== 'all') {
+                    apiUrl += `&category_id=${categoryId}`;
                 }
+
+                const result = await api(apiUrl);
+                if (result.success) {
+                    // Update channels and EPG data for this category
+                    allChannels = result.channels || [];
+                    epgData = result.epg || {};
+
+                    // Merge EPG into persistent cache for global search
+                    Object.assign(epgCache, epgData);
+                }
+            } catch (error) {
+                console.error('Error loading category EPG:', error);
             }
 
             renderEPG();
