@@ -2485,9 +2485,13 @@
             // Each 30 min = 180px (timeline-slot is per 30 min), so 1 hour = 360px
             const pxPerMinute = 6; // 180px / 30 min = 6px per minute
 
-            // If no EPG data, show "No guide data" spanning full width (8 hours * 360px)
+            // If no EPG data, show appropriate message spanning full width (8 hours * 360px)
             if (!channelEpg || channelEpg.length === 0) {
-                return `<div class="epg-no-data" style="width: ${8 * 360}px;">No guide data</div>`;
+                // Different message for All Channels vs specific category
+                const message = currentCategory === 'all'
+                    ? 'Select a category to view program guide'
+                    : 'No guide data available';
+                return `<div class="epg-no-data" style="width: ${8 * 360}px;">${message}</div>`;
             }
 
             // Filter programs within our time window
@@ -2498,7 +2502,7 @@
             }).sort((a, b) => new Date(a.start) - new Date(b.start));
 
             if (programs.length === 0) {
-                return `<div class="epg-no-data" style="width: ${8 * 360}px;">No guide data</div>`;
+                return `<div class="epg-no-data" style="width: ${8 * 360}px;">No guide data available</div>`;
             }
 
             // Render programs with calculated widths based on duration
@@ -3243,8 +3247,11 @@
                         `;
                     }).join('');
                 } else {
-                    // No guide data - show placeholder spanning full width
-                    programsHtml = `<div class="mobile-epg-nodata" style="min-width: 960px;">No guide data available</div>`;
+                    // No guide data - show helpful message
+                    const message = mobileCurrentCategory === 'all'
+                        ? 'Select a category to view program guide'
+                        : 'No guide data available';
+                    programsHtml = `<div class="mobile-epg-nodata" style="min-width: 960px;">${message}</div>`;
                 }
 
                 return `
