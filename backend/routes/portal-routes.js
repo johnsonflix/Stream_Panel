@@ -445,6 +445,34 @@ router.get('/user/full', async (req, res) => {
             WHERE ups.user_id = ? AND ups.share_status = 'active'
         `, [user.user_id]);
 
+        // Fetch library counts from dashboard cache (same source as admin dashboard)
+        let libraryCountsMap = {}; // { serverName: { libraryKey: count } }
+        try {
+            const cachedStats = await query(
+                "SELECT stat_value FROM dashboard_cached_stats WHERE stat_key = 'plex_server_details'"
+            );
+            if (cachedStats.length > 0 && cachedStats[0].stat_value) {
+                const plexServerDetails = JSON.parse(cachedStats[0].stat_value);
+                plexServerDetails.forEach(server => {
+                    if (server.libraries && Array.isArray(server.libraries)) {
+                        libraryCountsMap[server.name] = {};
+                        server.libraries.forEach(lib => {
+                            libraryCountsMap[server.name][lib.key] = {
+                                count: lib.count || 0,
+                                showCount: lib.showCount,
+                                seasonCount: lib.seasonCount,
+                                episodeCount: lib.episodeCount,
+                                artistCount: lib.artistCount,
+                                albumCount: lib.albumCount
+                            };
+                        });
+                    }
+                });
+            }
+        } catch (e) {
+            console.error('Error fetching library counts from cache:', e);
+        }
+
         // Process Plex servers with library info
         const plexServers = plexShares.map(share => {
             let libraries = [];
@@ -461,6 +489,21 @@ router.get('/user/full', async (req, res) => {
                 } else {
                     libraries = allLibraries;
                 }
+
+                // Enrich libraries with count data from dashboard cache
+                const serverCounts = libraryCountsMap[share.server_name] || {};
+                libraries = libraries.map(lib => {
+                    const countData = serverCounts[lib.key] || {};
+                    return {
+                        ...lib,
+                        count: countData.count !== undefined ? countData.count : lib.count,
+                        showCount: countData.showCount,
+                        seasonCount: countData.seasonCount,
+                        episodeCount: countData.episodeCount,
+                        artistCount: countData.artistCount,
+                        albumCount: countData.albumCount
+                    };
+                });
             } catch (e) {
                 console.error('Error parsing library data:', e);
             }
@@ -553,6 +596,7 @@ router.get('/user/full', async (req, res) => {
                 plex_username: userData.plex_username,
                 plex_email: userData.plex_email,
                 plex_package_name: userData.plex_package_name,
+                plex_price: userData.plex_price,
                 plex_price_type: userData.plex_price_type,
                 plex_expiration_date: userData.plex_expiration_date,
                 plex_servers: plexServers,

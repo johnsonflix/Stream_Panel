@@ -6,9 +6,69 @@
  */
 
 const express = require('express');
+const path = require('path');
+const fsModule = require('fs');
 const { query } = require('../database-config');
 
 const router = express.Router();
+// ============================================
+// BRANDING IMAGE ENDPOINTS (Serve actual images)
+// ============================================
+
+// GET /api/v2/public/logo.png - Serve the portal logo image (or default SVG)
+router.get('/logo.png', async (req, res) => {
+    try {
+        const result = await query("SELECT setting_value FROM settings WHERE setting_key = 'portal_logo'");
+        if (result.length > 0 && result[0].setting_value) {
+            const logoPath = result[0].setting_value;
+            if (logoPath.startsWith('/uploads/')) {
+                const fullPath = path.join(__dirname, '..', logoPath);
+                if (fsModule.existsSync(fullPath)) {
+                    return res.sendFile(fullPath);
+                }
+            }
+            if (logoPath.startsWith('http')) {
+                return res.redirect(logoPath);
+            }
+        }
+        const defaultSvg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180"><rect width="180" height="180" rx="40" fill="#8b5cf6"/><path d="M50 45 L140 90 L50 135 Z" fill="white"/></svg>';
+        res.setHeader('Content-Type', 'image/svg+xml');
+        res.send(defaultSvg);
+    } catch (error) {
+        console.error('Error serving logo:', error);
+        const defaultSvg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180"><rect width="180" height="180" rx="40" fill="#8b5cf6"/><path d="M50 45 L140 90 L50 135 Z" fill="white"/></svg>';
+        res.setHeader('Content-Type', 'image/svg+xml');
+        res.send(defaultSvg);
+    }
+});
+
+// GET /api/v2/public/favicon.ico - Serve the portal favicon (or default SVG)
+router.get('/favicon.ico', async (req, res) => {
+    try {
+        const result = await query("SELECT setting_value FROM settings WHERE setting_key = 'portal_favicon'");
+        if (result.length > 0 && result[0].setting_value) {
+            const faviconPath = result[0].setting_value;
+            if (faviconPath.startsWith('/uploads/')) {
+                const fullPath = path.join(__dirname, '..', faviconPath);
+                if (fsModule.existsSync(fullPath)) {
+                    return res.sendFile(fullPath);
+                }
+            }
+            if (faviconPath.startsWith('http')) {
+                return res.redirect(faviconPath);
+            }
+        }
+        const defaultSvg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="6" fill="#8b5cf6"/><path d="M9 7 L25 16 L9 25 Z" fill="white"/></svg>';
+        res.setHeader('Content-Type', 'image/svg+xml');
+        res.send(defaultSvg);
+    } catch (error) {
+        console.error('Error serving favicon:', error);
+        const defaultSvg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="6" fill="#8b5cf6"/><path d="M9 7 L25 16 L9 25 Z" fill="white"/></svg>';
+        res.setHeader('Content-Type', 'image/svg+xml');
+        res.send(defaultSvg);
+    }
+});
+
 
 // ============================================
 // PUBLIC GUIDES (Shareable URLs)
@@ -143,15 +203,13 @@ router.get('/manifest.json', async (req, res) => {
         const nameResult = await query(
             "SELECT setting_value FROM settings WHERE setting_key = 'portal_name'"
         );
-        const logoResult = await query(
-            "SELECT setting_value FROM settings WHERE setting_key = 'portal_logo'"
-        );
         const colorResult = await query(
             "SELECT setting_value FROM settings WHERE setting_key = 'portal_primary_color'"
         );
 
         const appName = nameResult.length > 0 ? nameResult[0].setting_value : 'Stream Panel';
-        const appLogo = logoResult.length > 0 ? logoResult[0].setting_value : '/api/v2/settings/app_logo';
+        // Always use the public logo endpoint - it handles custom logos and defaults
+        const appLogo = '/api/v2/public/logo.png';
         const themeColor = colorResult.length > 0 ? colorResult[0].setting_value : '#8b5cf6';
 
         const manifest = {

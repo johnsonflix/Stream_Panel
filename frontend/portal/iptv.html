@@ -8,7 +8,8 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="theme-color" content="#0f172a">
     <title>Live TV Service - User Portal</title>
-    <link rel="apple-touch-icon" href="/api/v2/settings/app_logo">
+    <link rel="apple-touch-icon" href="/api/v2/public/logo.png">
+    <link rel="icon" type="image/svg+xml" href="/api/v2/public/favicon.ico">
     <link rel="manifest" href="/api/v2/public/manifest.json">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -993,6 +994,252 @@
             transform: scale(1);
         }
 
+        /* Guide Modal - wider for content display */
+        #guideModal .modal {
+            max-width: 900px;
+            width: 90%;
+            max-height: 90vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #guideModal .modal-header {
+            flex-shrink: 0;
+        }
+
+        #guideModal .modal-body {
+            overflow-y: auto;
+            flex: 1;
+            min-height: 0;
+            max-height: calc(90vh - 80px);
+            /* Dark mode scrollbar */
+            scrollbar-width: thin;
+            scrollbar-color: var(--border-color) var(--bg-secondary);
+        }
+
+        #guideModal .modal-body::-webkit-scrollbar {
+            width: 8px;
+        }
+        #guideModal .modal-body::-webkit-scrollbar-track {
+            background: var(--bg-secondary);
+            border-radius: 4px;
+        }
+        #guideModal .modal-body::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 4px;
+        }
+        #guideModal .modal-body::-webkit-scrollbar-thumb:hover {
+            background: var(--text-tertiary);
+        }
+
+        /* Isolate guide content from affecting rest of page */
+        #guideModal .modal-body {
+            contain: content;
+        }
+
+        /* Ensure guide markdown content doesn't leak styles */
+        #guideModalContent h1,
+        #guideModalContent h2,
+        #guideModalContent h3,
+        #guideModalContent h4,
+        #guideModalContent h5,
+        #guideModalContent h6 {
+            position: static;
+            font-size: revert;
+        }
+
+        #guideModalContent h1 { font-size: 1.8em; margin: 0.5em 0; }
+        #guideModalContent h2 { font-size: 1.5em; margin: 0.5em 0; }
+        #guideModalContent h3 { font-size: 1.3em; margin: 0.5em 0; }
+        #guideModalContent p { margin: 0.8em 0; }
+        #guideModalContent img {
+            max-width: 300px !important;
+            max-height: 300px !important;
+            width: auto !important;
+            height: auto !important;
+            position: static !important;
+            display: block;
+            margin: 1em auto;
+            object-fit: contain !important;
+        }
+        #guideModalContent a { color: var(--primary-color); }
+        #guideModalContent ul, #guideModalContent ol { margin: 0.8em 0; padding-left: 1.5em; }
+        #guideModalContent li { margin: 0.3em 0; }
+        #guideModalContent code { background: var(--bg-tertiary); padding: 2px 6px; border-radius: 4px; }
+        #guideModalContent pre { background: var(--bg-tertiary); padding: 12px; border-radius: 8px; overflow-x: auto; }
+        /* Force all guide content elements to be static positioned */
+        #guideModalContent * {
+            position: static !important;
+            max-width: 100%;
+        }
+
+        /* Guide-specific layout styles */
+        #guideModalContent .guide-header {
+            text-align: center;
+            margin-bottom: 1.5em;
+            padding-bottom: 1em;
+            border-bottom: 1px solid var(--border-color);
+        }
+        #guideModalContent .guide-header img {
+            max-width: 80px !important;
+            max-height: 80px !important;
+            margin: 0 auto 0.5em auto;
+        }
+        #guideModalContent .guide-header h1 {
+            font-size: 1.6em;
+            margin: 0.3em 0;
+        }
+        #guideModalContent .guide-header p {
+            color: var(--text-secondary);
+            margin: 0.3em 0;
+        }
+
+        /* Table of contents */
+        #guideModalContent .toc-section {
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            padding: 1em;
+            margin: 1em 0;
+        }
+        #guideModalContent .toc-section h3 {
+            margin-top: 0;
+            font-size: 1.1em;
+        }
+        #guideModalContent .toc-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 0.5em;
+        }
+        #guideModalContent .toc-grid a {
+            display: block;
+            padding: 0.4em 0.6em;
+            background: var(--bg-secondary);
+            border-radius: 4px;
+            text-decoration: none;
+        }
+
+        /* Feature grids */
+        #guideModalContent .feature-grid,
+        #guideModalContent .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 1em;
+            margin: 1em 0;
+        }
+        #guideModalContent .feature-card,
+        #guideModalContent .feature {
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            padding: 1em;
+            text-align: center;
+        }
+        #guideModalContent .feature-card .icon,
+        #guideModalContent .feature .icon {
+            font-size: 2em;
+            margin-bottom: 0.3em;
+        }
+        #guideModalContent .feature-card h4,
+        #guideModalContent .feature h4 {
+            margin: 0.3em 0;
+            font-size: 1em;
+        }
+        #guideModalContent .feature-card p,
+        #guideModalContent .feature p {
+            font-size: 0.85em;
+            color: var(--text-secondary);
+            margin: 0.3em 0;
+        }
+
+        /* Alert boxes */
+        #guideModalContent .warning-box,
+        #guideModalContent .info-box,
+        #guideModalContent .success-box,
+        #guideModalContent .note-box {
+            padding: 1em;
+            border-radius: 8px;
+            margin: 1em 0;
+        }
+        #guideModalContent .warning-box {
+            background: rgba(234, 179, 8, 0.15);
+            border-left: 4px solid #eab308;
+        }
+        #guideModalContent .info-box {
+            background: rgba(59, 130, 246, 0.15);
+            border-left: 4px solid #3b82f6;
+        }
+        #guideModalContent .success-box {
+            background: rgba(34, 197, 94, 0.15);
+            border-left: 4px solid #22c55e;
+        }
+        #guideModalContent .note-box {
+            background: rgba(139, 92, 246, 0.15);
+            border-left: 4px solid #8b5cf6;
+        }
+
+        /* Step sections */
+        #guideModalContent .step,
+        #guideModalContent .step-content {
+            margin: 1.5em 0;
+            padding: 1em;
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+        }
+        #guideModalContent .step h3,
+        #guideModalContent .step-content h3 {
+            display: flex;
+            align-items: center;
+            gap: 0.5em;
+            margin-top: 0;
+        }
+        #guideModalContent .step-number {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 28px;
+            background: var(--primary-color);
+            color: white;
+            border-radius: 50%;
+            font-weight: bold;
+            font-size: 0.9em;
+        }
+
+        /* Two column layouts */
+        #guideModalContent .two-column,
+        #guideModalContent .columns {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1em;
+        }
+
+        /* Requirements/lists sections */
+        #guideModalContent .requirements {
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            padding: 1em;
+            margin: 1em 0;
+        }
+
+        /* Download buttons */
+        #guideModalContent .download-btn,
+        #guideModalContent .button,
+        #guideModalContent .btn {
+            display: inline-block;
+            padding: 0.6em 1.2em;
+            background: var(--primary-color);
+            color: white !important;
+            border-radius: 6px;
+            text-decoration: none;
+            margin: 0.3em;
+        }
+        #guideModalContent .download-buttons,
+        #guideModalContent .button-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5em;
+            margin: 1em 0;
+        }
+
         .modal-header {
             padding: 20px;
             border-bottom: 1px solid var(--border-color);
@@ -1884,35 +2131,23 @@ M3U URL: ${primary.m3u_url}`;
             });
         }
 
-        // Open guide modal
-        async function openGuide(slug) {
-            const modal = document.getElementById('guideModal');
-            const content = document.getElementById('guideModalContent');
-            const title = document.getElementById('guideModalTitle');
-            const icon = document.getElementById('guideModalIcon');
-
-            content.innerHTML = '<div class="loading"><i class="fas fa-spinner"></i></div>';
-            modal.classList.add('active');
-
-            const result = await api(`/portal/guides/${slug}`);
-            if (result.success) {
-                const guide = result.guide;
-                title.textContent = guide.title;
-                icon.textContent = guide.icon || '📖';
-
-                if (guide.content_type === 'markdown') {
-                    content.innerHTML = marked.parse(guide.content || '');
-                } else {
-                    content.innerHTML = guide.content || '<p>No content available</p>';
-                }
-            } else {
-                content.innerHTML = '<p>Failed to load guide</p>';
-            }
+        // Sanitize HTML to prevent style leakage
+        function sanitizeGuideContent(html) {
+            // Create a temporary container
+            const temp = document.createElement('div');
+            temp.innerHTML = html;
+            // Remove style tags that could leak
+            temp.querySelectorAll('style').forEach(el => el.remove());
+            // Remove script tags for safety
+            temp.querySelectorAll('script').forEach(el => el.remove());
+            // Remove link tags (external stylesheets)
+            temp.querySelectorAll('link[rel="stylesheet"]').forEach(el => el.remove());
+            return temp.innerHTML;
         }
 
-        // Close guide modal
-        function closeGuideModal() {
-            document.getElementById('guideModal').classList.remove('active');
+        // Open guide in dedicated viewer page
+        function openGuide(slug) {
+            window.location.href = `guide-viewer.html?slug=${encodeURIComponent(slug)}&service=iptv`;
         }
 
         // Load announcements
@@ -2078,28 +2313,8 @@ M3U URL: ${primary.m3u_url}`;
             }
         });
 
-        // Load favicon from settings
-        async function loadFavicon() {
-            try {
-                const response = await fetch(`${API_BASE}/settings/app_favicon`);
-                const data = await response.json();
-                if (data.value) {
-                    let link = document.querySelector("link[rel*='icon']");
-                    if (!link) {
-                        link = document.createElement('link');
-                        link.rel = 'icon';
-                        document.head.appendChild(link);
-                    }
-                    link.href = data.value;
-                }
-            } catch (error) {
-                console.error('Error loading favicon:', error);
-            }
-        }
-
         // Initialize
         document.addEventListener('DOMContentLoaded', async function() {
-            loadFavicon();
             restoreCollapsedStates();
             await loadUserData();
             loadAnnouncements();
@@ -2107,12 +2322,15 @@ M3U URL: ${primary.m3u_url}`;
             loadQuickActions();
             loadApps();
             loadGuides();
-        });
 
-        // Close message modal on overlay click
-        document.getElementById('message-modal').addEventListener('click', function(e) {
-            if (e.target === this) {
-                closeModal('message-modal');
+            // Close message modal on overlay click
+            const messageModal = document.getElementById('message-modal');
+            if (messageModal) {
+                messageModal.addEventListener('click', function(e) {
+                    if (e.target === this) {
+                        closeModal('message-modal');
+                    }
+                });
             }
         });
     </script>

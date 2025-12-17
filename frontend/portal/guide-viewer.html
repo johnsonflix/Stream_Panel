@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Guide - Loading...</title>
+    <link rel="icon" type="image/svg+xml" href="/api/v2/public/favicon.ico">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <style>
@@ -19,7 +20,8 @@
             --primary-color: #3b82f6;
         }
 
-        * {
+        /* Only reset layout elements, not all elements */
+        body, .header {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
@@ -33,6 +35,12 @@
             line-height: 1.6;
         }
 
+        /* Let full HTML guides use their own styles completely */
+        .full-html-guide * {
+            /* Restore browser defaults for guide content */
+            box-sizing: content-box;
+        }
+
         /* Header */
         .header {
             background: var(--bg-secondary);
@@ -43,6 +51,26 @@
             gap: 16px;
         }
 
+        .back-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .back-btn:hover {
+            background: var(--bg-primary);
+            color: var(--text-primary);
+        }
+
         .header-icon {
             font-size: 32px;
         }
@@ -50,6 +78,7 @@
         .header-title {
             font-size: 24px;
             font-weight: 600;
+            flex: 1;
         }
 
         .header-category {
@@ -59,6 +88,14 @@
             font-size: 12px;
             color: var(--text-secondary);
             text-transform: capitalize;
+        }
+
+        /* Iframe for full HTML guides - complete style isolation */
+        .guide-iframe {
+            width: 100%;
+            min-height: 80vh;
+            border: none;
+            background: var(--bg-primary);
         }
 
         /* Main Content */
@@ -310,24 +347,6 @@
     <script>
         const API_BASE = '/api/v2';
 
-        // Load favicon from settings
-        (async function loadFavicon() {
-            try {
-                const response = await fetch(`${API_BASE}/settings/app_favicon`);
-                const data = await response.json();
-                if (data.value) {
-                    let link = document.querySelector("link[rel~='icon']");
-                    if (!link) {
-                        link = document.createElement('link');
-                        link.rel = 'icon';
-                        document.head.appendChild(link);
-                    }
-                    link.href = data.value;
-                }
-            } catch (error) {
-                console.error('Error loading favicon:', error);
-            }
-        })();
 
 
         // Get slug from URL
@@ -336,34 +355,115 @@
             return params.get('slug') || params.get('g');
         }
 
+        // Get return URL from query params or referrer
+        function getReturnUrl() {
+            const params = new URLSearchParams(window.location.search);
+            const returnUrl = params.get('return');
+            if (returnUrl) return returnUrl;
+            // Try to determine from service type
+            const serviceType = params.get('service');
+            if (serviceType === 'plex') return 'plex.html';
+            if (serviceType === 'iptv') return 'iptv.html';
+            // Default: go back in history or to portal
+            return null;
+        }
+
+        // Handle back button click
+        function goBack() {
+            const returnUrl = getReturnUrl();
+            if (returnUrl) {
+                window.location.href = returnUrl;
+            } else if (document.referrer && document.referrer.includes(window.location.host)) {
+                history.back();
+            } else {
+                window.location.href = 'index.html';
+            }
+        }
+
         // Render guide
         function renderGuide(guide) {
             document.title = `${guide.title} - Guide`;
 
             let contentHtml = guide.content || '<p>No content available</p>';
+            const isHtmlContent = guide.content_type === 'html' || (!guide.content_type && guide.content && guide.content.trim().startsWith('<'));
 
             // Parse markdown if needed
             if (guide.content_type === 'markdown') {
                 contentHtml = marked.parse(guide.content || '');
             }
 
-            document.getElementById('app').innerHTML = `
-                <header class="header">
-                    <span class="header-icon">${guide.icon || '📖'}</span>
-                    <h1 class="header-title">${guide.title}</h1>
-                    <span class="header-category">${guide.category || 'Guide'}</span>
-                </header>
+            // For HTML content with embedded styles, use iframe for complete isolation
+            if (isHtmlContent) {
+                document.getElementById('app').innerHTML = `
+                    <header class="header">
+                        <button class="back-btn" onclick="goBack()">
+                            <i class="fas fa-arrow-left"></i>
+                            Back
+                        </button>
+                        <h1 class="header-title">${guide.title}</h1>
+                        <span class="header-category">${guide.category || 'Guide'}</span>
+                    </header>
 
-                <main class="main-content">
-                    <div class="guide-content">
-                        ${contentHtml}
-                    </div>
-                </main>
+                    <iframe id="guideFrame" class="guide-iframe" frameborder="0"></iframe>
+                `;
 
-                <footer class="footer">
-                    <p>Need help? <a href="login.html">Sign in to the portal</a> or contact support.</p>
-                </footer>
-            `;
+                // Write content to iframe for complete style isolation
+                const iframe = document.getElementById('guideFrame');
+                const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+
+                // Wrap in full HTML document with dark background
+                const fullHtml = '<!DOCTYPE html>' +
+                    '<html>' +
+                    '<head>' +
+                    '<meta charset="UTF-8">' +
+                    '<meta name="viewport" content="width=device-width, initial-scale=1.0">' +
+                    '<style>' +
+                    'body { background: #0f172a; color: #f8fafc; margin: 0; padding: 20px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }' +
+                    '</style>' +
+                    '</head>' +
+                    '<body>' + contentHtml + '</body>' +
+                    '</html>';
+
+                iframeDoc.open();
+                iframeDoc.write(fullHtml);
+                iframeDoc.close();
+
+                // Auto-resize iframe to content height
+                iframe.onload = function() {
+                    try {
+                        iframe.style.height = iframe.contentDocument.body.scrollHeight + 40 + 'px';
+                    } catch(e) {}
+                };
+                // Also try immediate resize
+                setTimeout(() => {
+                    try {
+                        iframe.style.height = iframe.contentDocument.body.scrollHeight + 40 + 'px';
+                    } catch(e) {}
+                }, 100);
+            } else {
+                // Markdown content - use styled wrapper
+                document.getElementById('app').innerHTML = `
+                    <header class="header">
+                        <button class="back-btn" onclick="goBack()">
+                            <i class="fas fa-arrow-left"></i>
+                            Back
+                        </button>
+                        <span class="header-icon">${guide.icon || '📖'}</span>
+                        <h1 class="header-title">${guide.title}</h1>
+                        <span class="header-category">${guide.category || 'Guide'}</span>
+                    </header>
+
+                    <main class="main-content">
+                        <div class="guide-content">
+                            ${contentHtml}
+                        </div>
+                    </main>
+
+                    <footer class="footer">
+                        <p>Need help? <a href="index.html">Go to Portal</a> or contact support.</p>
+                    </footer>
+                `;
+            }
         }
 
         // Render error
