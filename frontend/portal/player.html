@@ -8,7 +8,8 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="theme-color" content="#0f0f0f">
     <title>Web Player - User Portal</title>
-    <link rel="apple-touch-icon" id="appleTouchIcon" href="/api/v2/settings/app_logo">
+    <link rel="icon" type="image/svg+xml" href="/api/v2/public/favicon.ico">
+    <link rel="apple-touch-icon" id="appleTouchIcon" href="/api/v2/public/logo.png">
     <link rel="manifest" href="/api/v2/public/manifest.json">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
@@ -1639,7 +1640,9 @@
             </button>
             <input type="range" class="mobile-video-volume" id="mobileVideoVolumeSlider" min="0" max="100" value="100" oninput="setMobileVideoVolume(this.value)">
             <button class="mobile-video-btn pip-btn" id="mobileVideoPipBtn" onclick="toggleMobileVideoPiP()" title="Picture-in-Picture" style="display: none;">
-                <i class="fas fa-external-link-alt"></i>
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                    <path d="M19 7h-8v6h8V7zm2-4H3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H3V5h18v14z"/>
+                </svg>
             </button>
         </div>
     </div>
@@ -1647,24 +1650,6 @@
     <script>
         const API_BASE = '/api/v2';
 
-        // Load favicon from settings
-        (async function loadFavicon() {
-            try {
-                const response = await fetch(`${API_BASE}/settings/app_favicon`);
-                const data = await response.json();
-                if (data.value) {
-                    let link = document.querySelector("link[rel~='icon']");
-                    if (!link) {
-                        link = document.createElement('link');
-                        link.rel = 'icon';
-                        document.head.appendChild(link);
-                    }
-                    link.href = data.value;
-                }
-            } catch (error) {
-                console.error('Error loading favicon:', error);
-            }
-        })();
 
 
         // State
@@ -3470,11 +3455,24 @@
             const video = document.getElementById('mobileVideoElement');
             const pipBtn = document.getElementById('mobileVideoPipBtn');
 
+            if (!pipBtn) return;
+
+            // Detect iOS/iPadOS
+            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+                          (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+            // Detect mobile devices
+            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+                             (navigator.maxTouchPoints > 1);
+
             // Check for standard PiP API or Safari's webkit API
             const standardPiP = document.pictureInPictureEnabled;
             const webkitPiP = video && typeof video.webkitSetPresentationMode === 'function';
+            const webkitSupports = video && typeof video.webkitSupportsPresentationMode === 'function' &&
+                                   video.webkitSupportsPresentationMode('picture-in-picture');
 
-            if (standardPiP || webkitPiP) {
+            // Show PiP button on mobile devices (most support native PiP), iOS, or if API is available
+            if (isMobile || isIOS || standardPiP || webkitPiP || webkitSupports) {
                 pipBtn.style.display = 'flex';
             } else {
                 pipBtn.style.display = 'none';
@@ -3485,8 +3483,14 @@
         async function toggleMobileVideoPiP() {
             const video = document.getElementById('mobileVideoElement');
 
+            // Check if video is playing
+            if (video.paused || video.readyState < 2) {
+                alert('Please wait for the video to start playing before using Picture-in-Picture.');
+                return;
+            }
+
             try {
-                // Safari on iOS uses webkitSetPresentationMode
+                // Try webkit API first (for older Safari)
                 if (typeof video.webkitSetPresentationMode === 'function') {
                     if (video.webkitPresentationMode === 'picture-in-picture') {
                         video.webkitSetPresentationMode('inline');
@@ -3494,17 +3498,26 @@
                         video.webkitSetPresentationMode('picture-in-picture');
                     }
                 }
-                // Standard Picture-in-Picture API
-                else if (document.pictureInPictureEnabled) {
+                // Try standard Picture-in-Picture API (works on iOS 14+)
+                else if (document.pictureInPictureEnabled && video.requestPictureInPicture) {
                     if (document.pictureInPictureElement) {
                         await document.exitPictureInPicture();
                     } else {
                         await video.requestPictureInPicture();
                     }
                 }
+                // For iOS Safari, show instructions for native PiP
+                else {
+                    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+                    if (isIOS) {
+                        alert('To use Picture-in-Picture on iOS: 1) Go fullscreen, 2) Tap PiP icon, or swipe home while playing.');
+                    } else {
+                        alert('Picture-in-Picture is not supported on this browser.');
+                    }
+                }
             } catch (error) {
                 console.error('PiP error:', error);
-                alert('Picture-in-Picture is not available. Make sure the video is playing.');
+                alert('Picture-in-Picture failed. Try going fullscreen first, then use the PiP button there.');
             }
 
             showMobileVideoControls();

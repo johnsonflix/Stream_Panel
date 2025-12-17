@@ -12,8 +12,8 @@ const { sendIPTVCredentialsEmail } = require('../services/email-service');
 
 const router = express.Router();
 
-// Portal session duration: 7 days
-const PORTAL_SESSION_DURATION_DAYS = 7;
+// Portal session duration: 90 days (for home screen app convenience)
+const PORTAL_SESSION_DURATION_DAYS = 90;
 
 /**
  * Helper: Generate secure session token
@@ -108,18 +108,28 @@ router.post('/login', async (req, res) => {
 
         // Get user's Plex server access if any
         const plexShares = await query(`
-            SELECT ups.*, ps.name as server_name
+            SELECT ups.*, ps.name as server_name, ps.libraries as server_libraries
             FROM user_plex_shares ups
             JOIN plex_servers ps ON ups.plex_server_id = ps.id
             WHERE ups.user_id = ?
         `, [user.id]);
 
         const sanitizedUser = sanitizeUserForPortal(user);
-        sanitizedUser.plex_servers = plexShares.map(share => ({
-            id: share.plex_server_id,
-            name: share.server_name,
-            libraries: share.library_ids ? JSON.parse(share.library_ids) : []
-        }));
+        sanitizedUser.plex_servers = plexShares.map(share => {
+            const userLibraryIds = share.library_ids ? JSON.parse(share.library_ids) : [];
+            const serverLibraries = share.server_libraries ? JSON.parse(share.server_libraries) : [];
+
+            // Filter server libraries to only those the user has access to
+            const userLibraries = serverLibraries.filter(lib =>
+                userLibraryIds.includes(lib.key) || userLibraryIds.includes(String(lib.key))
+            );
+
+            return {
+                id: share.plex_server_id,
+                name: share.server_name,
+                libraries: userLibraries
+            };
+        });
 
         res.json({
             success: true,
@@ -332,7 +342,7 @@ router.post('/plex/callback', async (req, res) => {
 
         // Verify user has access to at least one of our Plex servers
         const plexShares = await query(`
-            SELECT ups.*, ps.name as server_name, ps.server_id
+            SELECT ups.*, ps.name as server_name, ps.server_id, ps.libraries as server_libraries
             FROM user_plex_shares ups
             JOIN plex_servers ps ON ups.plex_server_id = ps.id
             WHERE ups.user_id = ?
@@ -365,11 +375,21 @@ router.post('/plex/callback', async (req, res) => {
         const sanitizedUser = sanitizeUserForPortal(user);
         sanitizedUser.plex_email = plexUserInfo.email;
         sanitizedUser.plex_username = plexUserInfo.username;
-        sanitizedUser.plex_servers = plexShares.map(share => ({
-            id: share.plex_server_id,
-            name: share.server_name,
-            libraries: share.library_ids ? JSON.parse(share.library_ids) : []
-        }));
+        sanitizedUser.plex_servers = plexShares.map(share => {
+            const userLibraryIds = share.library_ids ? JSON.parse(share.library_ids) : [];
+            const serverLibraries = share.server_libraries ? JSON.parse(share.server_libraries) : [];
+
+            // Filter server libraries to only those the user has access to
+            const userLibraries = serverLibraries.filter(lib =>
+                userLibraryIds.includes(lib.key) || userLibraryIds.includes(String(lib.key))
+            );
+
+            return {
+                id: share.plex_server_id,
+                name: share.server_name,
+                libraries: userLibraries
+            };
+        });
 
         res.json({
             success: true,
@@ -448,18 +468,28 @@ router.get('/verify', async (req, res) => {
 
         // Get Plex shares
         const plexShares = await query(`
-            SELECT ups.*, ps.name as server_name
+            SELECT ups.*, ps.name as server_name, ps.libraries as server_libraries
             FROM user_plex_shares ups
             JOIN plex_servers ps ON ups.plex_server_id = ps.id
             WHERE ups.user_id = ?
         `, [user.id]);
 
         const sanitizedUser = sanitizeUserForPortal(user);
-        sanitizedUser.plex_servers = plexShares.map(share => ({
-            id: share.plex_server_id,
-            name: share.server_name,
-            libraries: share.library_ids ? JSON.parse(share.library_ids) : []
-        }));
+        sanitizedUser.plex_servers = plexShares.map(share => {
+            const userLibraryIds = share.library_ids ? JSON.parse(share.library_ids) : [];
+            const serverLibraries = share.server_libraries ? JSON.parse(share.server_libraries) : [];
+
+            // Filter server libraries to only those the user has access to
+            const userLibraries = serverLibraries.filter(lib =>
+                userLibraryIds.includes(lib.key) || userLibraryIds.includes(String(lib.key))
+            );
+
+            return {
+                id: share.plex_server_id,
+                name: share.server_name,
+                libraries: userLibraries
+            };
+        });
 
         res.json({
             success: true,
