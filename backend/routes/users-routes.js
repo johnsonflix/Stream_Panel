@@ -957,7 +957,9 @@ router.put('/:id', async (req, res) => {
             apple_cash_username,
             // Payment Preference
             payment_preference,
-            custom_payment_methods
+            custom_payment_methods,
+            // Tags
+            tag_ids
         } = req.body;
 
         // Check if user exists
@@ -1152,7 +1154,10 @@ router.put('/:id', async (req, res) => {
             values.push(apple_cash_username);
         }
 
-        if (updates.length === 0) {
+        // Check if there's anything to update (either user fields or tags)
+        const hasTagUpdate = tag_ids !== undefined && Array.isArray(tag_ids);
+
+        if (updates.length === 0 && !hasTagUpdate) {
             await connection.rollback();
             return res.status(400).json({
                 success: false,
@@ -1160,25 +1165,53 @@ router.put('/:id', async (req, res) => {
             });
         }
 
-        updates.push("updated_at = datetime('now')");
-        values.push(id);
+        // Only run user update if there are field updates
+        if (updates.length > 0) {
+            updates.push("updated_at = datetime('now')");
+            values.push(id);
 
-        // Debug: Log values to find any non-primitive types
-        console.log('📝 UPDATE values debug:');
-        values.forEach((v, i) => {
-            const type = typeof v;
-            const isArray = Array.isArray(v);
-            const isObject = v !== null && type === 'object' && !isArray;
-            if (isArray || isObject) {
-                console.log(`  ⚠️ values[${i}] = ${JSON.stringify(v)} (${isArray ? 'ARRAY' : 'OBJECT'}) - THIS WILL CAUSE ERROR`);
+            // Debug: Log values to find any non-primitive types
+            console.log('📝 UPDATE values debug:');
+            values.forEach((v, i) => {
+                const type = typeof v;
+                const isArray = Array.isArray(v);
+                const isObject = v !== null && type === 'object' && !isArray;
+                if (isArray || isObject) {
+                    console.log(`  ⚠️ values[${i}] = ${JSON.stringify(v)} (${isArray ? 'ARRAY' : 'OBJECT'}) - THIS WILL CAUSE ERROR`);
+                }
+            });
+
+            await connection.execute(`
+                UPDATE users
+                SET ${updates.join(', ')}
+                WHERE id = ?
+            `, values);
+        }
+
+        // Handle tag updates - replace all manual tags
+        if (hasTagUpdate) {
+            // Delete existing manual tags (keep auto-assigned ones)
+            await connection.execute(
+                'DELETE FROM user_tags WHERE user_id = ? AND assigned_by = ?',
+                [id, 'manual']
+            );
+
+            // Insert new tags
+            for (const tagId of tag_ids) {
+                try {
+                    await connection.execute(`
+                        INSERT INTO user_tags (user_id, tag_id, assigned_by)
+                        VALUES (?, ?, 'manual')
+                    `, [id, tagId]);
+                } catch (tagErr) {
+                    // Ignore duplicate key errors for auto-assigned tags
+                    if (!tagErr.message.includes('UNIQUE constraint') && !tagErr.message.includes('Duplicate')) {
+                        throw tagErr;
+                    }
+                }
             }
-        });
-
-        await connection.execute(`
-            UPDATE users
-            SET ${updates.join(', ')}
-            WHERE id = ?
-        `, values);
+            console.log(`✅ Updated tags for user ${id}: ${tag_ids.length} tags`);
+        }
 
         // Auto-assign tags based on user's Plex/IPTV access changes
         try {

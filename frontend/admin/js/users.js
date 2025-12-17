@@ -13,8 +13,10 @@ const Users = {
     },
     owners: [],
     tags: [],
+    selectedUsers: new Set(), // Track selected user IDs for bulk actions
     userPreferences: {
         columnsVisible: {
+            checkbox: true,
             name: true,
             email: true,
             owner: true,
@@ -25,7 +27,7 @@ const Users = {
             created: true,
             actions: true
         },
-        columnOrder: ['name', 'email', 'owner', 'plex', 'iptv', 'iptvEditor', 'tags', 'created', 'actions']
+        columnOrder: ['checkbox', 'name', 'email', 'owner', 'plex', 'iptv', 'iptvEditor', 'tags', 'created', 'actions']
     },
 
     /**
@@ -346,6 +348,22 @@ const Users = {
 
         // Define column configurations
         const columnConfig = {
+            checkbox: {
+                label: '',
+                sortable: false,
+                hideInCustomize: true, // Don't show in customize modal
+                renderHeader: () => `<th style="width: 40px; text-align: center;">
+                    <input type="checkbox" id="select-all-users" onclick="Users.toggleSelectAll(this)"
+                           style="width: 18px; height: 18px; cursor: pointer;"
+                           ${this.selectedUsers.size === users.length && users.length > 0 ? 'checked' : ''}>
+                </th>`,
+                renderCell: (user) => `<td style="text-align: center;">
+                    <input type="checkbox" class="user-checkbox" data-user-id="${user.id}"
+                           onclick="Users.toggleUserSelection(${user.id}, this)"
+                           style="width: 18px; height: 18px; cursor: pointer;"
+                           ${this.selectedUsers.has(user.id) ? 'checked' : ''}>
+                </td>`
+            },
             name: {
                 label: 'Name',
                 sortable: true,
@@ -477,6 +495,7 @@ const Users = {
         }).join('');
 
         return `
+            ${this.renderBulkActionsBar()}
             <div class="users-desktop-view" style="padding: 1.5rem; display: block;">
                 <div class="table-container">
                     <table>
@@ -583,6 +602,480 @@ const Users = {
         }
     },
 
+    // ============================================
+    // BULK SELECTION & ACTIONS
+    // ============================================
+
+    /**
+     * Render bulk actions bar (shown when users are selected)
+     */
+    renderBulkActionsBar() {
+        if (this.selectedUsers.size === 0) {
+            return '';
+        }
+
+        return `
+            <div id="bulk-actions-bar" style="
+                background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+                padding: 12px 24px;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                flex-wrap: wrap;
+                gap: 12px;
+            ">
+                <div style="display: flex; align-items: center; gap: 16px;">
+                    <span style="color: white; font-weight: 600;">
+                        <i class="fas fa-check-square"></i>
+                        ${this.selectedUsers.size} user${this.selectedUsers.size !== 1 ? 's' : ''} selected
+                    </span>
+                    <button class="btn btn-sm" onclick="Users.clearSelection()" style="background: rgba(255,255,255,0.2); color: white; border: none;">
+                        <i class="fas fa-times"></i> Clear
+                    </button>
+                </div>
+                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                    <button class="btn btn-sm" onclick="Users.showBulkEditTagsModal()" style="background: rgba(255,255,255,0.9); color: var(--primary-color);">
+                        <i class="fas fa-tags"></i> Edit Tags
+                    </button>
+                    <button class="btn btn-sm" onclick="Users.showBulkEditOwnerModal()" style="background: rgba(255,255,255,0.9); color: var(--primary-color);">
+                        <i class="fas fa-user-tie"></i> Change Owner
+                    </button>
+                    <button class="btn btn-sm" onclick="Users.exportSelectedUsers()" style="background: rgba(255,255,255,0.9); color: var(--primary-color);">
+                        <i class="fas fa-file-export"></i> Export CSV
+                    </button>
+                    <button class="btn btn-sm" onclick="Users.showBulkDeleteModal()" style="background: #ef4444; color: white; border: none;">
+                        <i class="fas fa-trash"></i> Delete
+                    </button>
+                </div>
+            </div>
+        `;
+    },
+
+    /**
+     * Toggle selection of a single user
+     */
+    toggleUserSelection(userId, checkbox) {
+        if (checkbox.checked) {
+            this.selectedUsers.add(userId);
+        } else {
+            this.selectedUsers.delete(userId);
+        }
+        this.updateBulkActionsBar();
+        this.updateSelectAllCheckbox();
+    },
+
+    /**
+     * Toggle select all users
+     */
+    toggleSelectAll(checkbox) {
+        if (checkbox.checked) {
+            // Select all current users
+            this.currentUsers.forEach(user => this.selectedUsers.add(user.id));
+        } else {
+            // Deselect all
+            this.selectedUsers.clear();
+        }
+        // Update all checkboxes
+        document.querySelectorAll('.user-checkbox').forEach(cb => {
+            cb.checked = checkbox.checked;
+        });
+        this.updateBulkActionsBar();
+    },
+
+    /**
+     * Update select all checkbox state based on individual selections
+     */
+    updateSelectAllCheckbox() {
+        const selectAll = document.getElementById('select-all-users');
+        if (selectAll) {
+            const allSelected = this.currentUsers.length > 0 &&
+                this.currentUsers.every(user => this.selectedUsers.has(user.id));
+            selectAll.checked = allSelected;
+        }
+    },
+
+    /**
+     * Clear all selections
+     */
+    clearSelection() {
+        this.selectedUsers.clear();
+        document.querySelectorAll('.user-checkbox').forEach(cb => cb.checked = false);
+        const selectAll = document.getElementById('select-all-users');
+        if (selectAll) selectAll.checked = false;
+        this.updateBulkActionsBar();
+    },
+
+    /**
+     * Update the bulk actions bar without full re-render
+     */
+    updateBulkActionsBar() {
+        const existingBar = document.getElementById('bulk-actions-bar');
+        const newBarHtml = this.renderBulkActionsBar();
+
+        if (this.selectedUsers.size === 0) {
+            // Remove bar if no selections
+            if (existingBar) existingBar.remove();
+        } else if (existingBar) {
+            // Update existing bar
+            existingBar.outerHTML = newBarHtml;
+        } else {
+            // Insert bar at top of users list
+            const usersDesktop = document.querySelector('.users-desktop-view');
+            if (usersDesktop) {
+                usersDesktop.insertAdjacentHTML('beforebegin', newBarHtml);
+            }
+        }
+    },
+
+    /**
+     * Show bulk edit tags modal
+     */
+    showBulkEditTagsModal() {
+        const selectedCount = this.selectedUsers.size;
+
+        // Build tags checkboxes
+        const tagsHtml = this.tags.map(tag => `
+            <label class="checkbox-label" style="display: flex; align-items: center; gap: 8px; padding: 8px; border-radius: 6px; background: var(--bg-secondary); margin-bottom: 6px;">
+                <input type="checkbox" value="${tag.id}" class="bulk-tag-checkbox">
+                <span class="badge" style="background-color: ${tag.color}; color: white;">${Utils.escapeHtml(tag.name)}</span>
+            </label>
+        `).join('');
+
+        Utils.showModal({
+            title: `Edit Tags for ${selectedCount} User${selectedCount !== 1 ? 's' : ''}`,
+            size: 'medium',
+            body: `
+                <div style="margin-bottom: 16px;">
+                    <label style="display: flex; gap: 16px; margin-bottom: 12px;">
+                        <label class="radio-label">
+                            <input type="radio" name="bulk-tag-action" value="add" checked> Add tags
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="bulk-tag-action" value="remove"> Remove tags
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="bulk-tag-action" value="replace"> Replace all tags
+                        </label>
+                    </label>
+                </div>
+                <div style="max-height: 300px; overflow-y: auto;">
+                    ${tagsHtml || '<p style="color: var(--text-secondary);">No tags defined. Create tags in Settings first.</p>'}
+                </div>
+            `,
+            buttons: [
+                { text: 'Cancel', class: 'btn-outline', onclick: () => Utils.closeModal() },
+                {
+                    text: 'Apply Changes',
+                    class: 'btn-primary',
+                    onclick: () => this.executeBulkTagEdit()
+                }
+            ]
+        });
+    },
+
+    /**
+     * Execute bulk tag edit
+     */
+    async executeBulkTagEdit() {
+        const action = document.querySelector('input[name="bulk-tag-action"]:checked')?.value;
+        const selectedTagIds = Array.from(document.querySelectorAll('.bulk-tag-checkbox:checked')).map(cb => parseInt(cb.value));
+
+        if (selectedTagIds.length === 0 && action !== 'replace') {
+            Utils.showToast('Please select at least one tag', 'warning');
+            return;
+        }
+
+        Utils.closeModal();
+        Utils.showLoading('Updating tags...');
+
+        try {
+            const userIds = Array.from(this.selectedUsers);
+            let successCount = 0;
+
+            for (const userId of userIds) {
+                try {
+                    const user = this.currentUsers.find(u => u.id === userId);
+                    let newTagIds = [];
+
+                    if (action === 'add') {
+                        // Add to existing tags
+                        const existingTagIds = (user.tags || []).map(t => t.id);
+                        newTagIds = [...new Set([...existingTagIds, ...selectedTagIds])];
+                    } else if (action === 'remove') {
+                        // Remove from existing tags
+                        const existingTagIds = (user.tags || []).map(t => t.id);
+                        newTagIds = existingTagIds.filter(id => !selectedTagIds.includes(id));
+                    } else if (action === 'replace') {
+                        // Replace all tags
+                        newTagIds = selectedTagIds;
+                    }
+
+                    await API.updateUser(userId, { tag_ids: newTagIds });
+                    successCount++;
+                } catch (err) {
+                    console.error(`Failed to update tags for user ${userId}:`, err);
+                }
+            }
+
+            Utils.hideLoading();
+            Utils.showToast(`Updated tags for ${successCount} of ${userIds.length} users`, 'success');
+            this.clearSelection();
+            await this.loadUsers();
+        } catch (error) {
+            Utils.hideLoading();
+            console.error('Bulk tag edit error:', error);
+            Utils.showToast('Failed to update tags', 'error');
+        }
+    },
+
+    /**
+     * Show bulk edit owner modal
+     */
+    showBulkEditOwnerModal() {
+        const selectedCount = this.selectedUsers.size;
+
+        // Build owner options
+        const ownerOptions = this.owners.map(owner =>
+            `<option value="${owner.id}">${Utils.escapeHtml(owner.name)}</option>`
+        ).join('');
+
+        Utils.showModal({
+            title: `Change Owner for ${selectedCount} User${selectedCount !== 1 ? 's' : ''}`,
+            size: 'small',
+            body: `
+                <div class="form-group">
+                    <label class="form-label">Select Owner</label>
+                    <select id="bulk-owner-select" class="form-input">
+                        <option value="">No Owner</option>
+                        ${ownerOptions}
+                    </select>
+                </div>
+            `,
+            buttons: [
+                { text: 'Cancel', class: 'btn-outline', onclick: () => Utils.closeModal() },
+                {
+                    text: 'Apply Changes',
+                    class: 'btn-primary',
+                    onclick: () => this.executeBulkOwnerEdit()
+                }
+            ]
+        });
+    },
+
+    /**
+     * Execute bulk owner edit
+     */
+    async executeBulkOwnerEdit() {
+        const ownerId = document.getElementById('bulk-owner-select')?.value || null;
+
+        Utils.closeModal();
+        Utils.showLoading('Updating owner...');
+
+        try {
+            const userIds = Array.from(this.selectedUsers);
+            let successCount = 0;
+
+            for (const userId of userIds) {
+                try {
+                    await API.updateUser(userId, { owner_id: ownerId || null });
+                    successCount++;
+                } catch (err) {
+                    console.error(`Failed to update owner for user ${userId}:`, err);
+                }
+            }
+
+            Utils.hideLoading();
+            Utils.showToast(`Updated owner for ${successCount} of ${userIds.length} users`, 'success');
+            this.clearSelection();
+            await this.loadUsers();
+        } catch (error) {
+            Utils.hideLoading();
+            console.error('Bulk owner edit error:', error);
+            Utils.showToast('Failed to update owner', 'error');
+        }
+    },
+
+    /**
+     * Show bulk delete confirmation modal
+     */
+    showBulkDeleteModal() {
+        const selectedCount = this.selectedUsers.size;
+
+        Utils.showModal({
+            title: `Delete ${selectedCount} User${selectedCount !== 1 ? 's' : ''}?`,
+            size: 'small',
+            body: `
+                <div style="text-align: center; padding: 20px 0;">
+                    <i class="fas fa-exclamation-triangle" style="font-size: 48px; color: var(--danger-color); margin-bottom: 16px;"></i>
+                    <p style="font-size: 16px; margin-bottom: 12px;">
+                        Are you sure you want to delete <strong>${selectedCount}</strong> user${selectedCount !== 1 ? 's' : ''}?
+                    </p>
+                    <p style="color: var(--text-secondary);">
+                        This action cannot be undone.
+                    </p>
+                </div>
+                <div class="form-group" style="margin-top: 16px;">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="bulk-delete-from-plex">
+                        Also remove from Plex servers
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="bulk-delete-from-iptv">
+                        Also remove from IPTV panels
+                    </label>
+                </div>
+            `,
+            buttons: [
+                { text: 'Cancel', class: 'btn-outline', onclick: () => Utils.closeModal() },
+                {
+                    text: 'Delete Users',
+                    class: 'btn-danger',
+                    onclick: () => this.executeBulkDelete()
+                }
+            ]
+        });
+    },
+
+    /**
+     * Execute bulk delete
+     */
+    async executeBulkDelete() {
+        const deleteFromPlex = document.getElementById('bulk-delete-from-plex')?.checked || false;
+        const deleteFromIPTV = document.getElementById('bulk-delete-from-iptv')?.checked || false;
+
+        Utils.closeModal();
+        Utils.showLoading('Deleting users...');
+
+        try {
+            const userIds = Array.from(this.selectedUsers);
+            let successCount = 0;
+            let failedCount = 0;
+
+            for (const userId of userIds) {
+                try {
+                    await API.deleteUser(userId, deleteFromPlex, deleteFromIPTV);
+                    successCount++;
+                } catch (err) {
+                    console.error(`Failed to delete user ${userId}:`, err);
+                    failedCount++;
+                }
+            }
+
+            Utils.hideLoading();
+
+            if (failedCount > 0) {
+                Utils.showToast(`Deleted ${successCount} users. ${failedCount} failed.`, 'warning');
+            } else {
+                Utils.showToast(`Successfully deleted ${successCount} users`, 'success');
+            }
+
+            this.clearSelection();
+            await this.loadUsers();
+        } catch (error) {
+            Utils.hideLoading();
+            console.error('Bulk delete error:', error);
+            Utils.showToast('Failed to delete users', 'error');
+        }
+    },
+
+    /**
+     * Export selected users to CSV (matching import format)
+     */
+    exportSelectedUsers() {
+        const userIds = Array.from(this.selectedUsers);
+        const selectedUsers = this.currentUsers.filter(u => userIds.includes(u.id));
+
+        if (selectedUsers.length === 0) {
+            Utils.showToast('No users selected', 'error');
+            return;
+        }
+
+        // CSV header - matches import format
+        const headers = [
+            'name',
+            'email',
+            'account_type',
+            'plex_enabled',
+            'plex_package_id',
+            'plex_email',
+            'plex_duration_months',
+            'iptv_enabled',
+            'iptv_panel_id',
+            'iptv_username',
+            'iptv_password',
+            'iptv_package_id',
+            'iptv_duration_months',
+            'iptv_is_trial',
+            'iptv_bouquet_ids',
+            'notes'
+        ];
+
+        // Helper to escape CSV values
+        const escapeCSV = (value) => {
+            if (value === null || value === undefined) return '';
+            const str = String(value);
+            if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+                return '"' + str.replace(/"/g, '""') + '"';
+            }
+            return str;
+        };
+
+        // Helper to calculate remaining months from expiration date
+        const calculateRemainingMonths = (expirationDate) => {
+            if (!expirationDate) return '';
+            const now = new Date();
+            const exp = new Date(expirationDate);
+            const months = Math.max(0, Math.round((exp - now) / (30.44 * 24 * 60 * 60 * 1000)));
+            return months;
+        };
+
+        // Build CSV rows
+        const rows = [headers.join(',')];
+
+        for (const user of selectedUsers) {
+            const row = [
+                escapeCSV(user.name),
+                escapeCSV(user.email),
+                escapeCSV(user.account_type || 'standard'),
+                user.plex_enabled ? 'true' : 'false',
+                escapeCSV(user.plex_package_id || ''),
+                escapeCSV(user.plex_email || user.email),
+                calculateRemainingMonths(user.plex_expiration_date),
+                user.iptv_enabled ? 'true' : 'false',
+                escapeCSV(user.iptv_panel_id || ''),
+                escapeCSV(user.iptv_username || ''),
+                escapeCSV(user.iptv_password || ''),
+                escapeCSV(user.iptv_package_id || ''),
+                calculateRemainingMonths(user.iptv_expiration_date),
+                'false', // iptv_is_trial - not tracked on user, default to false
+                '', // iptv_bouquet_ids - not easily accessible from user object
+                escapeCSV(user.notes || '')
+            ];
+            rows.push(row.join(','));
+        }
+
+        const csvContent = rows.join('\n');
+
+        // Create download
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `users_export_${new Date().toISOString().split('T')[0]}.csv`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+
+        Utils.showToast(`Exported ${selectedUsers.length} users to CSV`, 'success');
+    },
+
+    // ============================================
+    // END BULK ACTIONS
+    // ============================================
+
     /**
      * Show customize columns modal
      */
@@ -602,8 +1095,8 @@ const Users = {
             actions: 'Actions'
         };
 
-        // Build column order list (excluding actions which is always last)
-        const reorderableColumns = columnOrder.filter(col => col !== 'actions');
+        // Build column order list (excluding checkbox and actions which are fixed positions)
+        const reorderableColumns = columnOrder.filter(col => col !== 'actions' && col !== 'checkbox');
         const columnListHTML = reorderableColumns.map((col, index) => `
             <div class="column-item" draggable="true" data-column="${col}" data-index="${index}" style="
                 background: var(--bg-secondary);
@@ -656,11 +1149,12 @@ const Users = {
                     onClick: () => {
                         // Get new column order from DOM
                         const columnItems = document.querySelectorAll('.column-item');
-                        const newOrder = Array.from(columnItems).map(item => item.dataset.column);
+                        const newOrder = ['checkbox']; // Always add checkbox first
+                        newOrder.push(...Array.from(columnItems).map(item => item.dataset.column));
                         newOrder.push('actions'); // Always add actions at the end
 
                         // Get visibility settings
-                        const newVisible = {};
+                        const newVisible = { checkbox: true }; // Checkbox always visible
                         reorderableColumns.forEach(col => {
                             newVisible[col] = document.getElementById(`col-${col}`).checked;
                         });
