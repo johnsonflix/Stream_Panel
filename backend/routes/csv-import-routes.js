@@ -58,10 +58,10 @@ let iptvManager;
 
 /**
  * CSV Format:
- * name,email,account_type,owner_id,plex_enabled,plex_package_id,plex_email,plex_duration_months,iptv_enabled,iptv_panel_id,iptv_username,iptv_password,iptv_package_id,iptv_duration_months,iptv_is_trial,iptv_bouquet_ids,notes
+ * name,email,account_type,owner_name,plex_enabled,plex_package_id,plex_email,plex_duration_months,iptv_enabled,iptv_panel_id,iptv_username,iptv_password,iptv_package_id,iptv_duration_months,iptv_is_trial,iptv_bouquet_ids,notes
  *
  * Example:
- * John Doe,john@example.com,standard,1,true,1,john@example.com,12,true,2,john123,pass123,34,12,false,"1,3,5",VIP customer
+ * John Doe,john@example.com,standard,Admin Name,true,1,john@example.com,12,true,2,john123,pass123,34,12,false,"1,3,5",VIP customer
  *
  * Note: IPTV Editor accounts NOT created via CSV - must be linked manually after import
  */
@@ -151,8 +151,18 @@ router.post('/', upload.single('csvFile'), async (req, res) => {
                     iptvExpirationDate = toLocalDateString(date);
                 }
 
-                // Parse owner_id
-                const owner_id = row.owner_id ? parseInt(row.owner_id) : null;
+                // Look up owner by name
+                let owner_id = null;
+                if (row.owner_name && row.owner_name.trim()) {
+                    const ownerRows = await db.query(
+                        'SELECT id FROM users WHERE name = ? AND is_app_user = 1',
+                        [row.owner_name.trim()]
+                    );
+                    if (ownerRows.length > 0) {
+                        owner_id = ownerRows[0].id;
+                    }
+                    // If owner not found, leave as null (warning could be logged)
+                }
 
                 // Insert user (convert booleans to 1/0 for SQLite)
                 const userResult = await db.query(`
@@ -295,8 +305,8 @@ router.post('/', upload.single('csvFile'), async (req, res) => {
 
 // GET /api/v2/csv-import/template - Download CSV template
 router.get('/template', (req, res) => {
-    const csvTemplate = `name,email,account_type,owner_id,plex_enabled,plex_package_id,plex_email,plex_duration_months,iptv_enabled,iptv_panel_id,iptv_username,iptv_password,iptv_package_id,iptv_duration_months,iptv_is_trial,iptv_bouquet_ids,notes
-John Doe,john@example.com,standard,1,true,1,john@example.com,12,true,2,john123,pass123,34,12,false,"1,3,5",VIP customer
+    const csvTemplate = `name,email,account_type,owner_name,plex_enabled,plex_package_id,plex_email,plex_duration_months,iptv_enabled,iptv_panel_id,iptv_username,iptv_password,iptv_package_id,iptv_duration_months,iptv_is_trial,iptv_bouquet_ids,notes
+John Doe,john@example.com,standard,Admin Name,true,1,john@example.com,12,true,2,john123,pass123,34,12,false,"1,3,5",VIP customer
 Jane Smith,jane@example.com,premium,,true,2,,6,false,,,,,,,"Premium package"`;
 
     res.setHeader('Content-Type', 'text/csv');

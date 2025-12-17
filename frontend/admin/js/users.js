@@ -997,7 +997,7 @@ const Users = {
             'name',
             'email',
             'account_type',
-            'owner_id',
+            'owner_name',
             'plex_enabled',
             'plex_package_id',
             'plex_email',
@@ -1036,11 +1036,15 @@ const Users = {
         const rows = [headers.join(',')];
 
         for (const user of selectedUsers) {
+            // Look up owner name from owners list
+            const owner = user.owner_id ? this.owners.find(o => o.id === user.owner_id) : null;
+            const ownerName = owner ? owner.name : '';
+
             const row = [
                 escapeCSV(user.name),
                 escapeCSV(user.email),
                 escapeCSV(user.account_type || 'standard'),
-                escapeCSV(user.owner_id || ''),
+                escapeCSV(ownerName),
                 user.plex_enabled ? 'true' : 'false',
                 escapeCSV(user.plex_package_id || ''),
                 escapeCSV(user.plex_email || user.email),
