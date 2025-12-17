@@ -58,10 +58,10 @@ let iptvManager;
 
 /**
  * CSV Format:
- * name,email,account_type,plex_enabled,plex_package_id,plex_email,plex_duration_months,iptv_enabled,iptv_panel_id,iptv_username,iptv_password,iptv_package_id,iptv_duration_months,iptv_is_trial,notes
+ * name,email,account_type,owner_id,plex_enabled,plex_package_id,plex_email,plex_duration_months,iptv_enabled,iptv_panel_id,iptv_username,iptv_password,iptv_package_id,iptv_duration_months,iptv_is_trial,iptv_bouquet_ids,notes
  *
  * Example:
- * John Doe,john@example.com,standard,true,1,john@example.com,12,true,2,john123,pass123,34,12,false,VIP customer
+ * John Doe,john@example.com,standard,1,true,1,john@example.com,12,true,2,john123,pass123,34,12,false,"1,3,5",VIP customer
  *
  * Note: IPTV Editor accounts NOT created via CSV - must be linked manually after import
  */
@@ -151,19 +151,23 @@ router.post('/', upload.single('csvFile'), async (req, res) => {
                     iptvExpirationDate = toLocalDateString(date);
                 }
 
+                // Parse owner_id
+                const owner_id = row.owner_id ? parseInt(row.owner_id) : null;
+
                 // Insert user (convert booleans to 1/0 for SQLite)
                 const userResult = await db.query(`
                     INSERT INTO users (
-                        name, email, account_type, notes,
+                        name, email, account_type, owner_id, notes,
                         plex_enabled, plex_package_id, plex_email, plex_expiration_date,
                         iptv_enabled, iptv_panel_id, iptv_username, iptv_password,
                         iptv_package_id, iptv_expiration_date, iptv_editor_enabled,
                         is_active
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 1)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 1)
                 `, [
                     row.name,
                     row.email,
                     row.account_type || 'standard',
+                    owner_id,
                     row.notes || null,
                     plex_enabled ? 1 : 0,
                     plex_package_id,
@@ -291,9 +295,9 @@ router.post('/', upload.single('csvFile'), async (req, res) => {
 
 // GET /api/v2/csv-import/template - Download CSV template
 router.get('/template', (req, res) => {
-    const csvTemplate = `name,email,account_type,plex_enabled,plex_package_id,plex_email,plex_duration_months,iptv_enabled,iptv_panel_id,iptv_username,iptv_password,iptv_package_id,iptv_duration_months,iptv_is_trial,iptv_bouquet_ids,notes
-John Doe,john@example.com,standard,true,1,john@example.com,12,true,2,john123,pass123,34,12,false,"1,3,5",VIP customer
-Jane Smith,jane@example.com,premium,true,2,,6,false,,,,,,,"Premium package"`;
+    const csvTemplate = `name,email,account_type,owner_id,plex_enabled,plex_package_id,plex_email,plex_duration_months,iptv_enabled,iptv_panel_id,iptv_username,iptv_password,iptv_package_id,iptv_duration_months,iptv_is_trial,iptv_bouquet_ids,notes
+John Doe,john@example.com,standard,1,true,1,john@example.com,12,true,2,john123,pass123,34,12,false,"1,3,5",VIP customer
+Jane Smith,jane@example.com,premium,,true,2,,6,false,,,,,,,"Premium package"`;
 
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', 'attachment; filename=users_import_template.csv');
