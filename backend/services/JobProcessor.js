@@ -5,6 +5,7 @@
  */
 
 const db = require('../database-config');
+const { autoAssignTagsForUser } = require('../routes/tags-routes');
 
 /**
  * Convert a Date object to YYYY-MM-DD format using local timezone
@@ -237,6 +238,14 @@ class JobProcessor {
                                 console.error(`[JobProcessor] Failed to send Plex welcome email:`, emailError);
                             }
                         }
+
+                        // Auto-assign tags now that Plex shares are created
+                        try {
+                            await autoAssignTagsForUser(userId);
+                            console.log(`[JobProcessor] ✅ Auto-assigned tags for user ${userId} after Plex provisioning`);
+                        } catch (tagError) {
+                            console.error(`[JobProcessor] Failed to auto-assign tags:`, tagError);
+                        }
                     } else {
                         this.updateJobStatus(jobId, 'plex', 'failed', plexErrors.join('; ') || 'Plex invite failed');
                     }
@@ -268,12 +277,9 @@ class JobProcessor {
                         }
                     }
 
-                    // Calculate expiration from user info or use existing
-                    let expirationDate = null;
-                    const expValue = userInfo?.expiration || userInfo?.expiry_date || userInfo?.exp;
-                    if (expValue) {
-                        expirationDate = toLocalDateString(new Date(expValue * 1000));
-                    }
+                    // Get expiration date string directly from panel (no timestamp conversion)
+                    // Panel returns expiration_date as YYYY-MM-DD string
+                    let expirationDate = userInfo?.expiration_date || null;
 
                     const connections = userInfo?.max_connections || userInfo?.connections || 1;
 
@@ -427,28 +433,27 @@ class JobProcessor {
                         try {
                             console.log(`[JobProcessor] 🔄 Syncing user info from panel for line_id ${iptvResult.line_id}...`);
                             syncedUserInfo = await this.iptvManager.getUserInfoOnPanel(jobConfig.iptv.panel_id, iptvResult.line_id);
-                            console.log(`[JobProcessor] ✅ Panel sync complete: connections=${syncedUserInfo?.max_connections}, expiration=${syncedUserInfo?.expiration || syncedUserInfo?.expiry_date}`);
+                            console.log(`[JobProcessor] ✅ Panel sync complete: connections=${syncedUserInfo?.max_connections}, expiration_date=${syncedUserInfo?.expiration_date}`);
                         } catch (syncError) {
                             console.log(`[JobProcessor] ⚠️ Panel sync failed (using initial values): ${syncError.message}`);
                         }
 
-                        // Calculate expiration date - prefer synced data, fall back to panel result or package data
+                        // Get expiration date - prefer synced data (YYYY-MM-DD string), fall back to result or calculate from package
                         let expirationDate = null;
-                        const syncedExpiration = syncedUserInfo?.expiration || syncedUserInfo?.expiry_date || syncedUserInfo?.exp;
-                        if (syncedExpiration) {
-                            // Convert Unix timestamp to ISO date string from synced data
-                            expirationDate = toLocalDateString(new Date(syncedExpiration * 1000));
-                            console.log(`[JobProcessor] Using synced expiration: ${syncedExpiration} -> ${expirationDate}`);
-                        } else if (iptvResult.expiration || iptvResult.expiry_date || iptvResult.exp) {
-                            const resultExpiration = iptvResult.expiration || iptvResult.expiry_date || iptvResult.exp;
-                            // Convert Unix timestamp to ISO date string
-                            expirationDate = toLocalDateString(new Date(resultExpiration * 1000));
-                            console.log(`[JobProcessor] Using result expiration: ${resultExpiration} -> ${expirationDate}`);
+                        if (syncedUserInfo?.expiration_date) {
+                            // Use YYYY-MM-DD string directly from panel (no timestamp conversion)
+                            expirationDate = syncedUserInfo.expiration_date;
+                            console.log(`[JobProcessor] Using synced expiration_date: ${expirationDate}`);
+                        } else if (iptvResult.expiration_date) {
+                            // Use YYYY-MM-DD string from result
+                            expirationDate = iptvResult.expiration_date;
+                            console.log(`[JobProcessor] Using result expiration_date: ${expirationDate}`);
                         } else if (packageData.duration_months) {
-                            // Calculate from package duration
+                            // Calculate from package duration (only fallback)
                             const exp = new Date();
                             exp.setMonth(exp.getMonth() + packageData.duration_months);
                             expirationDate = toLocalDateString(exp);
+                            console.log(`[JobProcessor] Calculated expiration from package: ${expirationDate}`);
                         }
 
                         // Get connections - prefer synced data, fall back to panel result or package data
@@ -597,10 +602,8 @@ class JobProcessor {
                                 if (finalSyncedInfo) {
                                     // Update user with final synced data
                                     const finalConnections = finalSyncedInfo.max_connections || finalSyncedInfo.connections || iptvCredentials.connections;
-                                    let finalExpiration = iptvCredentials.expiration;
-                                    if (finalSyncedInfo.expiration) {
-                                        finalExpiration = toLocalDateString(new Date(finalSyncedInfo.expiration * 1000));
-                                    }
+                                    // Use expiration_date string directly (no timestamp conversion)
+                                    const finalExpiration = finalSyncedInfo.expiration_date || iptvCredentials.expiration;
 
                                     await db.query(`
                                         UPDATE users SET
@@ -616,7 +619,7 @@ class JobProcessor {
                                         WHERE user_id = ? AND iptv_editor_playlist_id = ?
                                     `, [finalExpiration, userData.user_id, jobConfig.iptvEditor.playlist_db_id]);
 
-                                    console.log(`[JobProcessor] ✅ Second panel sync complete: connections=${finalConnections}, expiration=${finalExpiration}`);
+                                    console.log(`[JobProcessor] ✅ Second panel sync complete: connections=${finalConnections}, expiration_date=${finalExpiration}`);
                                 }
                             } catch (secondSyncError) {
                                 console.log(`[JobProcessor] ⚠️ Second panel sync failed (data already stored): ${secondSyncError.message}`);

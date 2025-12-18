@@ -641,8 +641,8 @@ class NXTDashPanel extends BaseIPTVPanel {
      * Get all users from panel
      */
     async getAllUsers(limit = 10000, offset = 0) {
-        // Reuse existing session for read operations (if still valid)
-        await this.ensureAuthenticated();
+        // Always re-authenticate to get fresh CSRF token (Laravel invalidates tokens server-side)
+        await this.authenticate();
 
         try {
             const formData = {
@@ -691,27 +691,25 @@ class NXTDashPanel extends BaseIPTVPanel {
             return null;
         }
 
-        // Parse expiration date from panel format (DD-MM-YYYY HH:mm) to Unix timestamp
-        // This ensures consistent date handling across the application
-        let expirationTimestamp = null;
+        // Parse expiration date from panel format (DD-MM-YYYY HH:mm) to YYYY-MM-DD string
+        // Store as string to avoid timezone conversion issues
+        let expirationDateString = null;
         if (user.exp_date && typeof user.exp_date === 'string' && user.exp_date.includes('-')) {
             try {
                 const datePart = user.exp_date.split(' ')[0]; // Get "07-03-2026"
                 const [day, month, year] = datePart.split('-'); // Split DD-MM-YYYY
-                const isoDateString = `${year}-${month}-${day}`;
-                const expirationDate = new Date(isoDateString + 'T00:00:00Z');
-                expirationTimestamp = Math.floor(expirationDate.getTime() / 1000);
-                console.log(`📅 [findUserByUsername] Parsed expiration: ${user.exp_date} → ${expirationTimestamp}`);
+                expirationDateString = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`; // YYYY-MM-DD
+                console.log(`📅 [findUserByUsername] Parsed expiration: ${user.exp_date} → ${expirationDateString}`);
             } catch (error) {
                 console.error('❌ [findUserByUsername] Failed to parse expiration date:', error);
             }
         }
 
-        // Return user with parsed expiration timestamp
+        // Return user with parsed expiration date string (no timestamp conversion)
         return {
             ...user,
-            expiration: expirationTimestamp,  // Add Unix timestamp for consistent handling
-            expiry_date: user.exp_date        // Keep original string for reference
+            expiration_date: expirationDateString,  // YYYY-MM-DD string for direct storage
+            expiry_date: user.exp_date              // Keep original string for reference
         };
     }
 
@@ -736,16 +734,15 @@ class NXTDashPanel extends BaseIPTVPanel {
 
         console.log(`✅ Found user: ${user.username} (ID: ${user.id})`);
 
-        // Parse expiration date from panel format (DD-MM-YYYY HH:mm) to Unix timestamp
-        let expirationTimestamp = null;
+        // Parse expiration date from panel format (DD-MM-YYYY HH:mm) to YYYY-MM-DD string
+        // Store as string to avoid timezone conversion issues
+        let expirationDateString = null;
         if (user.exp_date && user.exp_date.includes('-')) {
             try {
                 const datePart = user.exp_date.split(' ')[0]; // Get "13-07-2025"
                 const [day, month, year] = datePart.split('-'); // Split DD-MM-YYYY
-                const isoDateString = `${year}-${month}-${day}`;
-                const expirationDate = new Date(isoDateString + 'T00:00:00Z'); // Use UTC to avoid timezone shifts
-                expirationTimestamp = Math.floor(expirationDate.getTime() / 1000);
-                console.log(`📅 Parsed expiration: ${user.exp_date} → ${expirationTimestamp} (${expirationDate.toISOString()})`);
+                expirationDateString = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`; // YYYY-MM-DD
+                console.log(`📅 Parsed expiration: ${user.exp_date} → ${expirationDateString}`);
             } catch (error) {
                 console.error('❌ Failed to parse expiration date:', error);
             }
@@ -770,8 +767,8 @@ class NXTDashPanel extends BaseIPTVPanel {
             line_id: user.id,
             username: user.username,
             password: user.password,
-            expiration: expirationTimestamp,
-            expiry_date: user.exp_date,
+            expiration_date: expirationDateString,  // YYYY-MM-DD string for direct storage
+            expiry_date: user.exp_date,             // Keep original string for reference
             connections: user.user_connection || user.max_connections || null,
             max_connections: user.user_connection || user.max_connections || null,
             active_connections: user.active_connections || 0,
@@ -784,7 +781,8 @@ class NXTDashPanel extends BaseIPTVPanel {
      * Sync packages from panel
      */
     async syncPackages() {
-        await this.ensureAuthenticated();
+        // Always re-authenticate to get fresh CSRF token (Laravel invalidates tokens server-side)
+        await this.authenticate();
 
         try {
             const packages = [];
@@ -901,7 +899,8 @@ class NXTDashPanel extends BaseIPTVPanel {
      * Sync bouquets from panel (based on old working code)
      */
     async syncBouquets() {
-        await this.ensureAuthenticated();
+        // Always re-authenticate to get fresh CSRF token (Laravel invalidates tokens server-side)
+        await this.authenticate();
 
         try {
             // Validate that a package has been selected
@@ -997,7 +996,8 @@ class NXTDashPanel extends BaseIPTVPanel {
      * Get credit balance
      */
     async getCreditBalance() {
-        await this.ensureAuthenticated();
+        // Always re-authenticate to get fresh CSRF token (Laravel invalidates tokens server-side)
+        await this.authenticate();
 
         try {
             const response = await axios({
@@ -1394,7 +1394,8 @@ class NXTDashPanel extends BaseIPTVPanel {
      * Returns array of {id, name} objects
      */
     async fetchAvailablePackages() {
-        await this.ensureAuthenticated();
+        // Always re-authenticate to get fresh CSRF token (Laravel invalidates tokens server-side)
+        await this.authenticate();
 
         try {
             console.log(`📦 Fetching available packages from panel ${this.name}...`);

@@ -1,6 +1,6 @@
 {
-  "version": "1.2.20",
+  "version": "1.2.21",
   "name": "Stream Panel",
   "releaseDate": "2025-12-18",
-  "description": "Fix IPTV Panel date parsing (DD-MM-YYYY), Plex expiration date override"
+  "description": "Fix NXT Dash panel CSRF errors, auto tags for Plex users"
 }
