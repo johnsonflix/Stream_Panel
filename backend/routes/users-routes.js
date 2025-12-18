@@ -334,6 +334,7 @@ router.post('/', async (req, res) => {
             exclude_from_bulk_emails, bcc_owner_on_renewal, exclude_from_automated_emails,
             // Plex
             plex_enabled, plex_package_id, plex_email, plex_duration_months,
+            plex_expiration_date: plex_expiration_date_override,  // Manual expiration override
             plex_send_welcome_email, plex_welcome_email_template_id,
             plex_skip_provisioning,  // Skip Plex API calls when linking existing user with unchanged access
             // IPTV
@@ -442,12 +443,22 @@ router.post('/', async (req, res) => {
         }
 
         // Calculate plex expiration date - free plans have no expiration
+        // Use manual override if provided, otherwise calculate from duration
         let plexExpirationDate = null;
-        if (plex_enabled && plex_duration_months && !isFreePlexPlan) {
-            // Use proper month addition instead of 30-day approximation
-            const expirationDate = new Date();
-            expirationDate.setMonth(expirationDate.getMonth() + parseInt(plex_duration_months));
-            plexExpirationDate = expirationDate.toISOString().slice(0, 19).replace('T', ' ');
+        if (plex_enabled && !isFreePlexPlan) {
+            if (plex_expiration_date_override) {
+                // Use the manually set expiration date from the form
+                // Handle both date string and datetime formats
+                const manualDate = new Date(plex_expiration_date_override + 'T00:00:00');
+                plexExpirationDate = manualDate.toISOString().slice(0, 19).replace('T', ' ');
+                console.log(`📅 [PLEX] Using manual expiration date: ${plexExpirationDate}`);
+            } else if (plex_duration_months) {
+                // Fall back to calculating from duration
+                const expirationDate = new Date();
+                expirationDate.setMonth(expirationDate.getMonth() + parseInt(plex_duration_months));
+                plexExpirationDate = expirationDate.toISOString().slice(0, 19).replace('T', ' ');
+                console.log(`📅 [PLEX] Calculated expiration from duration: ${plexExpirationDate}`);
+            }
         }
 
         // Validate iptv_package_id (panel package ID - used for provisioning)
@@ -637,6 +648,13 @@ router.post('/', async (req, res) => {
                             `, [userId, share.server_id, JSON.stringify(share.library_ids)]);
                             console.log(`📺 [PLEX] Saved existing access for server ${share.server_id}: ${share.library_ids.length} libraries`);
                         }
+                    }
+                    // Auto-assign tags now that Plex shares are saved
+                    try {
+                        await autoAssignTagsForUser(userId);
+                        console.log(`✅ [PLEX] Auto-assigned tags for user ${userId} after linking existing Plex access`);
+                    } catch (tagError) {
+                        console.error('[PLEX] Failed to auto-assign tags:', tagError);
                     }
                 }
                 jobProcessor.updateJobStatus(jobId, 'plex', 'completed', 'Linked existing Plex access (no changes)');

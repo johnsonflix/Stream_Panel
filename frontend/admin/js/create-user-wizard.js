@@ -947,15 +947,35 @@ const CreateUserWizard = {
 
             // Handle different expiration field names and formats
             let expirationDate = 'N/A';
-            if (userData.expire_at) {
+            if (userData.expiration) {
+                // Properly parsed Unix timestamp (from updated NXTDashPanel.findUserByUsername)
+                expirationDate = new Date(userData.expiration * 1000).toLocaleDateString();
+            } else if (userData.expire_at) {
                 // 1-Stream format: ISO date string "2026-11-21T04:38:35+00:00"
                 expirationDate = new Date(userData.expire_at).toLocaleDateString();
             } else if (userData.expire_date) {
                 // NXT Dash format: Unix timestamp
                 expirationDate = new Date(userData.expire_date * 1000).toLocaleDateString();
             } else if (userData.exp_date && typeof userData.exp_date === 'string') {
-                // NXT Dash format: Already formatted string "26-04-2026 10:32"
-                expirationDate = userData.exp_date;
+                // NXT Dash format: DD-MM-YYYY string - parse properly
+                if (userData.exp_date.includes('-')) {
+                    try {
+                        const datePart = userData.exp_date.split(' ')[0]; // Get "07-03-2026"
+                        const parts = datePart.split('-');
+                        if (parts.length === 3 && parts[2].length === 4) {
+                            // DD-MM-YYYY format
+                            const [day, month, year] = parts;
+                            expirationDate = new Date(`${year}-${month}-${day}`).toLocaleDateString();
+                        } else {
+                            // Other format - try direct parsing
+                            expirationDate = new Date(userData.exp_date).toLocaleDateString();
+                        }
+                    } catch (e) {
+                        expirationDate = userData.exp_date; // Fallback to raw string
+                    }
+                } else {
+                    expirationDate = userData.exp_date;
+                }
             } else if (userData.exp_date) {
                 // Fallback: Try as unix timestamp
                 expirationDate = new Date(userData.exp_date * 1000).toLocaleDateString();

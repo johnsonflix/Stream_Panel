@@ -686,7 +686,33 @@ class NXTDashPanel extends BaseIPTVPanel {
         }
         const allUsers = await this.getAllUsers();
         const user = allUsers.find(u => u.username && u.username.toLowerCase() === username.toLowerCase());
-        return user || null;
+
+        if (!user) {
+            return null;
+        }
+
+        // Parse expiration date from panel format (DD-MM-YYYY HH:mm) to Unix timestamp
+        // This ensures consistent date handling across the application
+        let expirationTimestamp = null;
+        if (user.exp_date && typeof user.exp_date === 'string' && user.exp_date.includes('-')) {
+            try {
+                const datePart = user.exp_date.split(' ')[0]; // Get "07-03-2026"
+                const [day, month, year] = datePart.split('-'); // Split DD-MM-YYYY
+                const isoDateString = `${year}-${month}-${day}`;
+                const expirationDate = new Date(isoDateString + 'T00:00:00Z');
+                expirationTimestamp = Math.floor(expirationDate.getTime() / 1000);
+                console.log(`📅 [findUserByUsername] Parsed expiration: ${user.exp_date} → ${expirationTimestamp}`);
+            } catch (error) {
+                console.error('❌ [findUserByUsername] Failed to parse expiration date:', error);
+            }
+        }
+
+        // Return user with parsed expiration timestamp
+        return {
+            ...user,
+            expiration: expirationTimestamp,  // Add Unix timestamp for consistent handling
+            expiry_date: user.exp_date        // Keep original string for reference
+        };
     }
 
     /**

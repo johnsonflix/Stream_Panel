@@ -1,6 +1,6 @@
 {
-  "version": "1.2.19",
+  "version": "1.2.20",
   "name": "Stream Panel",
-  "releaseDate": "2025-12-17",
-  "description": "CSV import/export uses owner_name instead of owner_id"
+  "releaseDate": "2025-12-18",
+  "description": "Fix IPTV Panel date parsing (DD-MM-YYYY), Plex expiration date override"
 }
