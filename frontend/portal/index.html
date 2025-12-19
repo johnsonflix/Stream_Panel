@@ -658,6 +658,16 @@
             background: var(--primary-color-hover);
         }
 
+        .service-btn.secondary {
+            background: transparent;
+            color: var(--plex-color);
+            border: 1px solid var(--plex-color);
+        }
+
+        .service-btn.secondary:hover {
+            background: rgba(229, 160, 13, 0.1);
+        }
+
         /* Modal Styles */
         .modal-overlay {
             position: fixed;
@@ -2226,9 +2236,12 @@
                                 ` : ''}
                             </div>
                         </div>
-                        <div class="service-card-footer">
+                        <div class="service-card-footer" style="display: flex; gap: 8px; flex-wrap: wrap;">
                             <a href="/portal/plex.html" class="service-btn primary">
                                 <i class="fas fa-arrow-right"></i> View Details
+                            </a>
+                            <a href="javascript:void(0)" onclick="openSeerr()" class="service-btn secondary seerr-request-btn" style="display: none;">
+                                <i class="fas fa-ticket-alt"></i> Request Content
                             </a>
                         </div>
                     </div>
@@ -3584,6 +3597,45 @@
                 }
             });
         });
+
+        // ============================================================================
+        // SEERR (Request Content) FUNCTIONS
+        // ============================================================================
+
+        let seerrAvailable = false;
+
+        // Check if Seerr is running and show/hide request buttons
+        async function checkSeerrStatus() {
+            try {
+                const response = await fetch(`${API_BASE}/seerr/status`);
+                const data = await response.json();
+
+                seerrAvailable = data.installed && data.running;
+
+                // Show/hide request content buttons
+                document.querySelectorAll('.seerr-request-btn').forEach(btn => {
+                    btn.style.display = seerrAvailable ? 'flex' : 'none';
+                });
+            } catch (error) {
+                console.log('Could not check Seerr status:', error);
+                seerrAvailable = false;
+            }
+        }
+
+        // Open Seerr for media requests
+        function openSeerr() {
+            if (!seerrAvailable) {
+                showToast('Media requests are not available at this time', 'error');
+                return;
+            }
+            // Open Seerr - user will sign in with Plex on first visit
+            window.open('http://localhost:5055', '_blank');
+        }
+
+        // Check Seerr status on page load (after user data loads)
+        setTimeout(checkSeerrStatus, 1000);
+        // Also check periodically
+        setInterval(checkSeerrStatus, 60000);
     </script>
 </body>
 </html>

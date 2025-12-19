@@ -24,6 +24,9 @@ const Settings = {
                     <button class="tab active" data-tab="plex-servers">
                         <i class="fas fa-server"></i> Plex Servers
                     </button>
+                    <button class="tab" data-tab="media-apps">
+                        <i class="fas fa-film"></i> Media Apps
+                    </button>
                     <button class="tab" data-tab="iptv-panels">
                         <i class="fas fa-network-wired"></i> IPTV Panels
                     </button>
@@ -64,6 +67,13 @@ const Settings = {
 
                 <!-- Tab Contents -->
                 <div id="plex-servers" class="tab-content active">
+                    <div class="text-center mt-4 mb-4">
+                        <div class="spinner" style="margin: 0 auto;"></div>
+                        <p class="mt-2">Loading...</p>
+                    </div>
+                </div>
+
+                <div id="media-apps" class="tab-content">
                     <div class="text-center mt-4 mb-4">
                         <div class="spinner" style="margin: 0 auto;"></div>
                         <p class="mt-2">Loading...</p>
@@ -186,6 +196,9 @@ const Settings = {
         switch (tabName) {
             case 'plex-servers':
                 await this.loadPlexServers();
+                break;
+            case 'media-apps':
+                await this.loadMediaApps();
                 break;
             case 'iptv-panels':
                 await this.loadIPTVPanels();
@@ -9132,6 +9145,4052 @@ const Settings = {
         };
 
         checkHealth();
+    },
+
+    // =========================================================================
+    // KOMETA MANAGEMENT
+    // =========================================================================
+
+    kometaState: {
+        instances: [],
+        currentInstanceId: null,
+        currentFilePath: '',
+        currentDirectory: '',
+        isInstalled: false,
+        version: null
+    },
+
+    /**
+     * Load Media Apps Tab (Seerr + Kometa)
+     */
+    async loadMediaApps() {
+        const container = document.getElementById('media-apps');
+
+        container.innerHTML = `
+            <div style="padding: 1.5rem;">
+                <!-- SEERR SECTION -->
+                <div class="mb-5">
+                    <div class="mb-4">
+                        <h3><i class="fas fa-ticket-alt"></i> Seerr (Media Request Manager)</h3>
+                        <p style="color: var(--text-secondary); font-size: 0.875rem;">
+                            Allow users to request movies and TV shows for your Plex library
+                        </p>
+                    </div>
+
+                    <!-- Seerr Status Card -->
+                    <div class="card mb-4">
+                        <div class="card-body">
+                            <div id="seerr-status">
+                                <div class="text-center">
+                                    <div class="spinner" style="margin: 0 auto;"></div>
+                                    <p class="mt-2">Checking Seerr status...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <hr style="border-color: var(--border-color); margin: 2rem 0;">
+
+                <!-- KOMETA SECTION -->
+                <div class="mb-4">
+                    <h3><i class="fas fa-layer-group"></i> Kometa (Plex Meta Manager)</h3>
+                    <p style="color: var(--text-secondary); font-size: 0.875rem;">
+                        Manage Plex collections, overlays, and metadata automatically
+                    </p>
+                </div>
+
+                <!-- Kometa Status Card -->
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <div id="kometa-status">
+                            <div class="text-center">
+                                <div class="spinner" style="margin: 0 auto;"></div>
+                                <p class="mt-2">Checking Kometa status...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Instances Section -->
+                <div id="kometa-instances-section" style="display: none;">
+                    <div class="card">
+                        <div class="card-body">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                                <h4 style="margin: 0;"><i class="fas fa-cubes"></i> Kometa Instances</h4>
+                                <button class="btn btn-primary" onclick="Settings.showCreateKometaInstanceModal()">
+                                    <i class="fas fa-plus"></i> Create Instance
+                                </button>
+                            </div>
+                            <div id="kometa-instances-list">
+                                <p style="color: var(--text-secondary);">Loading instances...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Check both statuses in parallel
+        await Promise.all([
+            this.checkSeerrStatus(),
+            this.checkKometaStatus()
+        ]);
+    },
+
+    // ============================================================================
+    // SEERR MANAGEMENT
+    // ============================================================================
+
+    seerrState: {
+        isInstalled: false,
+        isRunning: false,
+        isEnabled: false,
+        version: null
+    },
+
+    async checkSeerrStatus() {
+        const statusContainer = document.getElementById('seerr-status');
+
+        try {
+            // First check if installation is in progress
+            const installStatusResp = await fetch('/api/v2/seerr/install-status');
+            const installStatus = await installStatusResp.json();
+
+            if (installStatus.inProgress) {
+                // Installation in progress - start polling instead
+                this.pollSeerrInstallStatus();
+                return;
+            }
+
+            // Get version/install status and settings in parallel
+            const [versionResp, settingsResp] = await Promise.all([
+                fetch('/api/v2/seerr/version'),
+                fetch('/api/v2/seerr/settings')
+            ]);
+
+            const versionData = await versionResp.json();
+            const settingsData = await settingsResp.json();
+
+            this.seerrState.isInstalled = versionData.installed;
+            this.seerrState.version = versionData.version;
+            this.seerrState.isEnabled = settingsData.enabled;
+
+            // Get running status
+            const statusResp = await fetch('/api/v2/seerr/status');
+            const statusData = await statusResp.json();
+            this.seerrState.isRunning = statusData.running;
+
+            if (!versionData.installed) {
+                // Not installed
+                statusContainer.innerHTML = `
+                    <div style="display: flex; align-items: center; gap: 1rem;">
+                        <div style="width: 48px; height: 48px; background: rgba(156, 163, 175, 0.1); border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                            <i class="fas fa-download" style="font-size: 1.5rem; color: var(--text-secondary);"></i>
+                        </div>
+                        <div style="flex: 1;">
+                            <h4 style="margin: 0 0 0.5rem 0;">Seerr Not Installed</h4>
+                            <p style="margin: 0; color: var(--text-secondary); font-size: 0.875rem;">
+                                Seerr allows your users to request movies and TV shows. Install it to enable media requests.
+                            </p>
+                        </div>
+                        <button class="btn btn-primary" onclick="Settings.installSeerr()">
+                            <i class="fas fa-download"></i> Install Seerr
+                        </button>
+                    </div>
+                `;
+            } else {
+                // Installed - show enable/disable toggle and status
+                let updateInfo = '';
+                try {
+                    const updateResp = await fetch('/api/v2/seerr/check-update');
+                    const updateData = await updateResp.json();
+                    if (updateData.success && updateData.updateAvailable) {
+                        updateInfo = `
+                            <div class="alert alert-warning mt-3" style="background: rgba(255, 193, 7, 0.1); border: 1px solid var(--warning-color); border-radius: 8px; padding: 0.75rem;">
+                                <i class="fas fa-exclamation-triangle" style="color: var(--warning-color);"></i>
+                                Update available: v${updateData.latestVersion}
+                                <button class="btn btn-sm btn-warning" onclick="Settings.updateSeerr()" style="margin-left: 1rem;">
+                                    <i class="fas fa-download"></i> Update
+                                </button>
+                            </div>
+                        `;
+                    }
+                } catch (e) {
+                    console.log('Could not check Seerr updates:', e);
+                }
+
+                const statusIcon = this.seerrState.isRunning
+                    ? '<i class="fas fa-check-circle" style="font-size: 1.5rem; color: var(--success-color);"></i>'
+                    : '<i class="fas fa-pause-circle" style="font-size: 1.5rem; color: var(--warning-color);"></i>';
+
+                const statusBg = this.seerrState.isRunning
+                    ? 'rgba(76, 175, 80, 0.1)'
+                    : 'rgba(255, 193, 7, 0.1)';
+
+                const statusText = this.seerrState.isRunning
+                    ? `<span style="color: var(--success-color);"><i class="fas fa-circle" style="font-size: 0.5rem; vertical-align: middle;"></i> Running</span> on port 5055`
+                    : '<span style="color: var(--warning-color);">Stopped</span>';
+
+                statusContainer.innerHTML = `
+                    <div style="display: flex; align-items: center; gap: 1rem;">
+                        <div style="width: 48px; height: 48px; background: ${statusBg}; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                            ${statusIcon}
+                        </div>
+                        <div style="flex: 1;">
+                            <h4 style="margin: 0 0 0.25rem 0;">Seerr Installed</h4>
+                            <p style="margin: 0; color: var(--text-secondary); font-size: 0.875rem;">
+                                Version: <strong>v${versionData.version}</strong> &bull;
+                                Status: ${statusText}
+                            </p>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <label class="switch" style="margin-right: 0.5rem;">
+                                <input type="checkbox" id="seerr-enabled-toggle" ${this.seerrState.isEnabled ? 'checked' : ''} onchange="Settings.toggleSeerr(this.checked)">
+                                <span class="slider"></span>
+                            </label>
+                            <span style="font-size: 0.875rem; color: var(--text-secondary);">
+                                ${this.seerrState.isEnabled ? 'Enabled' : 'Disabled'}
+                            </span>
+                        </div>
+                    </div>
+                    ${updateInfo}
+                    ${this.seerrState.isEnabled && this.seerrState.isRunning ? `
+                        <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color);">
+                            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                                <a href="http://localhost:5055" target="_blank" class="btn btn-primary">
+                                    <i class="fas fa-external-link-alt"></i> Open Seerr
+                                </a>
+                                <button class="btn btn-outline" onclick="Settings.restartSeerr()">
+                                    <i class="fas fa-redo"></i> Restart
+                                </button>
+                                <button class="btn btn-outline" onclick="Settings.viewSeerrLogs()">
+                                    <i class="fas fa-file-alt"></i> View Logs
+                                </button>
+                            </div>
+                            <p style="margin: 1rem 0 0 0; color: var(--text-secondary); font-size: 0.875rem;">
+                                <i class="fas fa-info-circle"></i> First-time setup: Open Seerr and sign in with your Plex account to configure.
+                                Users can access Seerr from the portal "Request Content" button.
+                            </p>
+                        </div>
+                    ` : ''}
+                `;
+            }
+        } catch (error) {
+            console.error('Error checking Seerr status:', error);
+            statusContainer.innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-circle"></i>
+                    Failed to check Seerr status: ${error.message}
+                </div>
+            `;
+        }
+    },
+
+    async installSeerr() {
+        const statusContainer = document.getElementById('seerr-status');
+
+        // Start the installation (returns immediately)
+        try {
+            const response = await fetch('/api/v2/seerr/install', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+
+            const data = await response.json();
+
+            if (!data.success && response.status === 409) {
+                // Already installing - just start polling
+                Utils.showToast('info', 'Installation already in progress');
+            } else if (!data.success) {
+                throw new Error(data.message || 'Failed to start installation');
+            }
+
+            // Start polling for status
+            this.pollSeerrInstallStatus();
+
+        } catch (error) {
+            console.error('Error starting Seerr install:', error);
+            Utils.showToast('error', `Failed to start Seerr installation: ${error.message}`);
+        }
+    },
+
+    async pollSeerrInstallStatus() {
+        const statusContainer = document.getElementById('seerr-status');
+
+        const poll = async () => {
+            try {
+                const response = await fetch('/api/v2/seerr/install-status');
+                const data = await response.json();
+
+                // Update UI with current status
+                const statusMessages = {
+                    'starting': 'Starting installation...',
+                    'fetching_version': 'Fetching version info...',
+                    'downloading': 'Downloading Seerr...',
+                    'extracting': 'Extracting files...',
+                    'installing_deps': 'Installing dependencies (this takes a few minutes)...',
+                    'building': 'Building Seerr (this takes a few minutes)...',
+                    'complete': 'Installation complete!',
+                    'error': 'Installation failed'
+                };
+
+                const message = data.message || statusMessages[data.status] || data.status;
+
+                if (data.inProgress) {
+                    statusContainer.innerHTML = `
+                        <div class="text-center">
+                            <div class="spinner" style="margin: 0 auto;"></div>
+                            <h4 style="margin: 1rem 0 0.5rem 0;">Installing Seerr${data.version ? ' v' + data.version : ''}...</h4>
+                            <p style="color: var(--text-secondary);">
+                                ${message}
+                            </p>
+                            <p style="color: var(--text-tertiary); font-size: 0.75rem; margin-top: 0.5rem;">
+                                You can navigate away - installation continues in background
+                            </p>
+                        </div>
+                    `;
+                    // Continue polling
+                    setTimeout(poll, 2000);
+                } else if (data.status === 'complete') {
+                    Utils.showToast('success', `Seerr v${data.version} installed successfully!`);
+                    await this.checkSeerrStatus();
+                } else if (data.status === 'error') {
+                    Utils.showToast('error', `Installation failed: ${data.error}`);
+                    statusContainer.innerHTML = `
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-circle"></i>
+                            Installation failed: ${data.error}
+                            <br><br>
+                            <button class="btn btn-primary" onclick="Settings.installSeerr()">
+                                <i class="fas fa-redo"></i> Retry Installation
+                            </button>
+                        </div>
+                    `;
+                } else {
+                    // Idle state - check normal status
+                    await this.checkSeerrStatus();
+                }
+            } catch (error) {
+                console.error('Error polling install status:', error);
+                // Continue polling even on error
+                setTimeout(poll, 3000);
+            }
+        };
+
+        // Start polling
+        poll();
+    },
+
+    async updateSeerr() {
+        if (!confirm('Update Seerr to the latest version? This will restart Seerr.')) return;
+        await this.installSeerr();
+    },
+
+    async toggleSeerr(enabled) {
+        try {
+            const response = await fetch('/api/v2/seerr/settings', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ enabled })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                Utils.showToast('success', enabled ? 'Seerr enabled and starting...' : 'Seerr disabled and stopped');
+                // Wait a moment for Seerr to start/stop
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                await this.checkSeerrStatus();
+            } else {
+                throw new Error(data.message);
+            }
+        } catch (error) {
+            console.error('Error toggling Seerr:', error);
+            Utils.showToast('error', `Failed to ${enabled ? 'enable' : 'disable'} Seerr: ${error.message}`);
+            await this.checkSeerrStatus();
+        }
+    },
+
+    async restartSeerr() {
+        try {
+            Utils.showToast('info', 'Restarting Seerr...');
+            const response = await fetch('/api/v2/seerr/restart', { method: 'POST' });
+            const data = await response.json();
+
+            if (data.success) {
+                Utils.showToast('success', 'Seerr restarted successfully');
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                await this.checkSeerrStatus();
+            } else {
+                throw new Error(data.message);
+            }
+        } catch (error) {
+            console.error('Error restarting Seerr:', error);
+            Utils.showToast('error', `Failed to restart Seerr: ${error.message}`);
+        }
+    },
+
+    async viewSeerrLogs() {
+        try {
+            const response = await fetch('/api/v2/seerr/logs');
+            const data = await response.json();
+
+            if (!data.logs || data.logs.length === 0) {
+                Utils.showToast('info', 'No Seerr logs available yet');
+                return;
+            }
+
+            // Get latest log content
+            const latestLog = data.logs[0];
+            const logResponse = await fetch(`/api/v2/seerr/logs/${latestLog.name}?tail=200`);
+            const logData = await logResponse.json();
+
+            Utils.showModal({
+                title: `Seerr Log: ${latestLog.name}`,
+                size: 'large',
+                body: `
+                    <div style="max-height: 500px; overflow: auto;">
+                        <pre style="background: #0d1117; color: #c9d1d9; padding: 1rem; border-radius: 8px; font-size: 0.75rem; white-space: pre-wrap; word-break: break-all;">${logData.content || 'No content'}</pre>
+                    </div>
+                `,
+                footer: `
+                    <button class="btn btn-outline" onclick="Utils.closeModal()">Close</button>
+                `
+            });
+        } catch (error) {
+            console.error('Error viewing Seerr logs:', error);
+            Utils.showToast('error', `Failed to load logs: ${error.message}`);
+        }
+    },
+
+    // ============================================================================
+    // KOMETA MANAGEMENT (existing)
+    // ============================================================================
+
+    /**
+     * Legacy function - calls loadMediaApps now
+     */
+    async loadKometa() {
+        await this.loadMediaApps();
+    },
+
+    async checkKometaStatus() {
+        const statusContainer = document.getElementById('kometa-status');
+        const instancesSection = document.getElementById('kometa-instances-section');
+
+        try {
+            const response = await fetch('/api/v2/kometa/version');
+            const data = await response.json();
+
+            this.kometaState.isInstalled = data.installed;
+            this.kometaState.version = data.version;
+
+            if (data.installed) {
+                // Check for updates
+                let updateInfo = '';
+                try {
+                    const updateResp = await fetch('/api/v2/kometa/check-update');
+                    const updateData = await updateResp.json();
+                    if (updateData.success && updateData.updateAvailable) {
+                        updateInfo = `
+                            <div class="alert alert-warning mt-3" style="background: rgba(255, 193, 7, 0.1); border: 1px solid var(--warning-color); border-radius: 8px; padding: 0.75rem;">
+                                <i class="fas fa-exclamation-triangle" style="color: var(--warning-color);"></i>
+                                Update available: v${updateData.latestVersion}
+                                <button class="btn btn-sm btn-warning" onclick="Settings.updateKometa()" style="margin-left: 1rem;">
+                                    <i class="fas fa-download"></i> Update
+                                </button>
+                            </div>
+                        `;
+                    }
+                } catch (e) {
+                    console.log('Could not check Kometa updates:', e);
+                }
+
+                statusContainer.innerHTML = `
+                    <div style="display: flex; align-items: center; gap: 1rem;">
+                        <div style="width: 48px; height: 48px; background: rgba(76, 175, 80, 0.1); border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                            <i class="fas fa-check-circle" style="font-size: 1.5rem; color: var(--success-color);"></i>
+                        </div>
+                        <div style="flex: 1;">
+                            <h4 style="margin: 0 0 0.25rem 0;">Kometa Installed</h4>
+                            <p style="margin: 0; color: var(--text-secondary); font-size: 0.875rem;">
+                                Version: <strong>v${data.version}</strong> &bull;
+                                Installed: ${data.installedAt ? new Date(data.installedAt).toLocaleDateString() : 'Unknown'}
+                            </p>
+                        </div>
+                        <button class="btn btn-outline" onclick="Settings.checkKometaStatus()">
+                            <i class="fas fa-sync"></i> Refresh
+                        </button>
+                    </div>
+                    ${updateInfo}
+                `;
+
+                instancesSection.style.display = 'block';
+                await this.loadKometaInstances();
+            } else {
+                statusContainer.innerHTML = `
+                    <div style="text-align: center; padding: 2rem;">
+                        <div style="width: 80px; height: 80px; background: rgba(var(--primary-rgb), 0.1); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 1rem;">
+                            <i class="fas fa-layer-group" style="font-size: 2rem; color: var(--primary-color);"></i>
+                        </div>
+                        <h4 style="margin: 0 0 0.5rem 0;">Kometa Not Installed</h4>
+                        <p style="color: var(--text-secondary); margin-bottom: 1rem;">
+                            Kometa is a powerful tool for managing Plex collections, overlays, and metadata.
+                            <br>Install it to start managing your Plex libraries automatically.
+                        </p>
+                        <button class="btn btn-primary" onclick="Settings.installKometa()">
+                            <i class="fas fa-download"></i> Install Kometa
+                        </button>
+                    </div>
+                `;
+                instancesSection.style.display = 'none';
+            }
+        } catch (error) {
+            console.error('Error checking Kometa status:', error);
+            statusContainer.innerHTML = `
+                <div class="alert alert-danger" style="background: rgba(220, 53, 69, 0.1); border: 1px solid var(--danger-color); border-radius: 8px; padding: 1rem;">
+                    <i class="fas fa-exclamation-circle" style="color: var(--danger-color);"></i>
+                    Failed to check Kometa status: ${error.message}
+                </div>
+            `;
+        }
+    },
+
+    async installKometa() {
+        const statusContainer = document.getElementById('kometa-status');
+
+        statusContainer.innerHTML = `
+            <div class="text-center" style="padding: 2rem;">
+                <div class="spinner" style="margin: 0 auto; width: 48px; height: 48px;"></div>
+                <h4 style="margin: 1rem 0 0.5rem 0;">Installing Kometa...</h4>
+                <p style="color: var(--text-secondary);">Downloading and configuring. This may take a few minutes.</p>
+            </div>
+        `;
+
+        try {
+            const response = await fetch('/api/v2/kometa/install', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                Utils.showToast('success', `Kometa ${data.version} installed successfully!`);
+                await this.checkKometaStatus();
+            } else {
+                throw new Error(data.message || 'Installation failed');
+            }
+        } catch (error) {
+            console.error('Error installing Kometa:', error);
+            statusContainer.innerHTML = `
+                <div class="alert alert-danger" style="background: rgba(220, 53, 69, 0.1); border: 1px solid var(--danger-color); border-radius: 8px; padding: 1rem; text-align: center;">
+                    <i class="fas fa-exclamation-circle" style="font-size: 2rem; color: var(--danger-color);"></i>
+                    <h4 style="margin: 1rem 0 0.5rem 0;">Installation Failed</h4>
+                    <p style="margin-bottom: 1rem;">${error.message}</p>
+                    <button class="btn btn-primary" onclick="Settings.installKometa()">
+                        <i class="fas fa-redo"></i> Retry
+                    </button>
+                </div>
+            `;
+        }
+    },
+
+    async updateKometa() {
+        if (!confirm('Update Kometa to the latest version? This will restart Kometa.')) return;
+        await this.installKometa();
+    },
+
+    async loadKometaInstances() {
+        const listContainer = document.getElementById('kometa-instances-list');
+
+        try {
+            const response = await fetch('/api/v2/kometa/instances');
+            const data = await response.json();
+
+            this.kometaState.instances = data.instances || [];
+
+            if (this.kometaState.instances.length === 0) {
+                listContainer.innerHTML = `
+                    <div style="text-align: center; padding: 2rem; border: 2px dashed var(--border-color); border-radius: 8px;">
+                        <i class="fas fa-folder-open" style="font-size: 2rem; color: var(--text-secondary); opacity: 0.5;"></i>
+                        <p style="color: var(--text-secondary); margin: 1rem 0;">No Kometa instances configured</p>
+                        <p style="color: var(--text-secondary); font-size: 0.875rem;">Create an instance to manage collections for your Plex servers</p>
+                    </div>
+                `;
+                return;
+            }
+
+            listContainer.innerHTML = `
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Status</th>
+                                <th>Last Run</th>
+                                <th>Schedule</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${this.kometaState.instances.map(instance => `
+                                <tr>
+                                    <td>
+                                        <strong>${Utils.escapeHtml(instance.name)}</strong>
+                                        <br><small style="color: var(--text-secondary);">ID: ${instance.id}</small>
+                                    </td>
+                                    <td>
+                                        ${instance.isRunning
+                                            ? '<span class="badge badge-warning"><i class="fas fa-spinner fa-spin"></i> Running</span>'
+                                            : '<span class="badge badge-secondary">Idle</span>'}
+                                    </td>
+                                    <td>${instance.lastRun ? Utils.formatDate(instance.lastRun) : 'Never'}</td>
+                                    <td>
+                                        <select class="form-select" style="width: auto; min-width: 140px; padding: 0.25rem 0.5rem; font-size: 0.875rem;"
+                                                onchange="Settings.updateKometaSchedule('${instance.id}', this.value)">
+                                            <option value="manual" ${!instance.schedule || instance.schedule === 'manual' ? 'selected' : ''}>Manual</option>
+                                            <optgroup label="Daily at:">
+                                                ${[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23].map(h =>
+                                                    `<option value="daily:${h}" ${instance.schedule === 'daily:' + h ? 'selected' : ''}>${h === 0 ? '12:00 AM' : h < 12 ? h + ':00 AM' : h === 12 ? '12:00 PM' : (h-12) + ':00 PM'}</option>`
+                                                ).join('')}
+                                            </optgroup>
+                                            <optgroup label="Every:">
+                                                <option value="interval:2" ${instance.schedule === 'interval:2' ? 'selected' : ''}>2 hours</option>
+                                                <option value="interval:3" ${instance.schedule === 'interval:3' ? 'selected' : ''}>3 hours</option>
+                                                <option value="interval:4" ${instance.schedule === 'interval:4' ? 'selected' : ''}>4 hours</option>
+                                                <option value="interval:6" ${instance.schedule === 'interval:6' ? 'selected' : ''}>6 hours</option>
+                                                <option value="interval:8" ${instance.schedule === 'interval:8' ? 'selected' : ''}>8 hours</option>
+                                                <option value="interval:12" ${instance.schedule === 'interval:12' ? 'selected' : ''}>12 hours</option>
+                                            </optgroup>
+                                        </select>
+                                    </td>
+                                    <td>
+                                        ${instance.isRunning
+                                            ? `<button class="btn btn-sm btn-success" onclick="Settings.showKometaLiveLog('${instance.id}')" title="View Live Log">
+                                                <i class="fas fa-terminal"></i>
+                                              </button>`
+                                            : `<button class="btn btn-sm btn-primary" onclick="Settings.runKometaInstance('${instance.id}')" title="Run Kometa">
+                                                <i class="fas fa-play"></i>
+                                              </button>`
+                                        }
+                                        <button class="btn btn-sm btn-outline" onclick="Settings.openKometaEditor('${instance.id}')" title="Edit Config">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline" onclick="Settings.viewKometaLogs('${instance.id}')" title="View Logs">
+                                            <i class="fas fa-file-alt"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-danger" onclick="Settings.deleteKometaInstance('${instance.id}')" title="Delete Instance">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        } catch (error) {
+            console.error('Error loading Kometa instances:', error);
+            listContainer.innerHTML = `
+                <div class="alert alert-danger">Failed to load instances: ${error.message}</div>
+            `;
+        }
+    },
+
+    async showCreateKometaInstanceModal() {
+        // Get Plex servers for selection
+        let plexServersHtml = '<p>Loading Plex servers...</p>';
+        try {
+            const response = await fetch('/api/v2/kometa/plex-servers');
+            const data = await response.json();
+
+            if (data.servers && data.servers.length > 0) {
+                plexServersHtml = data.servers.map(server => `
+                    <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px; cursor: pointer;">
+                        <input type="checkbox" name="plex_servers" value="${server.id}">
+                        <span>${Utils.escapeHtml(server.name)}</span>
+                    </label>
+                `).join('');
+            } else {
+                plexServersHtml = '<p style="color: var(--text-secondary);">No Plex servers configured. Add servers in the Plex Servers tab first.</p>';
+            }
+        } catch (e) {
+            plexServersHtml = '<p style="color: var(--danger-color);">Failed to load Plex servers</p>';
+        }
+
+        Utils.showModal({
+            title: 'Create Kometa Instance',
+            body: `
+                <form id="create-kometa-instance-form">
+                    <div class="form-group">
+                        <label class="form-label required">Instance Name</label>
+                        <input type="text" name="name" class="form-input" required
+                               placeholder="e.g., Main Server, 4K Server">
+                        <small class="form-help">A friendly name to identify this Kometa configuration</small>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Plex Servers</label>
+                        <div style="display: flex; flex-direction: column; gap: 0.5rem; max-height: 200px; overflow-y: auto;">
+                            ${plexServersHtml}
+                        </div>
+                        <small class="form-help">Select Plex servers to auto-configure. You can also configure manually.</small>
+                    </div>
+                </form>
+            `,
+            buttons: [
+                { text: 'Cancel', class: 'btn-outline', onClick: () => Utils.closeModal() },
+                {
+                    text: 'Create Instance',
+                    class: 'btn-primary',
+                    onClick: async () => {
+                        const form = document.getElementById('create-kometa-instance-form');
+                        const name = form.querySelector('[name="name"]').value.trim();
+                        const selectedServers = Array.from(form.querySelectorAll('[name="plex_servers"]:checked')).map(cb => parseInt(cb.value));
+
+                        if (!name) {
+                            Utils.showToast('error', 'Please enter an instance name');
+                            return;
+                        }
+
+                        try {
+                            const response = await fetch('/api/v2/kometa/instances', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    name,
+                                    plexServerIds: selectedServers,
+                                    autoDetect: selectedServers.length === 0
+                                })
+                            });
+
+                            const data = await response.json();
+
+                            if (data.success) {
+                                Utils.closeModal();
+                                Utils.showToast('success', 'Kometa instance created successfully!');
+                                await this.loadKometaInstances();
+                            } else {
+                                throw new Error(data.message);
+                            }
+                        } catch (error) {
+                            Utils.showToast('error', 'Failed to create instance: ' + error.message);
+                        }
+                    }
+                }
+            ]
+        });
+    },
+
+    async runKometaInstance(instanceId) {
+        if (!confirm('Run Kometa for this instance? This may take several minutes.')) return;
+
+        try {
+            Utils.showToast('info', 'Starting Kometa run...');
+
+            const response = await fetch(`/api/v2/kometa/instances/${instanceId}/run`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                Utils.showToast('success', 'Kometa started!');
+                await this.loadKometaInstances();
+                // Show live log viewer
+                this.showKometaLiveLog(instanceId);
+            } else {
+                throw new Error(data.message);
+            }
+        } catch (error) {
+            Utils.showToast('error', 'Failed to run Kometa: ' + error.message);
+        }
+    },
+
+    async updateKometaSchedule(instanceId, schedule) {
+        try {
+            const response = await fetch(`/api/v2/kometa/instances/${instanceId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ schedule: schedule === 'manual' ? null : schedule })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                // Format schedule for display
+                let scheduleText = 'Manual';
+                if (schedule && schedule !== 'manual') {
+                    const [type, value] = schedule.split(':');
+                    if (type === 'daily') {
+                        const h = parseInt(value);
+                        scheduleText = `Daily at ${h === 0 ? '12:00 AM' : h < 12 ? h + ':00 AM' : h === 12 ? '12:00 PM' : (h-12) + ':00 PM'}`;
+                    } else if (type === 'interval') {
+                        scheduleText = `Every ${value} hours`;
+                    }
+                }
+                Utils.showToast('success', `Schedule updated: ${scheduleText}`);
+            } else {
+                throw new Error(data.message);
+            }
+        } catch (error) {
+            Utils.showToast('error', 'Failed to update schedule: ' + error.message);
+            // Reload to reset the dropdown
+            await this.loadKometaInstances();
+        }
+    },
+
+    // Live log viewer state
+    kometaLiveLogState: {
+        instanceId: null,
+        offset: 0,
+        intervalId: null,
+        isPolling: false
+    },
+
+    showKometaLiveLog(instanceId) {
+        this.kometaLiveLogState.instanceId = instanceId;
+        this.kometaLiveLogState.offset = 0;
+        this.kometaLiveLogState.isPolling = true;
+
+        const instance = this.kometaState.instances.find(i => i.id === instanceId);
+
+        Utils.showModal({
+            title: `<i class="fas fa-terminal"></i> Live Log: ${instance?.name || instanceId}`,
+            size: 'large',
+            body: `
+                <div style="display: flex; flex-direction: column; height: 450px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                        <div>
+                            <span id="kometa-live-status" class="badge badge-success">
+                                <i class="fas fa-circle" style="font-size: 8px; margin-right: 4px;"></i> Running
+                            </span>
+                            <span id="kometa-live-size" style="margin-left: 0.5rem; font-size: 0.75rem; color: var(--text-secondary);"></span>
+                        </div>
+                        <div>
+                            <button class="btn btn-sm btn-danger" onclick="Settings.stopKometaFromLiveLog('${instanceId}')">
+                                <i class="fas fa-stop"></i> Stop
+                            </button>
+                        </div>
+                    </div>
+                    <pre id="kometa-live-log" style="flex: 1; overflow: auto; background: #1a1a2e; color: #eee; border: 1px solid var(--border-color); border-radius: 4px; padding: 0.75rem; font-size: 11px; font-family: 'Consolas', 'Monaco', monospace; margin: 0; white-space: pre-wrap; word-wrap: break-word;">Connecting to live log...</pre>
+                </div>
+            `,
+            buttons: [
+                { text: 'Close', class: 'btn-outline', onClick: () => {
+                    this.stopKometaLiveLogPolling();
+                    Utils.closeModal();
+                }}
+            ],
+            onClose: () => {
+                this.stopKometaLiveLogPolling();
+            }
+        });
+
+        // Start polling for log updates
+        this.pollKometaLiveLog();
+        this.kometaLiveLogState.intervalId = setInterval(() => this.pollKometaLiveLog(), 1000);
+    },
+
+    async pollKometaLiveLog() {
+        if (!this.kometaLiveLogState.isPolling) return;
+
+        try {
+            const { instanceId, offset } = this.kometaLiveLogState;
+            const response = await fetch(`/api/v2/kometa/instances/${instanceId}/live-log?offset=${offset}`);
+            const data = await response.json();
+
+            const logElement = document.getElementById('kometa-live-log');
+            const statusElement = document.getElementById('kometa-live-status');
+            const sizeElement = document.getElementById('kometa-live-size');
+
+            if (!logElement) {
+                this.stopKometaLiveLogPolling();
+                return;
+            }
+
+            if (data.success) {
+                if (data.content) {
+                    logElement.textContent += data.content;
+                    // Auto-scroll to bottom
+                    logElement.scrollTop = logElement.scrollHeight;
+                }
+                this.kometaLiveLogState.offset = data.offset;
+
+                if (sizeElement && data.fileSize) {
+                    sizeElement.textContent = Utils.formatFileSize(data.fileSize);
+                }
+
+                if (!data.isRunning) {
+                    if (statusElement) {
+                        statusElement.className = 'badge badge-secondary';
+                        statusElement.innerHTML = '<i class="fas fa-check-circle" style="margin-right: 4px;"></i> Completed';
+                    }
+                    logElement.textContent += '\n\n--- Kometa run completed ---\n';
+                    this.stopKometaLiveLogPolling();
+                    this.loadKometaInstances();
+                }
+            }
+        } catch (error) {
+            console.error('Error polling live log:', error);
+        }
+    },
+
+    stopKometaLiveLogPolling() {
+        this.kometaLiveLogState.isPolling = false;
+        if (this.kometaLiveLogState.intervalId) {
+            clearInterval(this.kometaLiveLogState.intervalId);
+            this.kometaLiveLogState.intervalId = null;
+        }
+    },
+
+    async stopKometaFromLiveLog(instanceId) {
+        if (!confirm('Stop the running Kometa process?')) return;
+
+        try {
+            const response = await fetch(`/api/v2/kometa/instances/${instanceId}/stop`, {
+                method: 'POST'
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                Utils.showToast('info', 'Kometa stopped');
+                const logElement = document.getElementById('kometa-live-log');
+                if (logElement) {
+                    logElement.textContent += '\n\n--- Kometa stopped by user ---\n';
+                }
+                const statusElement = document.getElementById('kometa-live-status');
+                if (statusElement) {
+                    statusElement.className = 'badge badge-warning';
+                    statusElement.innerHTML = '<i class="fas fa-stop-circle" style="margin-right: 4px;"></i> Stopped';
+                }
+                this.stopKometaLiveLogPolling();
+                this.loadKometaInstances();
+            } else {
+                throw new Error(data.message);
+            }
+        } catch (error) {
+            Utils.showToast('error', 'Failed to stop Kometa: ' + error.message);
+        }
+    },
+
+    async deleteKometaInstance(instanceId) {
+        if (!confirm('Delete this Kometa instance? All configuration files will be removed.')) return;
+
+        try {
+            const response = await fetch(`/api/v2/kometa/instances/${instanceId}`, {
+                method: 'DELETE'
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                Utils.showToast('success', 'Instance deleted successfully');
+                await this.loadKometaInstances();
+            } else {
+                throw new Error(data.message);
+            }
+        } catch (error) {
+            Utils.showToast('error', 'Failed to delete instance: ' + error.message);
+        }
+    },
+
+    // Kometa configurator state
+    kometaConfigState: {
+        instanceId: null,
+        config: null,
+        plexServers: [],
+        availableLibraries: []
+    },
+
+    async openKometaConfigurator(instanceId) {
+        this.kometaConfigState.instanceId = instanceId;
+        const instance = this.kometaState.instances.find(i => i.id === instanceId);
+
+        Utils.showModal({
+            title: `<i class="fas fa-cog"></i> Configure: ${instance?.name || instanceId}`,
+            size: 'large',
+            body: `
+                <div style="display: flex; flex-direction: column; height: 85vh; max-height: 900px;">
+                    <!-- Tabs -->
+                    <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;">
+                        <button class="btn btn-sm btn-primary" id="kometa-tab-config" onclick="Settings.switchKometaConfigTab('config')">
+                            <i class="fas fa-sliders-h"></i> Configurator
+                        </button>
+                        <button class="btn btn-sm btn-outline" id="kometa-tab-files" onclick="Settings.switchKometaConfigTab('files')">
+                            <i class="fas fa-file-code"></i> Files
+                        </button>
+                    </div>
+
+                    <!-- Config Tab -->
+                    <div id="kometa-config-tab" style="flex: 1; overflow-y: auto;">
+                        <div class="text-center py-4"><div class="spinner"></div><p>Loading configuration...</p></div>
+                    </div>
+
+                    <!-- Files Tab (hidden initially) -->
+                    <div id="kometa-files-tab" style="flex: 1; overflow-y: auto; display: none;">
+                        <div style="display: flex; height: 100%; gap: 1rem;">
+                            <div style="width: 220px; border-right: 1px solid var(--border-color); padding-right: 1rem; overflow-y: auto; display: flex; flex-direction: column;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                                    <h5 style="margin: 0;">Files</h5>
+                                    <div style="display: flex; gap: 0.25rem;">
+                                        <button class="btn btn-sm btn-outline" onclick="Settings.showCreateKometaFileModal(false)" title="New File">
+                                            <i class="fas fa-plus"></i><i class="fas fa-file" style="margin-left: 2px;"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline" onclick="Settings.showCreateKometaFileModal(true)" title="New Folder">
+                                            <i class="fas fa-plus"></i><i class="fas fa-folder" style="margin-left: 2px;"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div id="kometa-current-dir" style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.5rem; word-break: break-all;">/</div>
+                                <div id="kometa-file-tree" style="flex: 1; overflow-y: auto;"></div>
+                            </div>
+                            <div style="flex: 1; display: flex; flex-direction: column;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                                    <span id="kometa-current-file" style="color: var(--text-secondary); font-size: 0.875rem;">Select a file to edit</span>
+                                    <div style="display: flex; gap: 0.5rem;">
+                                        <button class="btn btn-sm btn-danger" onclick="Settings.deleteKometaFile()" id="kometa-delete-btn" disabled title="Delete File">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-primary" onclick="Settings.saveKometaFile()" id="kometa-save-btn" disabled>
+                                            <i class="fas fa-save"></i> Save
+                                        </button>
+                                    </div>
+                                </div>
+                                <textarea id="kometa-editor" style="flex: 1; font-family: monospace; font-size: 13px; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 4px; resize: none; background: var(--bg-color); color: var(--text-color);" placeholder="Select a file from the tree to edit..."></textarea>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `,
+            buttons: [
+                { text: 'Close', class: 'btn-outline', onClick: () => Utils.closeModal() }
+            ]
+        });
+
+        // Load config and Plex servers
+        await this.loadKometaConfigForm(instanceId);
+    },
+
+    switchKometaConfigTab(tab) {
+        const configTab = document.getElementById('kometa-config-tab');
+        const filesTab = document.getElementById('kometa-files-tab');
+        const configBtn = document.getElementById('kometa-tab-config');
+        const filesBtn = document.getElementById('kometa-tab-files');
+
+        if (tab === 'config') {
+            configTab.style.display = 'block';
+            filesTab.style.display = 'none';
+            configBtn.className = 'btn btn-sm btn-primary';
+            filesBtn.className = 'btn btn-sm btn-outline';
+        } else {
+            configTab.style.display = 'none';
+            filesTab.style.display = 'block';
+            configBtn.className = 'btn btn-sm btn-outline';
+            filesBtn.className = 'btn btn-sm btn-primary';
+            // Load file tree if not loaded
+            this.loadKometaFileTree(this.kometaConfigState.instanceId);
+        }
+    },
+
+    async loadKometaConfigForm(instanceId) {
+        const container = document.getElementById('kometa-config-tab');
+
+        try {
+            // Load config and Plex servers in parallel
+            const [configResponse, serversResponse] = await Promise.all([
+                fetch(`/api/v2/kometa/instances/${instanceId}/config`),
+                fetch('/api/v2/kometa/plex-servers')
+            ]);
+
+            const configData = await configResponse.json();
+            const serversData = await serversResponse.json();
+
+            if (!configData.success) throw new Error(configData.message);
+
+            this.kometaConfigState.config = configData.config;
+
+            // Get the server IDs linked to this Kometa instance
+            const instanceServerIds = (configData.instance.plexServers || []).map(s => s.id);
+            const allServers = serversData.servers || [];
+            // Filter to only servers linked to this instance
+            this.kometaConfigState.plexServers = allServers.filter(s => instanceServerIds.includes(s.id));
+
+            // Build available libraries from all Plex servers linked to this instance
+            this.kometaConfigState.availableLibraries = [];
+            const instanceServers = configData.instance.plexServers || [];
+            for (const serverRef of instanceServers) {
+                const server = this.kometaConfigState.plexServers.find(s => s.id === serverRef.id);
+                if (server && server.libraries) {
+                    for (const lib of server.libraries) {
+                        this.kometaConfigState.availableLibraries.push({
+                            name: lib.title || lib.name,
+                            type: lib.type,
+                            serverId: server.id,
+                            serverName: server.name
+                        });
+                    }
+                }
+            }
+
+            this.renderKometaConfigForm();
+
+            // Load assets after form is rendered
+            setTimeout(() => this.loadKometaAssets(), 100);
+        } catch (error) {
+            container.innerHTML = `<div class="alert alert-danger">Failed to load configuration: ${error.message}</div>`;
+        }
+    },
+
+    renderKometaConfigForm() {
+        const container = document.getElementById('kometa-config-tab');
+        const config = this.kometaConfigState.config;
+        const libraries = this.kometaConfigState.availableLibraries;
+        const plexServers = this.kometaConfigState.plexServers || [];
+
+        // Collection presets organized by category
+        const collectionCategories = {
+            'Popular Lists': [
+                { value: 'imdb', label: 'IMDb', desc: 'Top 250, Popular, Box Office' },
+                { value: 'tmdb', label: 'TMDb', desc: 'Popular, Trending, Top Rated' },
+                { value: 'trakt', label: 'Trakt', desc: 'Trending, Popular, Anticipated' },
+                { value: 'flixpatrol', label: 'FlixPatrol', desc: 'Netflix Top 10, Disney+, etc.' }
+            ],
+            'Streaming Services': [
+                { value: 'streaming', label: 'Streaming', desc: 'Netflix, Hulu, Prime, etc.' }
+            ],
+            'Franchises & Universes': [
+                { value: 'universe', label: 'Universe', desc: 'Marvel, DC, Star Wars, etc.' },
+                { value: 'franchise', label: 'Franchise', desc: 'Movie series collections' }
+            ],
+            'Basic Organization': [
+                { value: 'basic', label: 'Basic', desc: 'Genre, Decade, Year, etc.' },
+                { value: 'seasonal', label: 'Seasonal', desc: 'Holiday collections' },
+                { value: 'award', label: 'Awards', desc: 'Oscar, Emmy, Golden Globe' }
+            ],
+            'Technical': [
+                { value: 'resolution', label: 'Resolution', desc: '4K, 1080p collections' },
+                { value: 'audio_language', label: 'Audio Language', desc: 'By audio track' },
+                { value: 'subtitle_language', label: 'Subtitle Language', desc: 'By subtitles' },
+                { value: 'content_rating', label: 'Content Rating', desc: 'PG, R, TV-MA, etc.' }
+            ],
+            'People': [
+                { value: 'actor', label: 'Actors', desc: 'Collections by actors' },
+                { value: 'director', label: 'Directors', desc: 'Collections by directors' },
+                { value: 'producer', label: 'Producers', desc: 'Collections by producers' },
+                { value: 'writer', label: 'Writers', desc: 'Collections by writers' }
+            ],
+            'Other': [
+                { value: 'network', label: 'Networks', desc: 'TV network collections' },
+                { value: 'studio', label: 'Studios', desc: 'Production studio collections' }
+            ]
+        };
+
+        // Overlay presets organized by category
+        const overlayCategories = {
+            'Video Quality': [
+                { value: 'resolution', label: 'Resolution', desc: '4K, 1080p, 720p badges' },
+                { value: 'video_format', label: 'Video Format', desc: 'HDR, Dolby Vision, etc.' },
+                { value: 'aspect', label: 'Aspect Ratio', desc: 'Widescreen, IMAX, etc.' }
+            ],
+            'Audio Quality': [
+                { value: 'audio_codec', label: 'Audio Codec', desc: 'Atmos, DTS-X, TrueHD' }
+            ],
+            'Ratings & Info': [
+                { value: 'ratings', label: 'Ratings', desc: 'IMDb, RT, Metacritic scores' },
+                { value: 'content_rating', label: 'Content Rating', desc: 'PG, R, TV-MA badges' },
+                { value: 'commonsense', label: 'Common Sense', desc: 'Age appropriateness' }
+            ],
+            'Status & Source': [
+                { value: 'status', label: 'Status', desc: 'Returning, Ended, Canceled' },
+                { value: 'streaming', label: 'Streaming', desc: 'Netflix, Disney+, etc. logos' },
+                { value: 'network', label: 'Network', desc: 'TV network logos' },
+                { value: 'studio', label: 'Studio', desc: 'Studio logos' }
+            ],
+            'Special': [
+                { value: 'ribbon', label: 'Ribbon', desc: 'Award ribbons' },
+                { value: 'mediastinger', label: 'MediaStinger', desc: 'Post-credits indicator' },
+                { value: 'languages', label: 'Languages', desc: 'Country/language flags' }
+            ]
+        };
+
+        // Store for later use
+        this.kometaConfigState.collectionCategories = collectionCategories;
+        this.kometaConfigState.overlayCategories = overlayCategories;
+
+        // Get settings with defaults
+        const settings = config.settings || {};
+
+        // Build Plex servers HTML
+        let plexServersHtml = '';
+        const configPlex = config.plex || {};
+        plexServers.forEach((server, idx) => {
+            const serverConfig = configPlex[server.name] || {};
+            plexServersHtml += `
+                <div style="margin-bottom: 0.75rem; padding: 0.75rem; background: var(--bg-color); border-radius: 4px; border: 1px solid var(--border-color);">
+                    <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                        <i class="fas fa-server" style="color: var(--primary-color);"></i>
+                        <strong>${Utils.escapeHtml(server.name)}</strong>
+                    </div>
+                    <input type="hidden" name="plex_${idx}_name" value="${Utils.escapeHtml(server.name)}">
+                    <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 0.5rem; margin-bottom: 0.5rem;">
+                        <div>
+                            <label class="form-label" style="font-size: 0.75rem;">URL</label>
+                            <input type="text" class="form-input" name="plex_${idx}_url"
+                                   value="${Utils.escapeHtml(serverConfig.url || server.url || '')}"
+                                   placeholder="http://192.168.1.x:32400">
+                        </div>
+                        <div>
+                            <label class="form-label" style="font-size: 0.75rem;">Token</label>
+                            <input type="text" class="form-input" name="plex_${idx}_token"
+                                   value="${Utils.escapeHtml(serverConfig.token || server.token || '')}"
+                                   placeholder="Plex Token">
+                        </div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem; margin-bottom: 0.5rem;">
+                        <div>
+                            <label class="form-label" style="font-size: 0.75rem;">Timeout (sec)</label>
+                            <input type="number" class="form-input" name="plex_${idx}_timeout"
+                                   value="${serverConfig.timeout || 60}" min="10" max="600">
+                        </div>
+                        <div>
+                            <label class="form-label" style="font-size: 0.75rem;">DB Cache (MB)</label>
+                            <input type="number" class="form-input" name="plex_${idx}_db_cache"
+                                   value="${serverConfig.db_cache || 40}" min="10" max="1000">
+                        </div>
+                    </div>
+                    <div style="display: flex; flex-wrap: wrap; gap: 1rem;">
+                        <label style="display: flex; align-items: center; gap: 0.25rem; cursor: pointer; font-size: 0.8rem;">
+                            <input type="checkbox" name="plex_${idx}_clean_bundles" ${serverConfig.clean_bundles ? 'checked' : ''}>
+                            Clean Bundles
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 0.25rem; cursor: pointer; font-size: 0.8rem;">
+                            <input type="checkbox" name="plex_${idx}_empty_trash" ${serverConfig.empty_trash ? 'checked' : ''}>
+                            Empty Trash
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 0.25rem; cursor: pointer; font-size: 0.8rem;">
+                            <input type="checkbox" name="plex_${idx}_optimize" ${serverConfig.optimize ? 'checked' : ''}>
+                            Optimize DB
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 0.25rem; cursor: pointer; font-size: 0.8rem;">
+                            <input type="checkbox" name="plex_${idx}_verify_ssl" ${serverConfig.verify_ssl !== false ? 'checked' : ''}>
+                            Verify SSL
+                        </label>
+                    </div>
+                </div>
+            `;
+        });
+
+
+        container.innerHTML = `
+            <form id="kometa-config-form" style="display: flex; flex-direction: column; gap: 1.5rem;">
+
+                <!-- Plex Servers Section -->
+                <div style="border: 1px solid var(--border-color); border-radius: 8px; padding: 1rem;">
+                    <h4 style="margin: 0 0 1rem 0;"><i class="fas fa-server"></i> Plex Servers</h4>
+                    ${plexServers.length > 0 ? plexServersHtml : `
+                        <p style="color: var(--text-secondary); text-align: center; margin: 0;">
+                            No Plex servers linked. Go to Plex Servers tab and link servers to this Kometa instance.
+                        </p>
+                    `}
+                </div>
+
+                <!-- API Keys Section -->
+                <div style="border: 1px solid var(--border-color); border-radius: 8px; padding: 1rem;">
+                    <h4 style="margin: 0 0 1rem 0;"><i class="fas fa-key"></i> API Keys</h4>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <!-- TMDb (Required) -->
+                        <div class="form-group" style="margin: 0;">
+                            <label class="form-label required">TMDb API Key</label>
+                            <input type="text" class="form-input" name="tmdb_apikey" value="${Utils.escapeHtml(config.tmdb_apikey || '')}"
+                                   placeholder="Required for collections">
+                            <small class="form-help"><a href="https://www.themoviedb.org/settings/api" target="_blank">Get free key</a></small>
+                        </div>
+
+                        <!-- OMDB (Optional) -->
+                        <div class="form-group" style="margin: 0;">
+                            <label class="form-label">OMDb API Key <small style="color: var(--text-secondary);">(optional)</small></label>
+                            <input type="text" class="form-input" name="omdb_apikey" value="${Utils.escapeHtml(config.omdb_apikey || '')}"
+                                   placeholder="For IMDb ratings">
+                            <small class="form-help"><a href="https://www.omdbapi.com/apikey.aspx" target="_blank">Get free key</a></small>
+                        </div>
+                    </div>
+
+                    <!-- Trakt (Optional - needs OAuth) -->
+                    <div style="margin-top: 1rem; padding: 0.75rem; background: var(--bg-color); border-radius: 4px;">
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                            <input type="checkbox" name="trakt_enabled" ${config.trakt?.enabled ? 'checked' : ''}
+                                   onchange="document.getElementById('trakt-settings').style.display = this.checked ? 'block' : 'none'">
+                            <strong>Trakt</strong>
+                            <small style="color: var(--text-secondary);">- Trending, Popular, Watchlist collections</small>
+                        </label>
+                        <div id="trakt-settings" style="display: ${config.trakt?.enabled ? 'block' : 'none'}; margin-top: 0.75rem;">
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+                                <input type="text" class="form-input" name="trakt_client_id" value="${config.trakt?.client_id || ''}" placeholder="Client ID">
+                                <input type="text" class="form-input" name="trakt_client_secret" value="${config.trakt?.client_secret || ''}" placeholder="Client Secret">
+                            </div>
+                            <small class="form-help" style="margin-top: 0.5rem; display: block;">Create app at <a href="https://trakt.tv/oauth/applications" target="_blank">trakt.tv/oauth/applications</a></small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Collections Section (Unified) -->
+                <div style="border: 1px solid var(--border-color); border-radius: 8px; padding: 1rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                        <h4 style="margin: 0;"><i class="fas fa-layer-group"></i> Collections</h4>
+                        <button type="button" class="btn btn-sm btn-primary" onclick="Settings.showAddKometaCollectionForm()">
+                            <i class="fas fa-plus"></i> Add Collection
+                        </button>
+                    </div>
+                    <p style="color: var(--text-secondary); font-size: 0.85rem; margin: 0 0 1rem 0;">
+                        Configure collections for your Plex libraries. Each collection targets specific libraries.
+                    </p>
+
+                    <div id="kometa-collections-container" style="display: grid; gap: 0.5rem;">
+                        ${config.collections && config.collections.length > 0
+                            ? config.collections.map((col, idx) => this.renderKometaCollectionCard(col, idx, libraries)).join('')
+                            : '<p id="kometa-no-collections-msg" style="color: var(--text-secondary); text-align: center; font-size: 0.9rem; padding: 2rem;">No collections configured. Click "Add Collection" to create one.</p>'
+                        }
+                    </div>
+                </div>
+
+                <!-- Overlays Section (Unified) -->
+                <div style="border: 1px solid var(--border-color); border-radius: 8px; padding: 1rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                        <h4 style="margin: 0;"><i class="fas fa-images"></i> Overlays</h4>
+                        <button type="button" class="btn btn-sm btn-success" onclick="Settings.showAddKometaOverlayForm()">
+                            <i class="fas fa-plus"></i> Add Overlay
+                        </button>
+                    </div>
+                    <p style="color: var(--text-secondary); font-size: 0.85rem; margin: 0 0 1rem 0;">
+                        Add visual badges to your media (resolution, ratings, audio codec, etc.). Each overlay targets specific libraries.
+                    </p>
+
+                    <div id="kometa-overlays-container" style="display: grid; gap: 0.5rem;">
+                        ${config.overlays && config.overlays.length > 0
+                            ? config.overlays.map((ovl, idx) => this.renderKometaOverlayCard(ovl, idx, libraries)).join('')
+                            : '<p id="kometa-no-overlays-msg" style="color: var(--text-secondary); text-align: center; font-size: 0.9rem; padding: 2rem;">No overlays configured. Click "Add Overlay" to create one.</p>'
+                        }
+                    </div>
+                </div>
+
+                <!-- Assets Section -->
+                <div style="border: 1px solid var(--border-color); border-radius: 8px; padding: 1rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                        <h4 style="margin: 0;"><i class="fas fa-folder-open"></i> Assets</h4>
+                        <button type="button" class="btn btn-sm btn-secondary" onclick="Settings.uploadKometaAsset()">
+                            <i class="fas fa-upload"></i> Upload Image
+                        </button>
+                    </div>
+                    <p style="color: var(--text-secondary); font-size: 0.85rem; margin: 0 0 1rem 0;">
+                        Upload custom images for overlays (PNG format recommended). Images are stored in the instance's assets folder.
+                    </p>
+
+                    <div id="kometa-assets-container" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 0.5rem;">
+                        <p id="kometa-no-assets-msg" style="color: var(--text-secondary); text-align: center; font-size: 0.9rem; padding: 2rem; grid-column: 1 / -1;">
+                            No custom assets uploaded. Click "Upload Image" to add overlay images.
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Advanced Settings (Collapsible) -->
+                <details style="border: 1px solid var(--border-color); border-radius: 8px;">
+                    <summary style="padding: 1rem; cursor: pointer; user-select: none;">
+                        <h4 style="margin: 0; display: inline;"><i class="fas fa-cog"></i> Advanced Settings</h4>
+                    </summary>
+                    <div style="padding: 0 1rem 1rem 1rem;">
+                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-top: 0.5rem;">
+                            <!-- Sync Mode -->
+                            <div class="form-group" style="margin: 0;">
+                                <label class="form-label">Sync Mode</label>
+                                <select class="form-select" name="settings_sync_mode">
+                                    <option value="append" ${settings.sync_mode === 'append' ? 'selected' : ''}>Append</option>
+                                    <option value="sync" ${settings.sync_mode === 'sync' ? 'selected' : ''}>Sync</option>
+                                </select>
+                            </div>
+
+                            <!-- Cache Expiration -->
+                            <div class="form-group" style="margin: 0;">
+                                <label class="form-label">Cache Expiration (days)</label>
+                                <input type="number" class="form-input" name="settings_cache_expiration"
+                                       value="${settings.cache_expiration || 60}" min="1" max="365">
+                            </div>
+
+                            <!-- Minimum Items -->
+                            <div class="form-group" style="margin: 0;">
+                                <label class="form-label">Minimum Items</label>
+                                <input type="number" class="form-input" name="settings_minimum_items"
+                                       value="${settings.minimum_items || 1}" min="1">
+                            </div>
+
+                            <!-- Run Again Delay -->
+                            <div class="form-group" style="margin: 0;">
+                                <label class="form-label">Run Again Delay (min)</label>
+                                <input type="number" class="form-input" name="settings_run_again_delay"
+                                       value="${settings.run_again_delay || 2}" min="0">
+                            </div>
+
+                            <!-- Item Refresh Delay -->
+                            <div class="form-group" style="margin: 0;">
+                                <label class="form-label">Item Refresh Delay (sec)</label>
+                                <input type="number" class="form-input" name="settings_item_refresh_delay"
+                                       value="${settings.item_refresh_delay || 0}" min="0">
+                            </div>
+
+                            <!-- TVDB Language -->
+                            <div class="form-group" style="margin: 0;">
+                                <label class="form-label">TVDB Language</label>
+                                <input type="text" class="form-input" name="settings_tvdb_language"
+                                       value="${settings.tvdb_language || 'eng'}" placeholder="eng">
+                            </div>
+                        </div>
+
+                        <!-- Checkboxes -->
+                        <div style="margin-top: 1rem; display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem;">
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="checkbox" name="settings_cache" ${settings.cache !== false ? 'checked' : ''}>
+                                <span>Enable Cache</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="checkbox" name="settings_asset_folders" ${settings.asset_folders !== false ? 'checked' : ''}>
+                                <span>Asset Folders</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="checkbox" name="settings_delete_below_minimum" ${settings.delete_below_minimum !== false ? 'checked' : ''}>
+                                <span>Delete Below Min</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="checkbox" name="settings_delete_not_scheduled" ${settings.delete_not_scheduled ? 'checked' : ''}>
+                                <span>Delete Not Scheduled</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="checkbox" name="settings_missing_only_released" ${settings.missing_only_released ? 'checked' : ''}>
+                                <span>Missing Only Released</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="checkbox" name="settings_show_unmanaged" ${settings.show_unmanaged !== false ? 'checked' : ''}>
+                                <span>Show Unmanaged</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="checkbox" name="settings_show_filtered" ${settings.show_filtered ? 'checked' : ''}>
+                                <span>Show Filtered</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="checkbox" name="settings_show_missing" ${settings.show_missing ? 'checked' : ''}>
+                                <span>Show Missing</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="checkbox" name="settings_save_missing" ${settings.save_missing !== false ? 'checked' : ''}>
+                                <span>Save Missing</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="checkbox" name="settings_only_filter_missing" ${settings.only_filter_missing ? 'checked' : ''}>
+                                <span>Only Filter Missing</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="checkbox" name="settings_show_options" ${settings.show_options ? 'checked' : ''}>
+                                <span>Show Options</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="checkbox" name="settings_verify_ssl" ${settings.verify_ssl !== false ? 'checked' : ''}>
+                                <span>Verify SSL</span>
+                            </label>
+                        </div>
+
+                        <!-- Overlay Settings -->
+                        <div style="margin-top: 1rem; border-top: 1px solid var(--border-color); padding-top: 1rem;">
+                            <h5 style="margin: 0 0 0.75rem 0;">Overlay Settings</h5>
+                            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;">
+                                <div class="form-group" style="margin: 0;">
+                                    <label class="form-label">Artwork Filetype</label>
+                                    <select class="form-select" name="settings_overlay_artwork_filetype">
+                                        <option value="jpg" ${settings.overlay_artwork_filetype === 'jpg' ? 'selected' : ''}>JPG</option>
+                                        <option value="png" ${settings.overlay_artwork_filetype === 'png' ? 'selected' : ''}>PNG</option>
+                                        <option value="webp" ${settings.overlay_artwork_filetype === 'webp' ? 'selected' : ''}>WebP</option>
+                                    </select>
+                                </div>
+                                <div class="form-group" style="margin: 0;">
+                                    <label class="form-label">Artwork Quality (1-100)</label>
+                                    <input type="number" class="form-input" name="settings_overlay_artwork_quality"
+                                           value="${settings.overlay_artwork_quality || ''}" min="1" max="100" placeholder="Default">
+                                </div>
+                                <div class="form-group" style="margin: 0;">
+                                    <label class="form-label">Playlist Sync To</label>
+                                    <input type="text" class="form-input" name="settings_playlist_sync_to_users"
+                                           value="${settings.playlist_sync_to_users || 'all'}" placeholder="all">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </details>
+
+                <!-- Optional Integrations -->
+                <details style="border: 1px solid var(--border-color); border-radius: 8px;">
+                    <summary style="padding: 1rem; cursor: pointer; user-select: none;">
+                        <h4 style="margin: 0; display: inline;"><i class="fas fa-plug"></i> Optional Integrations</h4>
+                    </summary>
+                    <div style="padding: 0 1rem 1rem 1rem;">
+                        <!-- Tautulli -->
+                        <div style="margin-bottom: 1rem; padding: 0.75rem; background: var(--bg-color); border-radius: 4px;">
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="checkbox" name="tautulli_enabled" ${config.tautulli?.enabled ? 'checked' : ''}
+                                       onchange="document.getElementById('tautulli-settings').style.display = this.checked ? 'block' : 'none'">
+                                <strong>Tautulli</strong>
+                                <small style="color: var(--text-secondary);">- Most watched collections</small>
+                            </label>
+                            <div id="tautulli-settings" style="display: ${config.tautulli?.enabled ? 'block' : 'none'}; margin-top: 0.75rem;">
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+                                    <input type="text" class="form-input" name="tautulli_url" value="${config.tautulli?.url || ''}" placeholder="http://192.168.1.100:8181">
+                                    <input type="text" class="form-input" name="tautulli_apikey" value="${config.tautulli?.apikey || ''}" placeholder="Tautulli API Key">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Radarr (Full Options) -->
+                        <div style="margin-bottom: 1rem; padding: 0.75rem; background: var(--bg-color); border-radius: 4px;">
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="checkbox" name="radarr_enabled" ${config.radarr?.enabled ? 'checked' : ''}
+                                       onchange="document.getElementById('radarr-settings').style.display = this.checked ? 'block' : 'none'">
+                                <strong>Radarr</strong>
+                                <small style="color: var(--text-secondary);">- Auto-add missing movies</small>
+                            </label>
+                            <div id="radarr-settings" style="display: ${config.radarr?.enabled ? 'block' : 'none'}; margin-top: 0.75rem;">
+                                <!-- URL & Token -->
+                                <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 0.5rem; margin-bottom: 0.5rem;">
+                                    <input type="text" class="form-input" name="radarr_url" value="${config.radarr?.url || ''}" placeholder="http://192.168.1.x:7878">
+                                    <input type="password" class="form-input" name="radarr_token" value="${config.radarr?.token || ''}" placeholder="API Key">
+                                </div>
+                                <!-- Root Folder & Quality -->
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.5rem;">
+                                    <input type="text" class="form-input" name="radarr_root_folder_path" value="${config.radarr?.root_folder_path || ''}" placeholder="Root Folder (e.g., /movies)">
+                                    <input type="text" class="form-input" name="radarr_quality_profile" value="${config.radarr?.quality_profile || ''}" placeholder="Quality Profile (e.g., HD-1080p)">
+                                </div>
+                                <!-- Availability & Tag -->
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.5rem;">
+                                    <div>
+                                        <label class="form-label" style="font-size: 0.7rem;">Availability</label>
+                                        <select class="form-select" name="radarr_availability">
+                                            <option value="announced" ${config.radarr?.availability === 'announced' ? 'selected' : ''}>Announced</option>
+                                            <option value="inCinemas" ${config.radarr?.availability === 'inCinemas' ? 'selected' : ''}>In Cinemas</option>
+                                            <option value="released" ${config.radarr?.availability === 'released' ? 'selected' : ''}>Released</option>
+                                            <option value="preDB" ${config.radarr?.availability === 'preDB' ? 'selected' : ''}>PreDB</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="form-label" style="font-size: 0.7rem;">Tag (optional)</label>
+                                        <input type="text" class="form-input" name="radarr_tag" value="${config.radarr?.tag || ''}" placeholder="Tag name">
+                                    </div>
+                                </div>
+                                <!-- Path Mappings -->
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.5rem;">
+                                    <input type="text" class="form-input" name="radarr_radarr_path" value="${config.radarr?.radarr_path || ''}" placeholder="Radarr Path (for path mapping)">
+                                    <input type="text" class="form-input" name="radarr_plex_path" value="${config.radarr?.plex_path || ''}" placeholder="Plex Path (for path mapping)">
+                                </div>
+                                <!-- Checkboxes -->
+                                <div style="display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 0.5rem;">
+                                    <label style="display: flex; align-items: center; gap: 0.25rem; cursor: pointer; font-size: 0.8rem;">
+                                        <input type="checkbox" name="radarr_add_missing" ${config.radarr?.add_missing ? 'checked' : ''}>
+                                        Add Missing
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.25rem; cursor: pointer; font-size: 0.8rem;">
+                                        <input type="checkbox" name="radarr_add_existing" ${config.radarr?.add_existing ? 'checked' : ''}>
+                                        Add Existing
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.25rem; cursor: pointer; font-size: 0.8rem;">
+                                        <input type="checkbox" name="radarr_upgrade_existing" ${config.radarr?.upgrade_existing ? 'checked' : ''}>
+                                        Upgrade Existing
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.25rem; cursor: pointer; font-size: 0.8rem;">
+                                        <input type="checkbox" name="radarr_monitor_existing" ${config.radarr?.monitor_existing ? 'checked' : ''}>
+                                        Monitor Existing
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.25rem; cursor: pointer; font-size: 0.8rem;">
+                                        <input type="checkbox" name="radarr_monitor" ${config.radarr?.monitor !== false ? 'checked' : ''}>
+                                        Monitor
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.25rem; cursor: pointer; font-size: 0.8rem;">
+                                        <input type="checkbox" name="radarr_search" ${config.radarr?.search ? 'checked' : ''}>
+                                        Search
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.25rem; cursor: pointer; font-size: 0.8rem;">
+                                        <input type="checkbox" name="radarr_ignore_cache" ${config.radarr?.ignore_cache ? 'checked' : ''}>
+                                        Ignore Cache
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Sonarr (Full Options) -->
+                        <div style="padding: 0.75rem; background: var(--bg-color); border-radius: 4px;">
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="checkbox" name="sonarr_enabled" ${config.sonarr?.enabled ? 'checked' : ''}
+                                       onchange="document.getElementById('sonarr-settings').style.display = this.checked ? 'block' : 'none'">
+                                <strong>Sonarr</strong>
+                                <small style="color: var(--text-secondary);">- Auto-add missing TV shows</small>
+                            </label>
+                            <div id="sonarr-settings" style="display: ${config.sonarr?.enabled ? 'block' : 'none'}; margin-top: 0.75rem;">
+                                <!-- URL & Token -->
+                                <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 0.5rem; margin-bottom: 0.5rem;">
+                                    <input type="text" class="form-input" name="sonarr_url" value="${config.sonarr?.url || ''}" placeholder="http://192.168.1.x:8989">
+                                    <input type="password" class="form-input" name="sonarr_token" value="${config.sonarr?.token || ''}" placeholder="API Key">
+                                </div>
+                                <!-- Root Folder & Quality -->
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.5rem;">
+                                    <input type="text" class="form-input" name="sonarr_root_folder_path" value="${config.sonarr?.root_folder_path || ''}" placeholder="Root Folder (e.g., /tv)">
+                                    <input type="text" class="form-input" name="sonarr_quality_profile" value="${config.sonarr?.quality_profile || ''}" placeholder="Quality Profile">
+                                </div>
+                                <!-- Language & Series Type -->
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.5rem;">
+                                    <input type="text" class="form-input" name="sonarr_language_profile" value="${config.sonarr?.language_profile || ''}" placeholder="Language Profile (e.g., English)">
+                                    <div>
+                                        <label class="form-label" style="font-size: 0.7rem;">Series Type</label>
+                                        <select class="form-select" name="sonarr_series_type">
+                                            <option value="standard" ${config.sonarr?.series_type === 'standard' || !config.sonarr?.series_type ? 'selected' : ''}>Standard</option>
+                                            <option value="daily" ${config.sonarr?.series_type === 'daily' ? 'selected' : ''}>Daily</option>
+                                            <option value="anime" ${config.sonarr?.series_type === 'anime' ? 'selected' : ''}>Anime</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <!-- Monitor & Tag -->
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.5rem;">
+                                    <div>
+                                        <label class="form-label" style="font-size: 0.7rem;">Monitor</label>
+                                        <select class="form-select" name="sonarr_monitor">
+                                            <option value="all" ${config.sonarr?.monitor === 'all' || !config.sonarr?.monitor ? 'selected' : ''}>All Episodes</option>
+                                            <option value="future" ${config.sonarr?.monitor === 'future' ? 'selected' : ''}>Future Episodes</option>
+                                            <option value="missing" ${config.sonarr?.monitor === 'missing' ? 'selected' : ''}>Missing Episodes</option>
+                                            <option value="existing" ${config.sonarr?.monitor === 'existing' ? 'selected' : ''}>Existing Episodes</option>
+                                            <option value="pilot" ${config.sonarr?.monitor === 'pilot' ? 'selected' : ''}>Pilot Only</option>
+                                            <option value="firstSeason" ${config.sonarr?.monitor === 'firstSeason' ? 'selected' : ''}>First Season</option>
+                                            <option value="latestSeason" ${config.sonarr?.monitor === 'latestSeason' ? 'selected' : ''}>Latest Season</option>
+                                            <option value="none" ${config.sonarr?.monitor === 'none' ? 'selected' : ''}>None</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="form-label" style="font-size: 0.7rem;">Tag (optional)</label>
+                                        <input type="text" class="form-input" name="sonarr_tag" value="${config.sonarr?.tag || ''}" placeholder="Tag name">
+                                    </div>
+                                </div>
+                                <!-- Path Mappings -->
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.5rem;">
+                                    <input type="text" class="form-input" name="sonarr_sonarr_path" value="${config.sonarr?.sonarr_path || ''}" placeholder="Sonarr Path (for path mapping)">
+                                    <input type="text" class="form-input" name="sonarr_plex_path" value="${config.sonarr?.plex_path || ''}" placeholder="Plex Path (for path mapping)">
+                                </div>
+                                <!-- Checkboxes -->
+                                <div style="display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 0.5rem;">
+                                    <label style="display: flex; align-items: center; gap: 0.25rem; cursor: pointer; font-size: 0.8rem;">
+                                        <input type="checkbox" name="sonarr_add_missing" ${config.sonarr?.add_missing ? 'checked' : ''}>
+                                        Add Missing
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.25rem; cursor: pointer; font-size: 0.8rem;">
+                                        <input type="checkbox" name="sonarr_add_existing" ${config.sonarr?.add_existing ? 'checked' : ''}>
+                                        Add Existing
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.25rem; cursor: pointer; font-size: 0.8rem;">
+                                        <input type="checkbox" name="sonarr_upgrade_existing" ${config.sonarr?.upgrade_existing ? 'checked' : ''}>
+                                        Upgrade Existing
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.25rem; cursor: pointer; font-size: 0.8rem;">
+                                        <input type="checkbox" name="sonarr_monitor_existing" ${config.sonarr?.monitor_existing ? 'checked' : ''}>
+                                        Monitor Existing
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.25rem; cursor: pointer; font-size: 0.8rem;">
+                                        <input type="checkbox" name="sonarr_season_folder" ${config.sonarr?.season_folder !== false ? 'checked' : ''}>
+                                        Season Folders
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.25rem; cursor: pointer; font-size: 0.8rem;">
+                                        <input type="checkbox" name="sonarr_search" ${config.sonarr?.search ? 'checked' : ''}>
+                                        Search
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.25rem; cursor: pointer; font-size: 0.8rem;">
+                                        <input type="checkbox" name="sonarr_cutoff_search" ${config.sonarr?.cutoff_search ? 'checked' : ''}>
+                                        Cutoff Search
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.25rem; cursor: pointer; font-size: 0.8rem;">
+                                        <input type="checkbox" name="sonarr_ignore_cache" ${config.sonarr?.ignore_cache ? 'checked' : ''}>
+                                        Ignore Cache
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </details>
+
+                <!-- Save Button -->
+                <div style="display: flex; justify-content: flex-end; gap: 0.5rem;">
+                    <button type="button" class="btn btn-primary" onclick="Settings.saveKometaConfig()">
+                        <i class="fas fa-save"></i> Save Configuration
+                    </button>
+                </div>
+            </form>
+        `;
+    },
+
+    renderKometaLibraryRow(lib, idx, collectionCategories, overlayCategories, availableLibraries) {
+        const selectedCollections = lib.collection_files?.map(cf => typeof cf === 'string' ? cf : cf.default) || [];
+        const selectedOverlays = lib.overlay_files?.map(of => typeof of === 'string' ? of : of.default) || [];
+
+        // Group available libraries by server
+        const librariesByServer = {};
+        (availableLibraries || []).forEach(l => {
+            if (!librariesByServer[l.serverName]) {
+                librariesByServer[l.serverName] = [];
+            }
+            librariesByServer[l.serverName].push(l);
+        });
+
+        // Build library options HTML
+        let libraryOptionsHtml = '<option value="">-- Select Library --</option>';
+        for (const serverName in librariesByServer) {
+            libraryOptionsHtml += `<optgroup label="${Utils.escapeHtml(serverName)}">`;
+            librariesByServer[serverName].forEach(l => {
+                const typeIcon = l.type === 'movie' ? '🎬' : (l.type === 'show' ? '📺' : '📚');
+                const selected = lib.name === l.name ? 'selected' : '';
+                libraryOptionsHtml += `<option value="${Utils.escapeHtml(l.name)}" ${selected}>${typeIcon} ${Utils.escapeHtml(l.name)}</option>`;
+            });
+            libraryOptionsHtml += '</optgroup>';
+        }
+
+        // Build collections checkboxes by category
+        let collectionsHtml = '';
+        for (const [category, presets] of Object.entries(collectionCategories)) {
+            collectionsHtml += `<div style="margin-bottom: 0.5rem;">
+                <div style="font-weight: 600; font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.25rem; text-transform: uppercase;">${category}</div>
+                <div style="display: flex; flex-wrap: wrap; gap: 0.25rem;">`;
+            for (const p of presets) {
+                const checked = selectedCollections.includes(p.value) ? 'checked' : '';
+                collectionsHtml += `
+                    <label class="kometa-chip ${checked ? 'selected' : ''}" title="${p.desc}" style="display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.25rem 0.5rem; border: 1px solid var(--border-color); border-radius: 4px; cursor: pointer; font-size: 0.8rem; background: ${checked ? 'var(--primary-color)' : 'var(--bg-color)'}; color: ${checked ? '#fff' : 'var(--text-color)'}; transition: all 0.15s;">
+                        <input type="checkbox" name="lib_${idx}_col_${p.value}" value="${p.value}" ${checked} style="display: none;"
+                               onchange="this.parentElement.classList.toggle('selected', this.checked); this.parentElement.style.background = this.checked ? 'var(--primary-color)' : 'var(--bg-color)'; this.parentElement.style.color = this.checked ? '#fff' : 'var(--text-color)';">
+                        ${p.label}
+                    </label>`;
+            }
+            collectionsHtml += '</div></div>';
+        }
+
+        // Build overlays checkboxes by category
+        let overlaysHtml = '';
+        for (const [category, presets] of Object.entries(overlayCategories)) {
+            overlaysHtml += `<div style="margin-bottom: 0.5rem;">
+                <div style="font-weight: 600; font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.25rem; text-transform: uppercase;">${category}</div>
+                <div style="display: flex; flex-wrap: wrap; gap: 0.25rem;">`;
+            for (const p of presets) {
+                const checked = selectedOverlays.includes(p.value) ? 'checked' : '';
+                overlaysHtml += `
+                    <label class="kometa-chip ${checked ? 'selected' : ''}" title="${p.desc}" style="display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.25rem 0.5rem; border: 1px solid var(--border-color); border-radius: 4px; cursor: pointer; font-size: 0.8rem; background: ${checked ? 'var(--success-color, #28a745)' : 'var(--bg-color)'}; color: ${checked ? '#fff' : 'var(--text-color)'}; transition: all 0.15s;">
+                        <input type="checkbox" name="lib_${idx}_ovl_${p.value}" value="${p.value}" ${checked} style="display: none;"
+                               onchange="this.parentElement.classList.toggle('selected', this.checked); this.parentElement.style.background = this.checked ? 'var(--success-color, #28a745)' : 'var(--bg-color)'; this.parentElement.style.color = this.checked ? '#fff' : 'var(--text-color)';">
+                        ${p.label}
+                    </label>`;
+            }
+            overlaysHtml += '</div></div>';
+        }
+
+        return `
+            <div class="kometa-library-row" data-index="${idx}" style="border: 1px solid var(--border-color); border-radius: 8px; padding: 1rem; margin-bottom: 1rem; background: var(--card-bg, var(--bg-color));">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--border-color);">
+                    <select class="form-select" name="library_name_${idx}" style="flex: 1; margin-right: 0.5rem; font-weight: 600;">
+                        ${libraryOptionsHtml}
+                    </select>
+                    <button type="button" class="btn btn-sm btn-danger" onclick="Settings.removeKometaLibrary(${idx})" title="Remove library">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+                    <!-- Collections -->
+                    <div>
+                        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem;">
+                            <i class="fas fa-layer-group" style="color: var(--primary-color);"></i>
+                            <span style="font-weight: 600;">Collections</span>
+                            <small style="color: var(--text-secondary);">(click to select)</small>
+                        </div>
+                        <div style="max-height: 300px; overflow-y: auto; padding-right: 0.5rem;">
+                            ${collectionsHtml}
+                        </div>
+                    </div>
+
+                    <!-- Overlays -->
+                    <div>
+                        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem;">
+                            <i class="fas fa-images" style="color: var(--success-color, #28a745);"></i>
+                            <span style="font-weight: 600;">Overlays</span>
+                            <small style="color: var(--text-secondary);">(click to select)</small>
+                        </div>
+                        <div style="max-height: 300px; overflow-y: auto; padding-right: 0.5rem;">
+                            ${overlaysHtml}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    },
+
+    // ========== COLLECTION MANAGEMENT FUNCTIONS ==========
+
+    // Collection type definitions
+    kometaCollectionTypes: {
+        genre: { name: 'Genre', icon: '🎭', description: 'Action, Comedy, Drama, Horror, etc.' },
+        holiday: { name: 'Holiday', icon: '🎄', description: 'Seasonal collections with date ranges' },
+        decade: { name: 'Decade', icon: '📅', description: 'Collections by era (2020s, 1990s, etc.)' },
+        awards: { name: 'Awards', icon: '🏆', description: 'Oscar, Emmy, Golden Globe winners' },
+        network: { name: 'Network/Streaming', icon: '📺', description: 'Netflix, HBO, Disney+, etc.' },
+        studio: { name: 'Studio', icon: '🎬', description: 'Marvel, Pixar, Disney, etc.' },
+        custom: { name: 'Custom', icon: '✨', description: 'Create from Trakt/IMDb lists' }
+    },
+
+    // Render a collection card for the list
+    renderKometaCollectionCard(col, idx, libraries) {
+        const typeInfo = this.kometaCollectionTypes[col.type] || { name: col.type, icon: '📦', description: '' };
+        const libraryNames = col.libraries || [];
+        const libraryDisplay = libraryNames.length === 0
+            ? '<span style="color: var(--text-warning);">No libraries selected</span>'
+            : libraryNames.map(l => `<span style="background: var(--bg-color); padding: 0.1rem 0.4rem; border-radius: 3px; font-size: 0.7rem;">${Utils.escapeHtml(l)}</span>`).join(' ');
+
+        // Get summary text based on type
+        let summaryText = '';
+        if (col.type === 'custom') {
+            summaryText = col.name || 'Unnamed Collection';
+        } else if (col.type === 'genre' && col.settings?.items) {
+            summaryText = col.settings.items.slice(0, 4).join(', ') + (col.settings.items.length > 4 ? '...' : '');
+        } else if (col.type === 'holiday' && col.settings?.items) {
+            const holidays = Object.keys(col.settings.items).filter(k => col.settings.items[k]?.enabled !== false);
+            summaryText = holidays.slice(0, 3).map(h => h.replace(/_/g, ' ')).join(', ') + (holidays.length > 3 ? '...' : '');
+        } else if (col.type === 'decade' && col.settings?.items) {
+            summaryText = col.settings.items.slice(0, 4).join(', ') + (col.settings.items.length > 4 ? '...' : '');
+        } else if (col.type === 'awards' && col.settings?.items) {
+            summaryText = col.settings.items.slice(0, 2).join(', ') + (col.settings.items.length > 2 ? '...' : '');
+        } else if ((col.type === 'network' || col.type === 'studio') && col.settings?.items) {
+            summaryText = col.settings.items.slice(0, 4).join(', ') + (col.settings.items.length > 4 ? '...' : '');
+        }
+
+        return `
+            <div class="kometa-collection-card" data-index="${idx}" style="background: var(--bg-color); border: 1px solid var(--border-color); border-radius: 6px; padding: 0.75rem;">
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <span style="font-size: 1.2rem;">${typeInfo.icon}</span>
+                    <div style="flex: 1;">
+                        <div style="font-weight: 500;">${col.type === 'custom' ? Utils.escapeHtml(col.name || 'Custom Collection') : typeInfo.name + ' Collection'}</div>
+                        <div style="font-size: 0.75rem; color: var(--text-secondary);">${summaryText || typeInfo.description}</div>
+                    </div>
+                    <div style="display: flex; gap: 0.25rem;">
+                        <button type="button" class="btn btn-sm" onclick="Settings.editKometaCollection(${idx})" title="Edit">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button type="button" class="btn btn-sm btn-danger" onclick="Settings.removeKometaCollection(${idx})" title="Delete">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+                <div style="margin-top: 0.5rem; display: flex; flex-wrap: wrap; gap: 0.25rem; align-items: center;">
+                    <span style="font-size: 0.7rem; color: var(--text-secondary);">Libraries:</span>
+                    ${libraryDisplay}
+                </div>
+            </div>
+        `;
+    },
+
+    // Show the Add Collection form
+    showAddKometaCollectionForm(editIdx = null) {
+        const libraries = this.kometaConfigState?.availableLibraries || [];
+        const isEdit = editIdx !== null;
+        const existingCol = isEdit ? (this.kometaConfigState.config.collections || [])[editIdx] : null;
+        const selectedType = existingCol?.type || 'genre';
+
+        const modalContent = `
+            <div style="display: grid; gap: 1rem;">
+                <div>
+                    <label class="form-label">Collection Type</label>
+                    <select class="form-select" id="kometa-col-type" onchange="Settings.updateCollectionTypeForm()" ${isEdit ? 'disabled' : ''}>
+                        ${Object.entries(this.kometaCollectionTypes).map(([key, info]) => `
+                            <option value="${key}" ${selectedType === key ? 'selected' : ''}>${info.icon} ${info.name} - ${info.description}</option>
+                        `).join('')}
+                    </select>
+                </div>
+
+                <div>
+                    <label class="form-label">Target Libraries</label>
+                    <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px; background: var(--bg-color);">
+                        ${libraries.length > 0 ? libraries.map(lib => {
+                            const isSelected = existingCol?.libraries?.includes(lib.name) || false;
+                            const typeIcon = lib.type === 'movie' ? '🎬' : '📺';
+                            return `
+                            <label style="display: flex; align-items: center; gap: 0.25rem; cursor: pointer; font-size: 0.85rem; padding: 0.25rem 0.5rem; background: var(--card-bg); border-radius: 4px; border: 1px solid var(--border-color);">
+                                <input type="checkbox" class="kometa-col-lib" data-library="${Utils.escapeHtml(lib.name)}" ${isSelected ? 'checked' : ''}>
+                                ${typeIcon} ${Utils.escapeHtml(lib.name)}
+                            </label>`;
+                        }).join('') : '<span style="color: var(--text-secondary);">No libraries available</span>'}
+                    </div>
+                </div>
+
+                <div id="kometa-col-type-settings">
+                    <!-- Type-specific settings will be inserted here -->
+                </div>
+
+                <!-- Common Options for ALL Collection Types -->
+                <div style="border: 1px solid var(--border-color); border-radius: 8px; padding: 1rem; background: var(--bg-secondary);">
+                    <h4 style="margin: 0 0 0.75rem 0; font-size: 0.9rem;"><i class="fas fa-cogs"></i> Common Options</h4>
+
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem;">
+                        <!-- Visibility Options (hidden for holiday type since it has per-item visibility) -->
+                        <div id="kometa-col-visibility-section" style="display: ${selectedType === 'holiday' ? 'none' : 'flex'}; flex-direction: column; gap: 0.5rem;">
+                            <label style="font-size: 0.75rem; font-weight: 600; color: var(--text-secondary);">VISIBILITY</label>
+                            <label style="display: flex; align-items: center; gap: 0.25rem; font-size: 0.85rem; cursor: pointer;">
+                                <input type="checkbox" id="kometa-col-visible-home" ${existingCol?.visible_home !== false ? 'checked' : ''}>
+                                Visible on Home
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.25rem; font-size: 0.85rem; cursor: pointer;">
+                                <input type="checkbox" id="kometa-col-visible-shared" ${existingCol?.visible_shared !== false ? 'checked' : ''}>
+                                Visible on Shared
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.25rem; font-size: 0.85rem; cursor: pointer;">
+                                <input type="checkbox" id="kometa-col-visible-library" ${existingCol?.visible_library !== false ? 'checked' : ''}>
+                                Visible in Library
+                            </label>
+                        </div>
+
+                        <!-- Radarr Options (Movies) -->
+                        <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                            <label style="font-size: 0.75rem; font-weight: 600; color: var(--text-secondary);">RADARR (Movies)</label>
+                            <label style="display: flex; align-items: center; gap: 0.25rem; font-size: 0.85rem; cursor: pointer;">
+                                <input type="checkbox" id="kometa-col-radarr-add" ${existingCol?.radarr_add_missing ? 'checked' : ''}>
+                                Add Missing
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.25rem; font-size: 0.85rem; cursor: pointer;">
+                                <input type="checkbox" id="kometa-col-radarr-search" ${existingCol?.radarr_search ? 'checked' : ''}>
+                                Search
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.25rem; font-size: 0.85rem; cursor: pointer;">
+                                <input type="checkbox" id="kometa-col-radarr-monitor" ${existingCol?.radarr_monitor ? 'checked' : ''}>
+                                Monitor
+                            </label>
+                        </div>
+
+                        <!-- Sonarr Options (TV) -->
+                        <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                            <label style="font-size: 0.75rem; font-weight: 600; color: var(--text-secondary);">SONARR (TV Shows)</label>
+                            <label style="display: flex; align-items: center; gap: 0.25rem; font-size: 0.85rem; cursor: pointer;">
+                                <input type="checkbox" id="kometa-col-sonarr-add" ${existingCol?.sonarr_add_missing ? 'checked' : ''}>
+                                Add Missing
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.25rem; font-size: 0.85rem; cursor: pointer;">
+                                <input type="checkbox" id="kometa-col-sonarr-search" ${existingCol?.sonarr_search ? 'checked' : ''}>
+                                Search
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.25rem; font-size: 0.85rem; cursor: pointer;">
+                                <input type="checkbox" id="kometa-col-sonarr-monitor" ${existingCol?.sonarr_monitor ? 'checked' : ''}>
+                                Monitor
+                            </label>
+                        </div>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; margin-top: 0.75rem;">
+                        <div>
+                            <label style="font-size: 0.7rem; color: var(--text-secondary);">Sync Mode</label>
+                            <select class="form-select" id="kometa-col-sync-mode" style="padding: 0.35rem; font-size: 0.85rem;">
+                                <option value="sync" ${(existingCol?.sync_mode || 'sync') === 'sync' ? 'selected' : ''}>Sync (Remove items not in source)</option>
+                                <option value="append" ${existingCol?.sync_mode === 'append' ? 'selected' : ''}>Append (Keep existing items)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="font-size: 0.7rem; color: var(--text-secondary);">Limit (max items)</label>
+                            <input type="number" class="form-input" id="kometa-col-limit" value="${existingCol?.limit || ''}" placeholder="No limit" min="1" max="1000" style="padding: 0.35rem; font-size: 0.85rem;">
+                        </div>
+                        <div>
+                            <label style="font-size: 0.7rem; color: var(--text-secondary);">Minimum Items (to show)</label>
+                            <input type="number" class="form-input" id="kometa-col-minimum" value="${existingCol?.minimum_items || ''}" placeholder="1" min="1" max="100" style="padding: 0.35rem; font-size: 0.85rem;">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        Utils.showModal({
+            title: isEdit ? 'Edit Collection' : 'Add Collection',
+            body: modalContent,
+            size: 'large',
+            buttons: [
+                {
+                    text: 'Cancel',
+                    class: 'btn-outline',
+                    onClick: () => Utils.closeModal()
+                },
+                {
+                    text: 'Save Collection',
+                    class: 'btn-success',
+                    onClick: () => this.saveKometaCollectionFromForm(editIdx)
+                }
+            ]
+        });
+
+        // Initialize type-specific form
+        setTimeout(() => {
+            this.updateCollectionTypeForm(existingCol);
+        }, 50);
+    },
+
+    // Update the form based on selected collection type
+    updateCollectionTypeForm(existingCol = null) {
+        const typeSelect = document.getElementById('kometa-col-type');
+        const settingsDiv = document.getElementById('kometa-col-type-settings');
+        if (!typeSelect || !settingsDiv) return;
+
+        const type = typeSelect.value;
+        const settings = existingCol?.type === type ? (existingCol?.settings || {}) : {};
+
+        let html = '';
+        switch (type) {
+            case 'genre':
+                // Genre definitions with default poster IDs (from PosterDB) and summaries
+                const genres = [
+                    { key: 'action', name: 'Action', poster: '213118', summary: 'Action films are a genre wherein physical action takes precedence in the storytelling. The film will often have continuous motion and action including physical stunts, chases, fights, battles, and races.' },
+                    { key: 'adventure', name: 'Adventure', poster: '213132', summary: 'Adventure films are a genre that revolves around the conquests and explorations of a protagonist.' },
+                    { key: 'animation', name: 'Animation', poster: '213126', summary: 'Animated films are a collection of illustrations that are photographed frame-by-frame and then played in quick succession.' },
+                    { key: 'anime', name: 'Anime', poster: '213614', summary: 'As a type of animation, anime is an art form that comprises of many genres found in other mediums.' },
+                    { key: 'biography', name: 'Biography', poster: '213332', summary: 'Biography films are a genre that dramatizes the life of a non-fictional or historically-based person or people.' },
+                    { key: 'comedy', name: 'Comedy', poster: '213139', summary: 'Comedy is a genre of film that uses humor as a driving force.' },
+                    { key: 'crime', name: 'Crime', poster: '213113', summary: 'Crime films are a genre that revolves around the action of a criminal mastermind.' },
+                    { key: 'documentary', name: 'Documentary', poster: '213141', summary: 'Documentary films are a non-fiction genre intended to document reality primarily for education or historical record.' },
+                    { key: 'drama', name: 'Drama', poster: '213134', summary: 'Drama films are a genre that relies on the emotional and relational development of realistic characters.' },
+                    { key: 'family', name: 'Family', poster: '213109', summary: 'Family films are a genre that contains appropriate content for younger viewers.' },
+                    { key: 'fantasy', name: 'Fantasy', poster: '213123', summary: 'Fantasy films are a genre that incorporates imaginative and fantastic themes.' },
+                    { key: 'film_noir', name: 'Film-Noir', poster: '213339', summary: 'Film noir is a cinematic term used primarily to describe stylish Hollywood crime dramas.' },
+                    { key: 'gangster', name: 'Gangster', poster: '213102', summary: 'Gangster films are a sub-genre of crime films that center on organized crime or the mafia.', special: true },
+                    { key: 'history', name: 'History', poster: '213100', summary: 'History films are a genre that takes historical events and people and interprets them in a larger scale.' },
+                    { key: 'horror', name: 'Horror', poster: '213106', summary: 'Horror films are a genre that aims to create a sense of fear, panic, alarm, and dread for the audience.' },
+                    { key: 'martial_arts', name: 'Martial Arts', poster: '213140', summary: 'Martial Arts films are a sub-genre of action films that feature numerous martial arts combat between characters.', special: true },
+                    { key: 'musical', name: 'Musical', poster: '213095', summary: 'A Musical interweaves vocal and dance performances into the narrative of the film.' },
+                    { key: 'music', name: 'Music', poster: '213098', summary: 'Music films are a genre that revolves around music being an integral part of the characters lives.', special: true },
+                    { key: 'mystery', name: 'Mystery', poster: '213092', summary: 'A Mystery film centers on a person of authority trying to solve a mysterious crime.' },
+                    { key: 'pandemic', name: 'Pandemic', poster: '213077', summary: 'A Pandemic film resolves around widespread viruses, plagues, and diseases.', special: true },
+                    { key: 'romance', name: 'Romance', poster: '213090', summary: 'Romance film revolves around the love between two protagonists.' },
+                    { key: 'romantic_comedy', name: 'Romantic Comedy', poster: '213087', summary: 'Romantic Comedy is a genre that catches the viewer\'s heart with the combination of love and humor.', imdb_genre: true },
+                    { key: 'romantic_drama', name: 'Romantic Drama', poster: '213142', summary: 'Romantic Drama films are a genre that explores the complex side of love.', imdb_genre: true },
+                    { key: 'science_fiction', name: 'Science Fiction', poster: '213085', summary: 'Science Fiction films incorporate hypothetical, science-based themes into the plot.' },
+                    { key: 'short', name: 'Short', poster: '213336', summary: 'A collection of Short movies.' },
+                    { key: 'slasher', name: 'Slasher', poster: '213358', summary: 'Slasher films are a subgenre of horror involving a killer murdering a group of people.', imdb_keyword: true },
+                    { key: 'sports', name: 'Sports', poster: '213083', summary: 'A Sport Film revolves around a sport setting, event, or an athlete.' },
+                    { key: 'stand_up_comedy', name: 'Stand Up Comedy', poster: '213081', summary: 'Stand-up comedy is a comedic style in which a comedian performs in front of a live audience.', special: true },
+                    { key: 'superhero', name: 'Superhero', poster: '213341', summary: 'A superhero film focuses on the actions of superheroes with extraordinary abilities.', imdb_keyword: true },
+                    { key: 'thriller', name: 'Thriller', poster: '213079', summary: 'Thriller films are a genre that revolves around anticipation and suspense.' },
+                    { key: 'war', name: 'War', poster: '213119', summary: 'War films are a genre that looks at the reality of war on a grand scale.' },
+                    { key: 'western', name: 'Western', poster: '213122', summary: 'Western films are a genre that revolves around stories primarily set in the late 19th century American Old West.' }
+                ];
+                html = `
+                    <label class="form-label">Configure Genres</label>
+                    <div style="display: grid; gap: 0.5rem; max-height: 450px; overflow-y: auto; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px;">
+                        ${genres.map(g => {
+                            const gConfig = settings.items?.[g.key] || { enabled: true, poster: g.poster, summary: g.summary };
+                            const templateType = gConfig.template_type || (g.special ? 'special' : (g.imdb_genre ? 'imdb_genre' : (g.imdb_keyword ? 'imdb_keyword' : 'dynamic')));
+                            return `
+                            <div style="border: 1px solid var(--border-color); border-radius: 4px; padding: 0.5rem; background: var(--bg-color);">
+                                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-weight: 500;">
+                                    <input type="checkbox" class="kometa-genre-enabled" data-key="${g.key}" ${gConfig.enabled !== false ? 'checked' : ''}>
+                                    🎬 ${g.name}
+                                </label>
+                                <div class="kometa-genre-details" style="display: grid; gap: 0.5rem; margin-top: 0.5rem; margin-left: 1.5rem;">
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.5rem;">
+                                        <div>
+                                            <label style="font-size: 0.7rem; color: var(--text-secondary);">Template Type</label>
+                                            <select class="form-select kometa-genre-template" data-key="${g.key}" style="padding: 0.25rem; font-size: 0.85rem;" onchange="Settings.toggleGenreKeywordField('${g.key}', this.value)">
+                                                <option value="dynamic" ${templateType === 'dynamic' ? 'selected' : ''}>Dynamic (Smart Filter)</option>
+                                                <option value="plex" ${templateType === 'plex' ? 'selected' : ''}>Plex Search</option>
+                                                <option value="special" ${templateType === 'special' ? 'selected' : ''}>Special (Custom Lists)</option>
+                                                <option value="imdb_genre" ${templateType === 'imdb_genre' ? 'selected' : ''}>IMDb Genre Search</option>
+                                                <option value="imdb_keyword" ${templateType === 'imdb_keyword' ? 'selected' : ''}>IMDb Keyword Search</option>
+                                            </select>
+                                        </div>
+                                        <div class="kometa-genre-keyword-wrapper" data-key="${g.key}" style="display: ${templateType === 'imdb_keyword' ? 'block' : 'none'};">
+                                            <label style="font-size: 0.7rem; color: var(--text-secondary);">IMDb Keyword</label>
+                                            <input type="text" class="form-input kometa-genre-keyword" data-key="${g.key}" value="${Utils.escapeHtml(gConfig.imdb_keyword || g.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'))}" placeholder="${g.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}" style="padding: 0.25rem; font-size: 0.85rem;">
+                                        </div>
+                                        <div>
+                                            <label style="font-size: 0.7rem; color: var(--text-secondary);">Poster ID (PosterDB)</label>
+                                            <input type="text" class="form-input kometa-genre-poster" data-key="${g.key}" value="${Utils.escapeHtml(gConfig.poster || g.poster)}" placeholder="${g.poster}" style="padding: 0.25rem; font-size: 0.85rem;">
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label style="font-size: 0.7rem; color: var(--text-secondary);">Summary</label>
+                                        <input type="text" class="form-input kometa-genre-summary" data-key="${g.key}" value="${Utils.escapeHtml(gConfig.summary || g.summary)}" placeholder="${g.summary}" style="padding: 0.25rem; font-size: 0.85rem;">
+                                    </div>
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+                                        <div>
+                                            <label style="font-size: 0.7rem; color: var(--text-secondary);">Trakt Lists (one per line)</label>
+                                            <textarea class="form-input kometa-genre-trakt" data-key="${g.key}" rows="2" placeholder="https://trakt.tv/users/.../lists/..." style="padding: 0.25rem; font-size: 0.8rem;">${Utils.escapeHtml(gConfig.trakt_lists || '')}</textarea>
+                                        </div>
+                                        <div>
+                                            <label style="font-size: 0.7rem; color: var(--text-secondary);">IMDb Lists (one per line)</label>
+                                            <textarea class="form-input kometa-genre-imdb" data-key="${g.key}" rows="2" placeholder="https://www.imdb.com/list/..." style="padding: 0.25rem; font-size: 0.8rem;">${Utils.escapeHtml(gConfig.imdb_lists || '')}</textarea>
+                                        </div>
+                                    </div>
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.5rem;">
+                                        <div>
+                                            <label style="font-size: 0.7rem; color: var(--text-secondary);">Sort Title</label>
+                                            <input type="text" class="form-input kometa-genre-sort" data-key="${g.key}" value="${Utils.escapeHtml(gConfig.sort_title || '')}" placeholder="++++++++_${g.name}" style="padding: 0.25rem; font-size: 0.85rem;">
+                                        </div>
+                                        <div>
+                                            <label style="font-size: 0.7rem; color: var(--text-secondary);">Collection Mode</label>
+                                            <select class="form-select kometa-genre-mode" data-key="${g.key}" style="padding: 0.25rem; font-size: 0.85rem;">
+                                                <option value="hide" ${(gConfig.collection_mode || 'hide') === 'hide' ? 'selected' : ''}>Hide</option>
+                                                <option value="default" ${gConfig.collection_mode === 'default' ? 'selected' : ''}>Default</option>
+                                                <option value="show_items" ${gConfig.collection_mode === 'show_items' ? 'selected' : ''}>Show Items</option>
+                                                <option value="hide_items" ${gConfig.collection_mode === 'hide_items' ? 'selected' : ''}>Hide Items</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label style="font-size: 0.7rem; color: var(--text-secondary);">Collection Order</label>
+                                            <select class="form-select kometa-genre-order" data-key="${g.key}" style="padding: 0.25rem; font-size: 0.85rem;">
+                                                <option value="release.desc" ${(gConfig.collection_order || 'release.desc') === 'release.desc' ? 'selected' : ''}>Release (Newest)</option>
+                                                <option value="release.asc" ${gConfig.collection_order === 'release.asc' ? 'selected' : ''}>Release (Oldest)</option>
+                                                <option value="alpha" ${gConfig.collection_order === 'alpha' ? 'selected' : ''}>Alphabetical</option>
+                                                <option value="random" ${gConfig.collection_order === 'random' ? 'selected' : ''}>Random</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        `}).join('')}
+                    </div>
+                `;
+                break;
+
+            case 'decade':
+                const decades = [
+                    { name: "2020s", key: "2020s", decade: 2020, defaultPoster: "https://theposterdb.com/api/assets/425265" },
+                    { name: "2010s", key: "2010s", decade: 2010, defaultPoster: "https://theposterdb.com/api/assets/425264" },
+                    { name: "2000s", key: "2000s", decade: 2000, defaultPoster: "https://theposterdb.com/api/assets/425263" },
+                    { name: "1990s", key: "1990s", decade: 1990, defaultPoster: "https://theposterdb.com/api/assets/425262" },
+                    { name: "1980s", key: "1980s", decade: 1980, defaultPoster: "https://theposterdb.com/api/assets/425261" },
+                    { name: "1970s", key: "1970s", decade: 1970, defaultPoster: "https://theposterdb.com/api/assets/425260" },
+                    { name: "1960s", key: "1960s", decade: 1960, defaultPoster: "https://theposterdb.com/api/assets/425259" },
+                    { name: "1950s", key: "1950s", decade: 1950, defaultPoster: "https://theposterdb.com/api/assets/425258" },
+                    { name: "1940s", key: "1940s", decade: 1940, defaultPoster: "https://theposterdb.com/api/assets/425257" },
+                    { name: "1930s", key: "1930s", decade: 1930, defaultPoster: "https://theposterdb.com/api/assets/425256" }
+                ];
+                html = `
+                    <label class="form-label">Configure Decades</label>
+                    <div style="display: grid; gap: 0.5rem; max-height: 400px; overflow-y: auto; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px;">
+                        ${decades.map(d => {
+                            const dConfig = settings.items?.[d.key] || { enabled: true, poster: d.defaultPoster, summary: `A collection of films from the ${d.name}` };
+                            return `
+                            <div style="border: 1px solid var(--border-color); border-radius: 4px; padding: 0.5rem; background: var(--bg-color);">
+                                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-weight: 500;">
+                                    <input type="checkbox" class="kometa-decade-enabled" data-key="${d.key}" data-decade="${d.decade}" ${dConfig.enabled !== false ? 'checked' : ''}>
+                                    📅 ${d.name}
+                                </label>
+                                <div class="kometa-decade-details" style="display: grid; gap: 0.5rem; margin-top: 0.5rem; margin-left: 1.5rem;">
+                                    <div>
+                                        <label style="font-size: 0.7rem; color: var(--text-secondary);">Collection Name</label>
+                                        <input type="text" class="form-input kometa-decade-name" data-key="${d.key}" value="${Utils.escapeHtml(dConfig.name || d.name + "'s Films")}" placeholder="${d.name}'s Films" style="padding: 0.25rem; font-size: 0.85rem;">
+                                    </div>
+                                    <div>
+                                        <label style="font-size: 0.7rem; color: var(--text-secondary);">Poster URL</label>
+                                        <input type="text" class="form-input kometa-decade-poster" data-key="${d.key}" value="${Utils.escapeHtml(dConfig.poster || d.defaultPoster)}" placeholder="${d.defaultPoster}" style="padding: 0.25rem; font-size: 0.85rem;">
+                                    </div>
+                                    <div>
+                                        <label style="font-size: 0.7rem; color: var(--text-secondary);">Summary</label>
+                                        <input type="text" class="form-input kometa-decade-summary" data-key="${d.key}" value="${Utils.escapeHtml(dConfig.summary || 'A collection of films from the ' + d.name)}" placeholder="A collection of films from the ${d.name}" style="padding: 0.25rem; font-size: 0.85rem;">
+                                    </div>
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+                                        <div>
+                                            <label style="font-size: 0.7rem; color: var(--text-secondary);">Collection Mode</label>
+                                            <select class="form-select kometa-decade-mode" data-key="${d.key}" style="padding: 0.25rem; font-size: 0.85rem;">
+                                                <option value="hide" ${(dConfig.collection_mode || 'hide') === 'hide' ? 'selected' : ''}>Hide</option>
+                                                <option value="default" ${dConfig.collection_mode === 'default' ? 'selected' : ''}>Default</option>
+                                                <option value="show_items" ${dConfig.collection_mode === 'show_items' ? 'selected' : ''}>Show Items</option>
+                                                <option value="hide_items" ${dConfig.collection_mode === 'hide_items' ? 'selected' : ''}>Hide Items</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label style="font-size: 0.7rem; color: var(--text-secondary);">Sort Title</label>
+                                            <input type="text" class="form-input kometa-decade-sort" data-key="${d.key}" value="${Utils.escapeHtml(dConfig.sort_title || '')}" placeholder="++++_${d.name}" style="padding: 0.25rem; font-size: 0.85rem;">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        `}).join('')}
+                    </div>
+                `;
+                break;
+
+            case 'awards':
+                // Awards definitions with IMDb lists and default posters
+                const awards = [
+                    { key: 'oscars_best_picture', name: 'Oscars Best Picture Winners', imdb_list: 'https://www.imdb.com/list/ls000049714/', poster: 'https://i.ibb.co/2v0qWxY/Oscar-Winners-best-picture.jpg', summary: 'The 20 most recent Academy Award Best Picture winners, sorted from newest to oldest.' },
+                    { key: 'oscars_best_director', name: 'Oscars Best Director Winners', imdb_list: 'https://www.imdb.com/list/ls003041051/', poster: '', summary: 'The 20 most recent Academy Award Best Director winners, sorted from newest to oldest.' },
+                    { key: 'golden_globes_drama', name: 'Golden Globes Drama Winners', imdb_list: 'https://www.imdb.com/list/ls055592025/', poster: '', summary: 'The 20 most recent Golden Globe Best Picture Drama winners, sorted from newest to oldest.' },
+                    { key: 'golden_globes_comedy', name: 'Golden Globes Comedy Winners', imdb_list: 'https://www.imdb.com/list/ls055592456/', poster: '', summary: 'The 20 most recent Golden Globe Best Picture Comedy/Musical winners, sorted from newest to oldest.' },
+                    { key: 'emmy_awards', name: 'Emmy Awards', imdb_list: 'https://www.imdb.com/list/ls066790497/', poster: '', summary: 'Emmy Award winning shows.' },
+                    { key: 'bafta', name: 'BAFTA Awards', imdb_list: 'https://www.imdb.com/list/ls041427818/', poster: '', summary: 'BAFTA Award winning films.' },
+                    { key: 'cannes', name: 'Cannes Film Festival', imdb_list: 'https://www.imdb.com/list/ls004285275/', poster: '', summary: 'Cannes Film Festival award winners.' },
+                    { key: 'sundance', name: 'Sundance Film Festival', imdb_list: 'https://www.imdb.com/list/ls063540414/', poster: '', summary: 'Sundance Film Festival award winners.' },
+                    { key: 'critics_choice', name: 'Critics Choice Awards', imdb_list: 'https://www.imdb.com/list/ls062089437/', poster: '', summary: 'Critics Choice Award winners.' },
+                    { key: 'sag_awards', name: 'SAG Awards', imdb_list: 'https://www.imdb.com/list/ls063540414/', poster: '', summary: 'Screen Actors Guild Award winners.' }
+                ];
+                html = `
+                    <label class="form-label">Configure Awards Collections</label>
+                    <div style="display: grid; gap: 0.5rem; max-height: 450px; overflow-y: auto; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px;">
+                        ${awards.map(a => {
+                            const aConfig = settings.items?.[a.key] || { enabled: true, imdb_list: a.imdb_list, poster: a.poster, summary: a.summary };
+                            return `
+                            <div style="border: 1px solid var(--border-color); border-radius: 4px; padding: 0.5rem; background: var(--bg-color);">
+                                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-weight: 500;">
+                                    <input type="checkbox" class="kometa-award-enabled" data-key="${a.key}" ${aConfig.enabled !== false ? 'checked' : ''}>
+                                    🏆 ${a.name}
+                                </label>
+                                <div class="kometa-award-details" style="display: grid; gap: 0.5rem; margin-top: 0.5rem; margin-left: 1.5rem;">
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+                                        <div>
+                                            <label style="font-size: 0.7rem; color: var(--text-secondary);">IMDb List URL</label>
+                                            <input type="text" class="form-input kometa-award-imdb" data-key="${a.key}" value="${Utils.escapeHtml(aConfig.imdb_list || a.imdb_list)}" placeholder="${a.imdb_list}" style="padding: 0.25rem; font-size: 0.85rem;">
+                                        </div>
+                                        <div>
+                                            <label style="font-size: 0.7rem; color: var(--text-secondary);">Trakt List URL</label>
+                                            <input type="text" class="form-input kometa-award-trakt" data-key="${a.key}" value="${Utils.escapeHtml(aConfig.trakt_list || '')}" placeholder="https://trakt.tv/users/.../lists/..." style="padding: 0.25rem; font-size: 0.85rem;">
+                                        </div>
+                                    </div>
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+                                        <div>
+                                            <label style="font-size: 0.7rem; color: var(--text-secondary);">Poster URL</label>
+                                            <input type="text" class="form-input kometa-award-poster" data-key="${a.key}" value="${Utils.escapeHtml(aConfig.poster || a.poster)}" placeholder="https://..." style="padding: 0.25rem; font-size: 0.85rem;">
+                                        </div>
+                                        <div>
+                                            <label style="font-size: 0.7rem; color: var(--text-secondary);">Summary</label>
+                                            <input type="text" class="form-input kometa-award-summary" data-key="${a.key}" value="${Utils.escapeHtml(aConfig.summary || a.summary)}" placeholder="${a.summary}" style="padding: 0.25rem; font-size: 0.85rem;">
+                                        </div>
+                                    </div>
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 0.5rem;">
+                                        <div>
+                                            <label style="font-size: 0.7rem; color: var(--text-secondary);">Sort Title</label>
+                                            <input type="text" class="form-input kometa-award-sort" data-key="${a.key}" value="${Utils.escapeHtml(aConfig.sort_title || '')}" placeholder="+++++++++++++_${a.name}" style="padding: 0.25rem; font-size: 0.85rem;">
+                                        </div>
+                                        <div>
+                                            <label style="font-size: 0.7rem; color: var(--text-secondary);">Limit</label>
+                                            <input type="number" class="form-input kometa-award-limit" data-key="${a.key}" value="${aConfig.limit || 20}" placeholder="20" min="1" max="100" style="padding: 0.25rem; font-size: 0.85rem;">
+                                        </div>
+                                        <div>
+                                            <label style="font-size: 0.7rem; color: var(--text-secondary);">Collection Mode</label>
+                                            <select class="form-select kometa-award-mode" data-key="${a.key}" style="padding: 0.25rem; font-size: 0.85rem;">
+                                                <option value="hide" ${(aConfig.collection_mode || 'hide') === 'hide' ? 'selected' : ''}>Hide</option>
+                                                <option value="default" ${aConfig.collection_mode === 'default' ? 'selected' : ''}>Default</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label style="font-size: 0.7rem; color: var(--text-secondary);">Collection Order</label>
+                                            <select class="form-select kometa-award-order" data-key="${a.key}" style="padding: 0.25rem; font-size: 0.85rem;">
+                                                <option value="release.desc" ${(aConfig.collection_order || 'release.desc') === 'release.desc' ? 'selected' : ''}>Release (Newest)</option>
+                                                <option value="release.asc" ${aConfig.collection_order === 'release.asc' ? 'selected' : ''}>Release (Oldest)</option>
+                                                <option value="alpha" ${aConfig.collection_order === 'alpha' ? 'selected' : ''}>Alphabetical</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem;">
+                                        <label style="display: flex; align-items: center; gap: 0.25rem; font-size: 0.8rem;">
+                                            <input type="checkbox" class="kometa-award-radarr-add" data-key="${a.key}" ${aConfig.radarr_add_missing ? 'checked' : ''}>
+                                            Radarr Add Missing
+                                        </label>
+                                        <label style="display: flex; align-items: center; gap: 0.25rem; font-size: 0.8rem;">
+                                            <input type="checkbox" class="kometa-award-radarr-search" data-key="${a.key}" ${aConfig.radarr_search ? 'checked' : ''}>
+                                            Radarr Search
+                                        </label>
+                                        <label style="display: flex; align-items: center; gap: 0.25rem; font-size: 0.8rem;">
+                                            <input type="checkbox" class="kometa-award-radarr-monitor" data-key="${a.key}" ${aConfig.radarr_monitor ? 'checked' : ''}>
+                                            Radarr Monitor
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        `}).join('')}
+                    </div>
+                `;
+                break;
+
+            case 'network':
+                // Network definitions with TMDb network IDs and default posters
+                const networks = [
+                    { key: 'netflix', name: 'Netflix', tmdb_network: '213', poster: 'https://theposterdb.com/api/assets/322099', category: 'streaming' },
+                    { key: 'prime_video', name: 'Prime Video', tmdb_network: '1024, 5533', poster: 'https://theposterdb.com/api/assets/323914', category: 'streaming' },
+                    { key: 'disney_plus', name: 'Disney+', tmdb_network: '2739', poster: 'https://theposterdb.com/api/assets/328911', category: 'streaming' },
+                    { key: 'hbo_max', name: 'HBO Max', tmdb_network: '3186', poster: 'https://theposterdb.com/api/assets/323584', category: 'streaming' },
+                    { key: 'hulu', name: 'Hulu', tmdb_network: '453', poster: 'https://theposterdb.com/api/assets/326888', category: 'streaming' },
+                    { key: 'apple_tv_plus', name: 'Apple TV+', tmdb_network: '2552', poster: 'https://theposterdb.com/api/assets/322100', category: 'streaming' },
+                    { key: 'paramount_plus', name: 'Paramount+', tmdb_network: '5567, 4330', poster: 'https://theposterdb.com/api/assets/327988', category: 'streaming' },
+                    { key: 'peacock', name: 'Peacock', tmdb_network: '3353', poster: 'https://theposterdb.com/api/assets/322974', category: 'streaming' },
+                    { key: 'hbo', name: 'HBO', tmdb_network: '49, 3186, 5485, 5484', poster: 'https://theposterdb.com/api/assets/323584', category: 'cable' },
+                    { key: 'showtime', name: 'Showtime', tmdb_network: '67', poster: 'https://theposterdb.com/api/assets/345385', category: 'cable' },
+                    { key: 'starz', name: 'Starz', tmdb_network: '318', poster: 'https://theposterdb.com/api/assets/324453', category: 'cable' },
+                    { key: 'amc', name: 'AMC', tmdb_network: '174, 4661, 6400', poster: 'https://theposterdb.com/api/assets/324124', category: 'cable' },
+                    { key: 'fx', name: 'FX', tmdb_network: '88, 1035', poster: 'https://theposterdb.com/api/assets/324844', category: 'cable' },
+                    { key: 'abc', name: 'ABC', tmdb_network: '18, 2, 75, 2791', poster: 'https://theposterdb.com/api/assets/326768', category: 'broadcast' },
+                    { key: 'nbc', name: 'NBC', tmdb_network: '6, 413, 3353', poster: 'https://theposterdb.com/api/assets/322974', category: 'broadcast' },
+                    { key: 'cbs', name: 'CBS', tmdb_network: '16, 1709, 2528, 2621', poster: 'https://theposterdb.com/api/assets/324744', category: 'broadcast' },
+                    { key: 'fox', name: 'FOX', tmdb_network: '19, 5201, 360, 2317', poster: 'https://theposterdb.com/api/assets/327338', category: 'broadcast' },
+                    { key: 'the_cw', name: 'The CW', tmdb_network: '71, 1049', poster: 'https://theposterdb.com/api/assets/325749', category: 'broadcast' },
+                    { key: 'bbc', name: 'BBC', tmdb_network: '4, 493, 126, 1051, 100, 414, 3590, 428, 3278, 3, 332, 1001', poster: 'https://theposterdb.com/api/assets/324227', category: 'broadcast' },
+                    { key: 'syfy', name: 'Syfy', tmdb_network: '3701, 77', poster: 'https://theposterdb.com/api/assets/324977', category: 'cable' },
+                    { key: 'adult_swim', name: 'Adult Swim', tmdb_network: '80', poster: 'https://theposterdb.com/api/assets/328376', category: 'cable' },
+                    { key: 'cartoon_network', name: 'Cartoon Network', tmdb_network: '56, 6315', poster: 'https://theposterdb.com/api/assets/327506', category: 'cable' },
+                    { key: 'nickelodeon', name: 'Nickelodeon', tmdb_network: '794, 188, 13, 224, 35', poster: 'https://theposterdb.com/api/assets/342327', category: 'cable' },
+                    { key: 'disney_channel', name: 'Disney Channels', tmdb_network: '44, 2991, 54, 142', poster: 'https://theposterdb.com/api/assets/328909', category: 'cable' },
+                    { key: 'discovery', name: 'Discovery', tmdb_network: '10, 64, 106, 244, 626, 4353, 22, 1287', poster: 'https://theposterdb.com/api/assets/345090', category: 'cable' },
+                    { key: 'history', name: 'History', tmdb_network: '65', poster: 'https://theposterdb.com/api/assets/359474', category: 'cable' },
+                    { key: 'national_geographic', name: 'National Geographic', tmdb_network: '43, 1043, 1756, 1825, 3355, 4293, 4476', poster: 'https://theposterdb.com/api/assets/305152', category: 'cable' }
+                ];
+                const streamingNets = networks.filter(n => n.category === 'streaming');
+                const cableNets = networks.filter(n => n.category === 'cable');
+                const broadcastNets = networks.filter(n => n.category === 'broadcast');
+                html = `
+                    <label class="form-label">Configure Networks</label>
+                    <div style="display: grid; gap: 0.5rem; max-height: 450px; overflow-y: auto; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px;">
+                        <div style="font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); padding: 0.25rem; background: var(--bg-secondary); border-radius: 4px;">📺 STREAMING SERVICES</div>
+                        ${streamingNets.map(n => {
+                            const nConfig = settings.items?.[n.key] || { enabled: true, tmdb_network: n.tmdb_network, poster: n.poster };
+                            return `
+                            <div style="border: 1px solid var(--border-color); border-radius: 4px; padding: 0.5rem; background: var(--bg-color);">
+                                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-weight: 500;">
+                                    <input type="checkbox" class="kometa-network-enabled" data-key="${n.key}" ${nConfig.enabled !== false ? 'checked' : ''}>
+                                    📡 ${n.name}
+                                </label>
+                                <div class="kometa-network-details" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.5rem; margin-top: 0.5rem; margin-left: 1.5rem;">
+                                    <div>
+                                        <label style="font-size: 0.7rem; color: var(--text-secondary);">TMDb Network ID(s)</label>
+                                        <input type="text" class="form-input kometa-network-tmdb" data-key="${n.key}" value="${Utils.escapeHtml(nConfig.tmdb_network || n.tmdb_network)}" placeholder="${n.tmdb_network}" style="padding: 0.25rem; font-size: 0.85rem;">
+                                    </div>
+                                    <div>
+                                        <label style="font-size: 0.7rem; color: var(--text-secondary);">Poster URL</label>
+                                        <input type="text" class="form-input kometa-network-poster" data-key="${n.key}" value="${Utils.escapeHtml(nConfig.poster || n.poster)}" placeholder="${n.poster}" style="padding: 0.25rem; font-size: 0.85rem;">
+                                    </div>
+                                    <div>
+                                        <label style="font-size: 0.7rem; color: var(--text-secondary);">Sort Title</label>
+                                        <input type="text" class="form-input kometa-network-sort" data-key="${n.key}" value="${Utils.escapeHtml(nConfig.sort_title || '')}" placeholder="+2_${n.name}" style="padding: 0.25rem; font-size: 0.85rem;">
+                                    </div>
+                                </div>
+                            </div>
+                        `}).join('')}
+                        <div style="font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); padding: 0.25rem; background: var(--bg-secondary); border-radius: 4px;">📺 CABLE NETWORKS</div>
+                        ${cableNets.map(n => {
+                            const nConfig = settings.items?.[n.key] || { enabled: true, tmdb_network: n.tmdb_network, poster: n.poster };
+                            return `
+                            <div style="border: 1px solid var(--border-color); border-radius: 4px; padding: 0.5rem; background: var(--bg-color);">
+                                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-weight: 500;">
+                                    <input type="checkbox" class="kometa-network-enabled" data-key="${n.key}" ${nConfig.enabled !== false ? 'checked' : ''}>
+                                    📡 ${n.name}
+                                </label>
+                                <div class="kometa-network-details" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.5rem; margin-top: 0.5rem; margin-left: 1.5rem;">
+                                    <div>
+                                        <label style="font-size: 0.7rem; color: var(--text-secondary);">TMDb Network ID(s)</label>
+                                        <input type="text" class="form-input kometa-network-tmdb" data-key="${n.key}" value="${Utils.escapeHtml(nConfig.tmdb_network || n.tmdb_network)}" placeholder="${n.tmdb_network}" style="padding: 0.25rem; font-size: 0.85rem;">
+                                    </div>
+                                    <div>
+                                        <label style="font-size: 0.7rem; color: var(--text-secondary);">Poster URL</label>
+                                        <input type="text" class="form-input kometa-network-poster" data-key="${n.key}" value="${Utils.escapeHtml(nConfig.poster || n.poster)}" placeholder="${n.poster}" style="padding: 0.25rem; font-size: 0.85rem;">
+                                    </div>
+                                    <div>
+                                        <label style="font-size: 0.7rem; color: var(--text-secondary);">Sort Title</label>
+                                        <input type="text" class="form-input kometa-network-sort" data-key="${n.key}" value="${Utils.escapeHtml(nConfig.sort_title || '')}" placeholder="+2_${n.name}" style="padding: 0.25rem; font-size: 0.85rem;">
+                                    </div>
+                                </div>
+                            </div>
+                        `}).join('')}
+                        <div style="font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); padding: 0.25rem; background: var(--bg-secondary); border-radius: 4px;">📺 BROADCAST NETWORKS</div>
+                        ${broadcastNets.map(n => {
+                            const nConfig = settings.items?.[n.key] || { enabled: true, tmdb_network: n.tmdb_network, poster: n.poster };
+                            return `
+                            <div style="border: 1px solid var(--border-color); border-radius: 4px; padding: 0.5rem; background: var(--bg-color);">
+                                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-weight: 500;">
+                                    <input type="checkbox" class="kometa-network-enabled" data-key="${n.key}" ${nConfig.enabled !== false ? 'checked' : ''}>
+                                    📡 ${n.name}
+                                </label>
+                                <div class="kometa-network-details" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.5rem; margin-top: 0.5rem; margin-left: 1.5rem;">
+                                    <div>
+                                        <label style="font-size: 0.7rem; color: var(--text-secondary);">TMDb Network ID(s)</label>
+                                        <input type="text" class="form-input kometa-network-tmdb" data-key="${n.key}" value="${Utils.escapeHtml(nConfig.tmdb_network || n.tmdb_network)}" placeholder="${n.tmdb_network}" style="padding: 0.25rem; font-size: 0.85rem;">
+                                    </div>
+                                    <div>
+                                        <label style="font-size: 0.7rem; color: var(--text-secondary);">Poster URL</label>
+                                        <input type="text" class="form-input kometa-network-poster" data-key="${n.key}" value="${Utils.escapeHtml(nConfig.poster || n.poster)}" placeholder="${n.poster}" style="padding: 0.25rem; font-size: 0.85rem;">
+                                    </div>
+                                    <div>
+                                        <label style="font-size: 0.7rem; color: var(--text-secondary);">Sort Title</label>
+                                        <input type="text" class="form-input kometa-network-sort" data-key="${n.key}" value="${Utils.escapeHtml(nConfig.sort_title || '')}" placeholder="+2_${n.name}" style="padding: 0.25rem; font-size: 0.85rem;">
+                                    </div>
+                                </div>
+                            </div>
+                        `}).join('')}
+                    </div>
+                `;
+                break;
+
+            case 'studio':
+                // Studio definitions with TMDb company IDs and default posters
+                const studios = [
+                    { key: 'marvel', name: 'Marvel', tmdb_company: '13252, 420, 7505, 19551', poster: 'https://theposterdb.com/api/assets/81748' },
+                    { key: 'dc', name: 'DC Universe', tmdb_company: '12', poster: 'https://theposterdb.com/api/assets/171350' },
+                    { key: 'pixar', name: 'Pixar', tmdb_company: '3', poster: 'https://theposterdb.com/api/assets/4767' },
+                    { key: 'dreamworks', name: 'DreamWorks', tmdb_company: '7, 521', poster: 'https://theposterdb.com/api/assets/57647' },
+                    { key: 'walt_disney', name: 'Walt Disney', tmdb_company: '2, 3166, 109755, 6125, 171656', poster: 'https://theposterdb.com/api/assets/234588' },
+                    { key: 'universal', name: 'Universal', tmdb_company: '33', poster: 'https://theposterdb.com/api/assets/196997' },
+                    { key: 'warner_bros', name: 'Warner Bros.', tmdb_company: '174, 17, 172630, 1957', poster: 'https://theposterdb.com/api/assets/161625' },
+                    { key: 'paramount', name: 'Paramount', tmdb_company: '4, 96540, 9223, 21834, 52010, 6548', poster: 'https://theposterdb.com/api/assets/197109' },
+                    { key: 'sony', name: 'Sony', tmdb_company: '58, 3287, 34', poster: 'https://theposterdb.com/api/assets/49078' },
+                    { key: 'lionsgate', name: 'Lionsgate', tmdb_company: '40566, 28523, 85885, 1632', poster: 'https://theposterdb.com/api/assets/196029' },
+                    { key: '20th_century', name: '20th Century Fox', tmdb_company: '25, 3635, 7485, 127928', poster: 'https://theposterdb.com/api/assets/48747' },
+                    { key: 'lucasfilm', name: 'Lucasfilm Ltd.', tmdb_company: '1', poster: 'https://theposterdb.com/api/assets/206134' },
+                    { key: 'a24', name: 'A24', tmdb_company: '41077', poster: 'https://theposterdb.com/api/assets/105556' },
+                    { key: 'blumhouse', name: 'Blumhouse', tmdb_company: '3172', poster: 'https://theposterdb.com/api/assets/195303' },
+                    { key: 'illumination', name: 'Illumination', tmdb_company: '6704', poster: 'https://theposterdb.com/api/assets/110166' },
+                    { key: 'blue_sky', name: 'Blue Sky', tmdb_company: '9383', poster: 'https://theposterdb.com/api/assets/17689' },
+                    { key: 'columbia', name: 'Columbia', tmdb_company: '5', poster: 'https://theposterdb.com/api/assets/197588' },
+                    { key: 'netflix', name: 'Netflix', tmdb_company: '178464, 171251', poster: 'https://theposterdb.com/api/assets/168827' },
+                    { key: 'amazon', name: 'Amazon', tmdb_company: '20580', poster: 'https://theposterdb.com/api/assets/78265' },
+                    { key: 'new_line', name: 'New Line Cinema', tmdb_company: '128064', poster: 'https://theposterdb.com/api/assets/197099' },
+                    { key: 'hallmark', name: 'Hallmark', tmdb_company: '4056, 6435, 9027, 53015', poster: 'https://theposterdb.com/api/assets/204448' },
+                    { key: 'searchlight', name: 'Searchlight Pictures', tmdb_company: '43, 127929', poster: 'https://theposterdb.com/api/assets/185733' }
+                ];
+                html = `
+                    <label class="form-label">Configure Studios</label>
+                    <div style="display: grid; gap: 0.5rem; max-height: 450px; overflow-y: auto; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px;">
+                        ${studios.map(s => {
+                            const sConfig = settings.items?.[s.key] || { enabled: true, tmdb_company: s.tmdb_company, poster: s.poster };
+                            return `
+                            <div style="border: 1px solid var(--border-color); border-radius: 4px; padding: 0.5rem; background: var(--bg-color);">
+                                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-weight: 500;">
+                                    <input type="checkbox" class="kometa-studio-enabled" data-key="${s.key}" ${sConfig.enabled !== false ? 'checked' : ''}>
+                                    🎬 ${s.name}
+                                </label>
+                                <div class="kometa-studio-details" style="display: grid; gap: 0.5rem; margin-top: 0.5rem; margin-left: 1.5rem;">
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+                                        <div>
+                                            <label style="font-size: 0.7rem; color: var(--text-secondary);">TMDb Company ID(s)</label>
+                                            <input type="text" class="form-input kometa-studio-tmdb" data-key="${s.key}" value="${Utils.escapeHtml(sConfig.tmdb_company || s.tmdb_company)}" placeholder="${s.tmdb_company}" style="padding: 0.25rem; font-size: 0.85rem;">
+                                        </div>
+                                        <div>
+                                            <label style="font-size: 0.7rem; color: var(--text-secondary);">Poster URL</label>
+                                            <input type="text" class="form-input kometa-studio-poster" data-key="${s.key}" value="${Utils.escapeHtml(sConfig.poster || s.poster)}" placeholder="${s.poster}" style="padding: 0.25rem; font-size: 0.85rem;">
+                                        </div>
+                                    </div>
+                                    <div style="display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 0.5rem;">
+                                        <div>
+                                            <label style="font-size: 0.7rem; color: var(--text-secondary);">Summary</label>
+                                            <input type="text" class="form-input kometa-studio-summary" data-key="${s.key}" value="${Utils.escapeHtml(sConfig.summary || '')}" placeholder="Optional description" style="padding: 0.25rem; font-size: 0.85rem;">
+                                        </div>
+                                        <div>
+                                            <label style="font-size: 0.7rem; color: var(--text-secondary);">Sort Title</label>
+                                            <input type="text" class="form-input kometa-studio-sort" data-key="${s.key}" value="${Utils.escapeHtml(sConfig.sort_title || '')}" placeholder="++++++_${s.name}" style="padding: 0.25rem; font-size: 0.85rem;">
+                                        </div>
+                                        <div>
+                                            <label style="font-size: 0.7rem; color: var(--text-secondary);">Collection Order</label>
+                                            <select class="form-select kometa-studio-order" data-key="${s.key}" style="padding: 0.25rem; font-size: 0.85rem;">
+                                                <option value="alpha" ${(sConfig.collection_order || 'alpha') === 'alpha' ? 'selected' : ''}>Alphabetical</option>
+                                                <option value="release.desc" ${sConfig.collection_order === 'release.desc' ? 'selected' : ''}>Release (Newest)</option>
+                                                <option value="release.asc" ${sConfig.collection_order === 'release.asc' ? 'selected' : ''}>Release (Oldest)</option>
+                                                <option value="random" ${sConfig.collection_order === 'random' ? 'selected' : ''}>Random</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        `}).join('')}
+                    </div>
+                `;
+                break;
+
+            case 'holiday':
+                const holidays = [
+                    { name: "Christmas", key: "christmas", start: "11/15", end: "12/30", icon: "🎄", poster: "https://theposterdb.com/api/assets/212635", summary: "This collection revolves around the plot involving Christmas." },
+                    { name: "Halloween", key: "halloween", start: "10/01", end: "10/31", icon: "🎃", poster: "https://theposterdb.com/api/assets/212637", summary: "This collection revolves around the plot involving Halloween." },
+                    { name: "Thanksgiving", key: "thanksgiving", start: "11/01", end: "11/30", icon: "🦃", poster: "https://theposterdb.com/api/assets/212638", summary: "This collection revolves around the plot involving Thanksgiving." },
+                    { name: "Valentine's Day", key: "valentines_day", start: "02/01", end: "02/14", icon: "💕", poster: "https://theposterdb.com/api/assets/212641", summary: "This collection revolves around the plot involving Valentine's Day." },
+                    { name: "St. Patrick's Day", key: "st_patricks_day", start: "03/01", end: "03/17", icon: "☘️", poster: "https://theposterdb.com/api/assets/240644", summary: "This collection revolves around the plot involving St. Patrick's Day." },
+                    { name: "Easter", key: "easter", start: "03/22", end: "04/25", icon: "🐰", poster: "https://theposterdb.com/api/assets/212636", summary: "This collection revolves around the plot involving Easter." },
+                    { name: "Independence Day", key: "independence_day", start: "07/01", end: "07/05", icon: "🎆", poster: "https://theposterdb.com/api/assets/240645", summary: "This collection revolves around the plot involving Independence Day." },
+                    { name: "New Year's Eve", key: "new_years_eve", start: "12/26", end: "01/05", icon: "🎉", poster: "https://i.imgur.com/YCYXhAX.png", summary: "This collection revolves around the plot involving New Year's Eve." }
+                ];
+                html = `
+                    <label class="form-label">Configure Holidays</label>
+                    <div style="display: grid; gap: 0.5rem; max-height: 450px; overflow-y: auto; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px;">
+                        ${holidays.map(h => {
+                            const hConfig = settings.items?.[h.key] || { enabled: true, start: h.start, end: h.end, poster: h.poster, summary: h.summary };
+                            return `
+                            <div style="border: 1px solid var(--border-color); border-radius: 4px; padding: 0.5rem; background: var(--bg-color);">
+                                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-weight: 500;">
+                                    <input type="checkbox" class="kometa-holiday-enabled" data-key="${h.key}" ${hConfig.enabled !== false ? 'checked' : ''}>
+                                    ${h.icon} ${h.name}
+                                </label>
+                                <div class="kometa-holiday-details" style="display: grid; gap: 0.5rem; margin-top: 0.5rem; margin-left: 1.5rem;">
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 0.5rem;">
+                                        <div>
+                                            <label style="font-size: 0.7rem; color: var(--text-secondary);">Collection Name</label>
+                                            <input type="text" class="form-input kometa-holiday-name" data-key="${h.key}" value="${Utils.escapeHtml(hConfig.name || h.name)}" placeholder="${h.name}" style="padding: 0.25rem; font-size: 0.85rem;">
+                                        </div>
+                                        <div>
+                                            <label style="font-size: 0.7rem; color: var(--text-secondary);">Start Date</label>
+                                            <input type="text" class="form-input kometa-holiday-start" data-key="${h.key}" value="${hConfig.start || h.start}" placeholder="MM/DD" style="padding: 0.25rem; font-size: 0.85rem;">
+                                        </div>
+                                        <div>
+                                            <label style="font-size: 0.7rem; color: var(--text-secondary);">End Date</label>
+                                            <input type="text" class="form-input kometa-holiday-end" data-key="${h.key}" value="${hConfig.end || h.end}" placeholder="MM/DD" style="padding: 0.25rem; font-size: 0.85rem;">
+                                        </div>
+                                        <div>
+                                            <label style="font-size: 0.7rem; color: var(--text-secondary);">Sort Title</label>
+                                            <input type="text" class="form-input kometa-holiday-sort" data-key="${h.key}" value="${Utils.escapeHtml(hConfig.sort_title || '')}" placeholder="+++++++_${h.name}" style="padding: 0.25rem; font-size: 0.85rem;">
+                                        </div>
+                                    </div>
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+                                        <div>
+                                            <label style="font-size: 0.7rem; color: var(--text-secondary);">Poster URL</label>
+                                            <input type="text" class="form-input kometa-holiday-poster" data-key="${h.key}" value="${Utils.escapeHtml(hConfig.poster || h.poster)}" placeholder="${h.poster}" style="padding: 0.25rem; font-size: 0.85rem;">
+                                        </div>
+                                        <div>
+                                            <label style="font-size: 0.7rem; color: var(--text-secondary);">Summary</label>
+                                            <input type="text" class="form-input kometa-holiday-summary" data-key="${h.key}" value="${Utils.escapeHtml(hConfig.summary || h.summary)}" placeholder="${h.summary}" style="padding: 0.25rem; font-size: 0.85rem;">
+                                        </div>
+                                    </div>
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+                                        <div>
+                                            <label style="font-size: 0.7rem; color: var(--text-secondary);">Trakt Lists (one per line)</label>
+                                            <textarea class="form-input kometa-holiday-trakt" data-key="${h.key}" rows="3" placeholder="https://trakt.tv/users/.../lists/..." style="padding: 0.25rem; font-size: 0.8rem;">${Utils.escapeHtml(hConfig.trakt_lists || '')}</textarea>
+                                        </div>
+                                        <div>
+                                            <label style="font-size: 0.7rem; color: var(--text-secondary);">IMDb Lists (one per line)</label>
+                                            <textarea class="form-input kometa-holiday-imdb" data-key="${h.key}" rows="3" placeholder="https://www.imdb.com/list/..." style="padding: 0.25rem; font-size: 0.8rem;">${Utils.escapeHtml(hConfig.imdb_lists || '')}</textarea>
+                                        </div>
+                                    </div>
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.5rem;">
+                                        <label style="display: flex; align-items: center; gap: 0.25rem; font-size: 0.8rem;">
+                                            <input type="checkbox" class="kometa-holiday-visible-home" data-key="${h.key}" ${hConfig.visible_home !== false ? 'checked' : ''}>
+                                            Visible on Home
+                                        </label>
+                                        <label style="display: flex; align-items: center; gap: 0.25rem; font-size: 0.8rem;">
+                                            <input type="checkbox" class="kometa-holiday-visible-shared" data-key="${h.key}" ${hConfig.visible_shared !== false ? 'checked' : ''}>
+                                            Visible on Shared
+                                        </label>
+                                        <label style="display: flex; align-items: center; gap: 0.25rem; font-size: 0.8rem;">
+                                            <input type="checkbox" class="kometa-holiday-delete-not-scheduled" data-key="${h.key}" ${hConfig.delete_not_scheduled !== false ? 'checked' : ''}>
+                                            Delete When Not Scheduled
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        `}).join('')}
+                    </div>
+                `;
+                break;
+
+            case 'custom':
+                html = `
+                    <div style="display: grid; gap: 0.75rem;">
+                        <div>
+                            <label class="form-label">Collection Name *</label>
+                            <input type="text" class="form-input" id="kometa-col-custom-name" value="${Utils.escapeHtml(existingCol?.name || '')}" placeholder="e.g., Marvel Movies">
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+                            <div>
+                                <label class="form-label">Trakt Lists (one per line)</label>
+                                <textarea class="form-input" id="kometa-col-custom-trakt" rows="3" placeholder="https://trakt.tv/users/.../lists/...">${Utils.escapeHtml(settings.trakt_lists || '')}</textarea>
+                            </div>
+                            <div>
+                                <label class="form-label">IMDb Lists (one per line)</label>
+                                <textarea class="form-input" id="kometa-col-custom-imdb" rows="3" placeholder="https://www.imdb.com/list/ls...">${Utils.escapeHtml(settings.imdb_lists || '')}</textarea>
+                            </div>
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.5rem;">
+                            <div>
+                                <label class="form-label">TMDb Collection ID</label>
+                                <input type="text" class="form-input" id="kometa-col-custom-tmdb" value="${Utils.escapeHtml(settings.tmdb_collection || '')}" placeholder="528">
+                            </div>
+                            <div>
+                                <label class="form-label">Sort Title</label>
+                                <input type="text" class="form-input" id="kometa-col-custom-sort" value="${Utils.escapeHtml(settings.sort_title || '')}" placeholder="+++++++_Name">
+                            </div>
+                            <div>
+                                <label class="form-label">Poster URL</label>
+                                <input type="text" class="form-input" id="kometa-col-custom-poster" value="${Utils.escapeHtml(settings.poster || '')}" placeholder="https://...">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="form-label">Summary</label>
+                            <input type="text" class="form-input" id="kometa-col-custom-summary" value="${Utils.escapeHtml(settings.summary || '')}" placeholder="Description of this collection">
+                        </div>
+                    </div>
+                `;
+                break;
+        }
+
+        settingsDiv.innerHTML = html;
+
+        // Update visibility section visibility based on type (hide for holiday since it has per-item visibility)
+        const visibilitySection = document.getElementById('kometa-col-visibility-section');
+        if (visibilitySection) {
+            visibilitySection.style.display = type === 'holiday' ? 'none' : 'flex';
+        }
+    },
+
+    // Toggle IMDb keyword field visibility based on template type selection
+    toggleGenreKeywordField(genreKey, templateType) {
+        const keywordWrapper = document.querySelector(`.kometa-genre-keyword-wrapper[data-key="${genreKey}"]`);
+        if (keywordWrapper) {
+            keywordWrapper.style.display = templateType === 'imdb_keyword' ? 'block' : 'none';
+        }
+    },
+
+    // Save collection from the form
+    saveKometaCollectionFromForm(editIdx = null) {
+        const type = document.getElementById('kometa-col-type').value;
+
+        // Collect selected libraries
+        const libraries = [];
+        document.querySelectorAll('.kometa-col-lib:checked').forEach(cb => {
+            libraries.push(cb.getAttribute('data-library'));
+        });
+
+        if (libraries.length === 0) {
+            Utils.showToast('error', 'Please select at least one library');
+            return;
+        }
+
+        // Collect type-specific settings
+        const settings = {};
+        switch (type) {
+            case 'genre':
+                settings.items = {};
+                let hasEnabledGenre = false;
+                document.querySelectorAll('.kometa-genre-enabled').forEach(cb => {
+                    const key = cb.getAttribute('data-key');
+                    if (cb.checked) hasEnabledGenre = true;
+                    settings.items[key] = {
+                        enabled: cb.checked,
+                        template_type: document.querySelector(`.kometa-genre-template[data-key="${key}"]`)?.value || 'dynamic',
+                        imdb_keyword: document.querySelector(`.kometa-genre-keyword[data-key="${key}"]`)?.value || '',
+                        poster: document.querySelector(`.kometa-genre-poster[data-key="${key}"]`)?.value || '',
+                        summary: document.querySelector(`.kometa-genre-summary[data-key="${key}"]`)?.value || '',
+                        trakt_lists: document.querySelector(`.kometa-genre-trakt[data-key="${key}"]`)?.value || '',
+                        imdb_lists: document.querySelector(`.kometa-genre-imdb[data-key="${key}"]`)?.value || '',
+                        sort_title: document.querySelector(`.kometa-genre-sort[data-key="${key}"]`)?.value || '',
+                        collection_mode: document.querySelector(`.kometa-genre-mode[data-key="${key}"]`)?.value || 'hide',
+                        collection_order: document.querySelector(`.kometa-genre-order[data-key="${key}"]`)?.value || 'release.desc'
+                    };
+                });
+                if (!hasEnabledGenre) {
+                    Utils.showToast('error', 'Please enable at least one genre');
+                    return;
+                }
+                break;
+
+            case 'awards':
+                settings.items = {};
+                let hasEnabledAward = false;
+                document.querySelectorAll('.kometa-award-enabled').forEach(cb => {
+                    const key = cb.getAttribute('data-key');
+                    if (cb.checked) hasEnabledAward = true;
+                    settings.items[key] = {
+                        enabled: cb.checked,
+                        imdb_list: document.querySelector(`.kometa-award-imdb[data-key="${key}"]`)?.value || '',
+                        trakt_list: document.querySelector(`.kometa-award-trakt[data-key="${key}"]`)?.value || '',
+                        poster: document.querySelector(`.kometa-award-poster[data-key="${key}"]`)?.value || '',
+                        summary: document.querySelector(`.kometa-award-summary[data-key="${key}"]`)?.value || '',
+                        sort_title: document.querySelector(`.kometa-award-sort[data-key="${key}"]`)?.value || '',
+                        limit: parseInt(document.querySelector(`.kometa-award-limit[data-key="${key}"]`)?.value) || 20,
+                        collection_mode: document.querySelector(`.kometa-award-mode[data-key="${key}"]`)?.value || 'hide',
+                        collection_order: document.querySelector(`.kometa-award-order[data-key="${key}"]`)?.value || 'release.desc',
+                        radarr_add_missing: document.querySelector(`.kometa-award-radarr-add[data-key="${key}"]`)?.checked || false,
+                        radarr_search: document.querySelector(`.kometa-award-radarr-search[data-key="${key}"]`)?.checked || false,
+                        radarr_monitor: document.querySelector(`.kometa-award-radarr-monitor[data-key="${key}"]`)?.checked || false
+                    };
+                });
+                if (!hasEnabledAward) {
+                    Utils.showToast('error', 'Please enable at least one award');
+                    return;
+                }
+                break;
+
+            case 'network':
+                settings.items = {};
+                let hasEnabledNetwork = false;
+                document.querySelectorAll('.kometa-network-enabled').forEach(cb => {
+                    const key = cb.getAttribute('data-key');
+                    if (cb.checked) hasEnabledNetwork = true;
+                    settings.items[key] = {
+                        enabled: cb.checked,
+                        tmdb_network: document.querySelector(`.kometa-network-tmdb[data-key="${key}"]`)?.value || '',
+                        poster: document.querySelector(`.kometa-network-poster[data-key="${key}"]`)?.value || '',
+                        sort_title: document.querySelector(`.kometa-network-sort[data-key="${key}"]`)?.value || ''
+                    };
+                });
+                if (!hasEnabledNetwork) {
+                    Utils.showToast('error', 'Please enable at least one network');
+                    return;
+                }
+                break;
+
+            case 'studio':
+                settings.items = {};
+                let hasEnabledStudio = false;
+                document.querySelectorAll('.kometa-studio-enabled').forEach(cb => {
+                    const key = cb.getAttribute('data-key');
+                    if (cb.checked) hasEnabledStudio = true;
+                    settings.items[key] = {
+                        enabled: cb.checked,
+                        tmdb_company: document.querySelector(`.kometa-studio-tmdb[data-key="${key}"]`)?.value || '',
+                        poster: document.querySelector(`.kometa-studio-poster[data-key="${key}"]`)?.value || '',
+                        summary: document.querySelector(`.kometa-studio-summary[data-key="${key}"]`)?.value || '',
+                        sort_title: document.querySelector(`.kometa-studio-sort[data-key="${key}"]`)?.value || '',
+                        collection_order: document.querySelector(`.kometa-studio-order[data-key="${key}"]`)?.value || 'alpha'
+                    };
+                });
+                if (!hasEnabledStudio) {
+                    Utils.showToast('error', 'Please enable at least one studio');
+                    return;
+                }
+                break;
+
+            case 'decade':
+                settings.items = {};
+                let hasEnabledDecade = false;
+                document.querySelectorAll('.kometa-decade-enabled').forEach(cb => {
+                    const key = cb.getAttribute('data-key');
+                    const decade = cb.getAttribute('data-decade');
+                    const nameInput = document.querySelector(`.kometa-decade-name[data-key="${key}"]`);
+                    const posterInput = document.querySelector(`.kometa-decade-poster[data-key="${key}"]`);
+                    const summaryInput = document.querySelector(`.kometa-decade-summary[data-key="${key}"]`);
+                    const modeSelect = document.querySelector(`.kometa-decade-mode[data-key="${key}"]`);
+                    const sortInput = document.querySelector(`.kometa-decade-sort[data-key="${key}"]`);
+                    if (cb.checked) hasEnabledDecade = true;
+                    settings.items[key] = {
+                        enabled: cb.checked,
+                        decade: parseInt(decade),
+                        name: nameInput?.value || `${key}'s Films`,
+                        poster: posterInput?.value || '',
+                        summary: summaryInput?.value || `A collection of films from the ${key}`,
+                        collection_mode: modeSelect?.value || 'hide',
+                        sort_title: sortInput?.value || ''
+                    };
+                });
+                if (!hasEnabledDecade) {
+                    Utils.showToast('error', 'Please enable at least one decade');
+                    return;
+                }
+                break;
+
+            case 'holiday':
+                settings.items = {};
+                let hasEnabledHoliday = false;
+                document.querySelectorAll('.kometa-holiday-enabled').forEach(cb => {
+                    const key = cb.getAttribute('data-key');
+                    if (cb.checked) hasEnabledHoliday = true;
+                    settings.items[key] = {
+                        enabled: cb.checked,
+                        name: document.querySelector(`.kometa-holiday-name[data-key="${key}"]`)?.value || '',
+                        start: document.querySelector(`.kometa-holiday-start[data-key="${key}"]`)?.value || '',
+                        end: document.querySelector(`.kometa-holiday-end[data-key="${key}"]`)?.value || '',
+                        sort_title: document.querySelector(`.kometa-holiday-sort[data-key="${key}"]`)?.value || '',
+                        poster: document.querySelector(`.kometa-holiday-poster[data-key="${key}"]`)?.value || '',
+                        summary: document.querySelector(`.kometa-holiday-summary[data-key="${key}"]`)?.value || '',
+                        trakt_lists: document.querySelector(`.kometa-holiday-trakt[data-key="${key}"]`)?.value || '',
+                        imdb_lists: document.querySelector(`.kometa-holiday-imdb[data-key="${key}"]`)?.value || '',
+                        visible_home: document.querySelector(`.kometa-holiday-visible-home[data-key="${key}"]`)?.checked ?? true,
+                        visible_shared: document.querySelector(`.kometa-holiday-visible-shared[data-key="${key}"]`)?.checked ?? true,
+                        delete_not_scheduled: document.querySelector(`.kometa-holiday-delete-not-scheduled[data-key="${key}"]`)?.checked ?? true
+                    };
+                });
+                if (!hasEnabledHoliday) {
+                    Utils.showToast('error', 'Please enable at least one holiday');
+                    return;
+                }
+                break;
+
+            case 'custom':
+                const name = document.getElementById('kometa-col-custom-name')?.value?.trim();
+                if (!name) {
+                    Utils.showToast('error', 'Please enter a collection name');
+                    return;
+                }
+                settings.trakt_lists = document.getElementById('kometa-col-custom-trakt')?.value || '';
+                settings.imdb_lists = document.getElementById('kometa-col-custom-imdb')?.value || '';
+                settings.tmdb_collection = document.getElementById('kometa-col-custom-tmdb')?.value || '';
+                settings.sort_title = document.getElementById('kometa-col-custom-sort')?.value || '';
+                settings.poster = document.getElementById('kometa-col-custom-poster')?.value || '';
+                settings.summary = document.getElementById('kometa-col-custom-summary')?.value || '';
+                break;
+        }
+
+        // Build collection object
+        const collection = {
+            type,
+            libraries,
+            settings
+        };
+        if (type === 'custom') {
+            collection.name = document.getElementById('kometa-col-custom-name')?.value?.trim() || 'Custom Collection';
+        }
+
+        // Collect common options that apply to ALL collection types
+        collection.common_options = {
+            // Visibility options
+            visible_home: document.getElementById('kometa-col-visible-home')?.checked ?? true,
+            visible_shared: document.getElementById('kometa-col-visible-shared')?.checked ?? true,
+            visible_library: document.getElementById('kometa-col-visible-library')?.checked ?? true,
+            // Radarr options (Movies)
+            radarr_add_missing: document.getElementById('kometa-col-radarr-add')?.checked ?? false,
+            radarr_search: document.getElementById('kometa-col-radarr-search')?.checked ?? false,
+            radarr_monitor: document.getElementById('kometa-col-radarr-monitor')?.checked ?? false,
+            // Sonarr options (TV Shows)
+            sonarr_add_missing: document.getElementById('kometa-col-sonarr-add')?.checked ?? false,
+            sonarr_search: document.getElementById('kometa-col-sonarr-search')?.checked ?? false,
+            sonarr_monitor: document.getElementById('kometa-col-sonarr-monitor')?.checked ?? false,
+            // Other common options
+            sync_mode: document.getElementById('kometa-col-sync-mode')?.value || 'sync',
+            limit: parseInt(document.getElementById('kometa-col-limit')?.value) || null,
+            minimum_items: parseInt(document.getElementById('kometa-col-minimum')?.value) || null
+        };
+
+        // Add or update in config state
+        if (!this.kometaConfigState.config.collections) {
+            this.kometaConfigState.config.collections = [];
+        }
+
+        if (editIdx !== null) {
+            this.kometaConfigState.config.collections[editIdx] = collection;
+        } else {
+            this.kometaConfigState.config.collections.push(collection);
+        }
+
+        // Re-render the collections list
+        this.refreshKometaCollectionsList();
+
+        Utils.closeModal();
+        Utils.showToast('success', editIdx !== null ? 'Collection updated' : 'Collection added');
+    },
+
+    // Refresh the collections list display
+    refreshKometaCollectionsList() {
+        const container = document.getElementById('kometa-collections-container');
+        if (!container) return;
+
+        const collections = this.kometaConfigState.config.collections || [];
+        const libraries = this.kometaConfigState.availableLibraries || [];
+
+        if (collections.length === 0) {
+            container.innerHTML = '<p id="kometa-no-collections-msg" style="color: var(--text-secondary); text-align: center; font-size: 0.9rem; padding: 2rem;">No collections configured. Click "Add Collection" to create one.</p>';
+        } else {
+            container.innerHTML = collections.map((col, idx) => this.renderKometaCollectionCard(col, idx, libraries)).join('');
+        }
+    },
+
+    // Edit a collection
+    editKometaCollection(idx) {
+        this.showAddKometaCollectionForm(idx);
+    },
+
+    // Remove a collection
+    removeKometaCollection(idx) {
+        if (!confirm('Are you sure you want to remove this collection?')) return;
+
+        if (this.kometaConfigState.config.collections) {
+            this.kometaConfigState.config.collections.splice(idx, 1);
+        }
+
+        this.refreshKometaCollectionsList();
+        Utils.showToast('success', 'Collection removed');
+    },
+
+    // ============================================
+    // OVERLAY MANAGEMENT (Unified Approach)
+    // ============================================
+
+    kometaOverlayTypes: {
+        resolution: { name: 'Resolution', icon: '📺', description: '4K, 1080p, 720p badges', default: 'resolution' },
+        video_format: { name: 'Video Format', icon: '🎬', description: 'HDR, Dolby Vision, HDR10+', default: 'video_format' },
+        audio_codec: { name: 'Audio Codec', icon: '🔊', description: 'Atmos, DTS-X, TrueHD', default: 'audio_codec' },
+        ratings: { name: 'Ratings', icon: '⭐', description: 'IMDb, RT, Metacritic scores', default: 'ratings' },
+        content_rating: { name: 'Content Rating', icon: '🔞', description: 'PG, R, TV-MA badges', default: 'content_rating' },
+        streaming: { name: 'Streaming Service', icon: '📡', description: 'Netflix, Disney+, etc. logos', default: 'streaming' },
+        network: { name: 'Network', icon: '📺', description: 'TV network logos', default: 'network' },
+        studio: { name: 'Studio', icon: '🎪', description: 'Studio logos', default: 'studio' },
+        status: { name: 'Status', icon: '📋', description: 'Returning, Ended, Canceled', default: 'status' },
+        ribbon: { name: 'Ribbon', icon: '🏆', description: 'Award ribbons', default: 'ribbon' },
+        languages: { name: 'Languages', icon: '🌍', description: 'Country/language flags', default: 'languages' },
+        custom: { name: 'Custom', icon: '✨', description: 'Use your own overlay image' }
+    },
+
+    // Render an overlay card for the list
+    renderKometaOverlayCard(ovl, idx, libraries) {
+        const typeInfo = this.kometaOverlayTypes[ovl.type] || { name: ovl.type, icon: '📦', description: '' };
+        const libraryNames = ovl.libraries || [];
+        const libraryDisplay = libraryNames.length === 0
+            ? '<span style="color: var(--text-warning);">No libraries selected</span>'
+            : libraryNames.map(l => `<span style="background: var(--bg-color); padding: 0.1rem 0.4rem; border-radius: 3px; font-size: 0.7rem;">${Utils.escapeHtml(l)}</span>`).join(' ');
+
+        let summaryText = typeInfo.description;
+        if (ovl.type === 'custom' && ovl.settings?.name) {
+            summaryText = ovl.settings.name;
+        }
+
+        return `
+            <div class="kometa-overlay-card" data-index="${idx}" style="background: var(--bg-color); border: 1px solid var(--success-color, #28a745); border-radius: 6px; padding: 0.75rem;">
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <span style="font-size: 1.2rem;">${typeInfo.icon}</span>
+                    <div style="flex: 1;">
+                        <div style="font-weight: 500; color: var(--success-color, #28a745);">${ovl.type === 'custom' ? Utils.escapeHtml(ovl.settings?.name || 'Custom Overlay') : typeInfo.name + ' Overlay'}</div>
+                        <div style="font-size: 0.75rem; color: var(--text-secondary);">${summaryText}</div>
+                    </div>
+                    <div style="display: flex; gap: 0.25rem;">
+                        <button type="button" class="btn btn-sm" onclick="Settings.editKometaOverlay(${idx})" title="Edit">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button type="button" class="btn btn-sm btn-danger" onclick="Settings.removeKometaOverlay(${idx})" title="Delete">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+                <div style="margin-top: 0.5rem; display: flex; flex-wrap: wrap; gap: 0.25rem; align-items: center;">
+                    <span style="font-size: 0.7rem; color: var(--text-secondary);">Libraries:</span>
+                    ${libraryDisplay}
+                </div>
+            </div>
+        `;
+    },
+
+    // Show the Add Overlay form
+    showAddKometaOverlayForm(editIdx = null) {
+        const libraries = this.kometaConfigState?.availableLibraries || [];
+        const isEdit = editIdx !== null;
+        const existingOvl = isEdit ? (this.kometaConfigState.config.overlays || [])[editIdx] : null;
+        const selectedType = existingOvl?.type || 'resolution';
+
+        const modalContent = `
+            <div style="display: grid; gap: 1rem;">
+                <div>
+                    <label class="form-label">Overlay Type</label>
+                    <select class="form-select" id="kometa-ovl-type" onchange="Settings.updateOverlayTypeForm()" ${isEdit ? 'disabled' : ''}>
+                        ${Object.entries(this.kometaOverlayTypes).map(([key, info]) => `
+                            <option value="${key}" ${selectedType === key ? 'selected' : ''}>${info.icon} ${info.name} - ${info.description}</option>
+                        `).join('')}
+                    </select>
+                </div>
+
+                <div>
+                    <label class="form-label">Target Libraries</label>
+                    <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px; background: var(--bg-color);">
+                        ${libraries.length > 0 ? libraries.map(lib => {
+                            const isSelected = existingOvl?.libraries?.includes(lib.name) || false;
+                            const typeIcon = lib.type === 'movie' ? '🎬' : '📺';
+                            return `
+                            <label style="display: flex; align-items: center; gap: 0.25rem; cursor: pointer; font-size: 0.85rem; padding: 0.25rem 0.5rem; background: var(--card-bg); border-radius: 4px; border: 1px solid var(--border-color);">
+                                <input type="checkbox" class="kometa-ovl-lib" data-library="${Utils.escapeHtml(lib.name)}" ${isSelected ? 'checked' : ''}>
+                                ${typeIcon} ${Utils.escapeHtml(lib.name)}
+                            </label>`;
+                        }).join('') : '<span style="color: var(--text-secondary);">No libraries available</span>'}
+                    </div>
+                </div>
+
+                <div id="kometa-ovl-type-settings">
+                    <!-- Type-specific settings will be inserted here -->
+                </div>
+            </div>
+        `;
+
+        Utils.showModal({
+            title: isEdit ? 'Edit Overlay' : 'Add Overlay',
+            body: modalContent,
+            buttons: [
+                {
+                    text: 'Cancel',
+                    class: 'btn-outline',
+                    onClick: () => Utils.closeModal()
+                },
+                {
+                    text: 'Save Overlay',
+                    class: 'btn-success',
+                    onClick: () => this.saveKometaOverlayFromForm(editIdx)
+                }
+            ]
+        });
+
+        // Initialize type-specific form
+        setTimeout(() => {
+            this.updateOverlayTypeForm(existingOvl);
+        }, 50);
+    },
+
+    // Update the form based on selected overlay type
+    updateOverlayTypeForm(existingOvl = null) {
+        const typeSelect = document.getElementById('kometa-ovl-type');
+        const settingsDiv = document.getElementById('kometa-ovl-type-settings');
+        if (!typeSelect || !settingsDiv) return;
+
+        const type = typeSelect.value;
+        const settings = existingOvl?.type === type ? (existingOvl?.settings || {}) : {};
+        const typeInfo = this.kometaOverlayTypes[type] || {};
+
+        let html = '';
+
+        if (type === 'custom') {
+            // Custom overlay - user uploads their own image
+            html = `
+                <div style="display: grid; gap: 0.75rem;">
+                    <div>
+                        <label class="form-label">Overlay Name *</label>
+                        <input type="text" class="form-input" id="kometa-ovl-custom-name" value="${Utils.escapeHtml(settings.name || '')}" placeholder="e.g., My Custom Badge">
+                    </div>
+                    <div>
+                        <label class="form-label">Overlay Image</label>
+                        <input type="text" class="form-input" id="kometa-ovl-custom-image" value="${Utils.escapeHtml(settings.image || '')}" placeholder="config/assets/my-overlay.png or URL">
+                        <small style="color: var(--text-secondary);">Use uploaded asset path (config/assets/filename.png) or external URL</small>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+                        <div>
+                            <label class="form-label">Position</label>
+                            <select class="form-select" id="kometa-ovl-custom-position">
+                                <option value="top_left" ${settings.position === 'top_left' ? 'selected' : ''}>Top Left</option>
+                                <option value="top_right" ${settings.position === 'top_right' ? 'selected' : ''}>Top Right</option>
+                                <option value="bottom_left" ${settings.position === 'bottom_left' ? 'selected' : ''}>Bottom Left</option>
+                                <option value="bottom_right" ${settings.position === 'bottom_right' || !settings.position ? 'selected' : ''}>Bottom Right</option>
+                                <option value="center" ${settings.position === 'center' ? 'selected' : ''}>Center</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="form-label">Size (%)</label>
+                            <input type="number" class="form-input" id="kometa-ovl-custom-size" value="${settings.size || 15}" min="5" max="50" placeholder="15">
+                        </div>
+                    </div>
+                </div>
+            `;
+        } else {
+            // Built-in overlay type - simple checkbox options
+            html = `
+                <div style="padding: 0.75rem; background: var(--bg-color); border-radius: 4px; border: 1px solid var(--border-color);">
+                    <p style="margin: 0 0 0.5rem 0; font-size: 0.85rem;">
+                        <strong>${typeInfo.icon} ${typeInfo.name}</strong> - ${typeInfo.description}
+                    </p>
+                    <p style="margin: 0; font-size: 0.8rem; color: var(--text-secondary);">
+                        This overlay will use Kometa's built-in <code>${typeInfo.default}</code> overlay template.
+                    </p>
+                </div>
+                <div style="margin-top: 0.75rem; display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+                    <div>
+                        <label class="form-label">Position (optional)</label>
+                        <select class="form-select" id="kometa-ovl-position">
+                            <option value="" ${!settings.position ? 'selected' : ''}>Default</option>
+                            <option value="top_left" ${settings.position === 'top_left' ? 'selected' : ''}>Top Left</option>
+                            <option value="top_right" ${settings.position === 'top_right' ? 'selected' : ''}>Top Right</option>
+                            <option value="bottom_left" ${settings.position === 'bottom_left' ? 'selected' : ''}>Bottom Left</option>
+                            <option value="bottom_right" ${settings.position === 'bottom_right' ? 'selected' : ''}>Bottom Right</option>
+                        </select>
+                    </div>
+                </div>
+            `;
+        }
+
+        settingsDiv.innerHTML = html;
+    },
+
+    // Save overlay from the form
+    saveKometaOverlayFromForm(editIdx = null) {
+        const type = document.getElementById('kometa-ovl-type').value;
+
+        // Collect selected libraries
+        const libraries = [];
+        document.querySelectorAll('.kometa-ovl-lib:checked').forEach(cb => {
+            libraries.push(cb.getAttribute('data-library'));
+        });
+
+        if (libraries.length === 0) {
+            Utils.showToast('error', 'Please select at least one library');
+            return;
+        }
+
+        // Collect settings
+        const settings = {};
+        if (type === 'custom') {
+            const name = document.getElementById('kometa-ovl-custom-name')?.value?.trim();
+            if (!name) {
+                Utils.showToast('error', 'Please enter an overlay name');
+                return;
+            }
+            settings.name = name;
+            settings.image = document.getElementById('kometa-ovl-custom-image')?.value || '';
+            settings.position = document.getElementById('kometa-ovl-custom-position')?.value || 'bottom_right';
+            settings.size = parseInt(document.getElementById('kometa-ovl-custom-size')?.value) || 15;
+        } else {
+            const position = document.getElementById('kometa-ovl-position')?.value;
+            if (position) settings.position = position;
+        }
+
+        // Build overlay object
+        const overlay = {
+            type,
+            libraries,
+            settings
+        };
+
+        // Add or update in config state
+        if (!this.kometaConfigState.config.overlays) {
+            this.kometaConfigState.config.overlays = [];
+        }
+
+        if (editIdx !== null) {
+            this.kometaConfigState.config.overlays[editIdx] = overlay;
+        } else {
+            this.kometaConfigState.config.overlays.push(overlay);
+        }
+
+        // Re-render the overlays list
+        this.refreshKometaOverlaysList();
+
+        Utils.closeModal();
+        Utils.showToast('success', editIdx !== null ? 'Overlay updated' : 'Overlay added');
+    },
+
+    // Refresh the overlays list display
+    refreshKometaOverlaysList() {
+        const container = document.getElementById('kometa-overlays-container');
+        if (!container) return;
+
+        const overlays = this.kometaConfigState.config.overlays || [];
+        const libraries = this.kometaConfigState.availableLibraries || [];
+
+        if (overlays.length === 0) {
+            container.innerHTML = '<p id="kometa-no-overlays-msg" style="color: var(--text-secondary); text-align: center; font-size: 0.9rem; padding: 2rem;">No overlays configured. Click "Add Overlay" to create one.</p>';
+        } else {
+            container.innerHTML = overlays.map((ovl, idx) => this.renderKometaOverlayCard(ovl, idx, libraries)).join('');
+        }
+    },
+
+    // Edit an overlay
+    editKometaOverlay(idx) {
+        this.showAddKometaOverlayForm(idx);
+    },
+
+    // Remove an overlay
+    removeKometaOverlay(idx) {
+        if (!confirm('Are you sure you want to remove this overlay?')) return;
+
+        if (this.kometaConfigState.config.overlays) {
+            this.kometaConfigState.config.overlays.splice(idx, 1);
+        }
+
+        this.refreshKometaOverlaysList();
+        Utils.showToast('success', 'Overlay removed');
+    },
+
+    // ============================================
+    // ASSET MANAGEMENT
+    // ============================================
+
+    async uploadKometaAsset() {
+        const instanceId = this.kometaConfigState?.instanceId;
+        if (!instanceId) {
+            Utils.showToast('error', 'No instance selected');
+            return;
+        }
+
+        // Create file input
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/png,image/jpeg,image/gif,image/webp';
+        input.multiple = true;
+
+        input.onchange = async (e) => {
+            const files = e.target.files;
+            if (!files || files.length === 0) return;
+
+            Utils.showLoading();
+
+            try {
+                const formData = new FormData();
+                for (const file of files) {
+                    formData.append('assets', file);
+                }
+
+                const response = await fetch(`/api/v2/kometa/instances/${instanceId}/assets`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+                Utils.hideLoading();
+
+                if (data.success) {
+                    Utils.showToast('success', `Uploaded ${data.uploaded?.length || 0} asset(s)`);
+                    this.loadKometaAssets();
+                } else {
+                    throw new Error(data.message);
+                }
+            } catch (error) {
+                Utils.hideLoading();
+                Utils.showToast('error', 'Upload failed: ' + error.message);
+            }
+        };
+
+        input.click();
+    },
+
+    async loadKometaAssets() {
+        const instanceId = this.kometaConfigState?.instanceId;
+        if (!instanceId) return;
+
+        const container = document.getElementById('kometa-assets-container');
+        if (!container) return;
+
+        try {
+            const response = await fetch(`/api/v2/kometa/instances/${instanceId}/assets`);
+            const data = await response.json();
+
+            if (!data.success || !data.assets || data.assets.length === 0) {
+                container.innerHTML = '<p id="kometa-no-assets-msg" style="color: var(--text-secondary); text-align: center; font-size: 0.9rem; padding: 2rem; grid-column: 1 / -1;">No custom assets uploaded. Click "Upload Image" to add overlay images.</p>';
+                return;
+            }
+
+            container.innerHTML = data.assets.map(asset => `
+                <div style="position: relative; background: var(--bg-color); border: 1px solid var(--border-color); border-radius: 4px; padding: 0.25rem; text-align: center;">
+                    <img src="/api/v2/kometa/instances/${instanceId}/assets/${encodeURIComponent(asset.name)}"
+                         alt="${Utils.escapeHtml(asset.name)}"
+                         style="max-width: 100%; max-height: 80px; object-fit: contain;">
+                    <div style="font-size: 0.65rem; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${Utils.escapeHtml(asset.name)}">
+                        ${Utils.escapeHtml(asset.name)}
+                    </div>
+                    <button type="button" class="btn btn-xs btn-danger" onclick="Settings.deleteKometaAsset('${Utils.escapeHtml(asset.name)}')"
+                            style="position: absolute; top: 2px; right: 2px; padding: 0.1rem 0.25rem; font-size: 0.6rem;" title="Delete">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            `).join('');
+        } catch (error) {
+            console.error('Failed to load assets:', error);
+            container.innerHTML = '<p style="color: var(--text-danger); text-align: center; padding: 1rem; grid-column: 1 / -1;">Failed to load assets</p>';
+        }
+    },
+
+    async deleteKometaAsset(filename) {
+        if (!confirm(`Delete asset "${filename}"?`)) return;
+
+        const instanceId = this.kometaConfigState?.instanceId;
+        if (!instanceId) return;
+
+        try {
+            const response = await fetch(`/api/v2/kometa/instances/${instanceId}/assets/${encodeURIComponent(filename)}`, {
+                method: 'DELETE'
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                Utils.showToast('success', 'Asset deleted');
+                this.loadKometaAssets();
+            } else {
+                throw new Error(data.message);
+            }
+        } catch (error) {
+            Utils.showToast('error', 'Delete failed: ' + error.message);
+        }
+    },
+
+    addKometaLibrary() {
+        const container = document.getElementById('kometa-libraries-container');
+        const existingRows = container.querySelectorAll('.kometa-library-row');
+        const idx = existingRows.length;
+
+        // Remove "no libraries" message if present
+        const noLibMsg = container.querySelector('p');
+        if (noLibMsg) noLibMsg.remove();
+
+        const html = this.renderKometaLibraryRow({ name: '', collection_files: [], overlay_files: [] }, idx,
+            this.kometaConfigState.collectionCategories, this.kometaConfigState.overlayCategories, this.kometaConfigState.availableLibraries);
+        container.insertAdjacentHTML('beforeend', html);
+    },
+
+    removeKometaLibrary(idx) {
+        const row = document.querySelector(`.kometa-library-row[data-index="${idx}"]`);
+        if (row) row.remove();
+
+        // Re-index remaining rows - just re-render them to keep checkbox names in sync
+        const rows = document.querySelectorAll('.kometa-library-row');
+        rows.forEach((row, newIdx) => {
+            row.setAttribute('data-index', newIdx);
+            row.querySelector('select[name^="library_name_"]').name = `library_name_${newIdx}`;
+            row.querySelector('.btn-danger').setAttribute('onclick', `Settings.removeKometaLibrary(${newIdx})`);
+            // Re-index all checkboxes
+            row.querySelectorAll('input[name^="lib_"][name*="_col_"]').forEach(cb => {
+                cb.name = cb.name.replace(/lib_\d+_col_/, `lib_${newIdx}_col_`);
+            });
+            row.querySelectorAll('input[name^="lib_"][name*="_ovl_"]').forEach(cb => {
+                cb.name = cb.name.replace(/lib_\d+_ovl_/, `lib_${newIdx}_ovl_`);
+            });
+        });
+
+        if (rows.length === 0) {
+            document.getElementById('kometa-libraries-container').innerHTML =
+                '<p style="color: var(--text-secondary); text-align: center;">No libraries configured. Click "Add Library" to start.</p>';
+        }
+    },
+
+    renderKometaCustomCollectionRow(cc, idx) {
+        // Get available libraries from state
+        const libraries = this.kometaConfigState?.availableLibraries || [];
+        const selectedLibraries = cc.libraries || [];
+
+        // Determine if any movie or show libraries are selected for conditional display
+        const hasMovieLibrary = selectedLibraries.some(libName => {
+            const lib = libraries.find(l => l.name === libName);
+            return lib && lib.type === 'movie';
+        }) || selectedLibraries.length === 0; // Show by default if no libraries selected yet
+
+        const hasShowLibrary = selectedLibraries.some(libName => {
+            const lib = libraries.find(l => l.name === libName);
+            return lib && lib.type === 'show';
+        });
+
+        // Count library types for summary
+        const selectedCount = selectedLibraries.length;
+        const summaryText = selectedCount === 0 ? 'No libraries selected' : `${selectedCount} ${selectedCount === 1 ? 'library' : 'libraries'}`;
+
+        return `
+            <details class="kometa-custom-collection-row" data-index="${idx}" style="background: var(--bg-color); border: 1px solid var(--border-color); border-radius: 6px; margin-bottom: 0.5rem;">
+                <summary style="padding: 0.75rem; cursor: pointer; display: flex; align-items: center; gap: 0.5rem;">
+                    <span style="flex: 1; font-weight: 500;">${cc.name || 'New Collection'}</span>
+                    <span style="color: var(--text-secondary); font-size: 0.75rem;">${summaryText}</span>
+                    <button type="button" class="btn btn-sm btn-danger" onclick="event.stopPropagation(); Settings.removeKometaCustomCollection(${idx})" title="Remove">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </summary>
+                <div style="padding: 0 0.75rem 0.75rem 0.75rem;">
+                    <div style="display: grid; gap: 0.5rem;">
+                        <!-- Row 1: Name and Schedule -->
+                        <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 0.5rem;">
+                            <div>
+                                <label class="form-label" style="font-size: 0.7rem;">Collection Name</label>
+                                <input type="text" class="form-input" name="cc_${idx}_name" value="${Utils.escapeHtml(cc.name || '')}" placeholder="e.g., Christmas Movies" onchange="Settings.updateCustomCollectionTitle(${idx})">
+                            </div>
+                            <div>
+                                <label class="form-label" style="font-size: 0.7rem;">Schedule</label>
+                                <select class="form-select" name="cc_${idx}_schedule" onchange="document.getElementById('cc_${idx}_date_range').style.display = this.value === 'date_range' ? 'flex' : 'none'">
+                                    <option value="always" ${cc.schedule !== 'date_range' ? 'selected' : ''}>Always Active</option>
+                                    <option value="date_range" ${cc.schedule === 'date_range' ? 'selected' : ''}>Date Range</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Library Selection -->
+                        <div style="padding: 0.5rem; background: var(--card-bg); border-radius: 4px; border: 1px solid var(--border-color);">
+                            <label style="font-size: 0.7rem; color: var(--text-secondary); display: block; margin-bottom: 0.25rem;">Apply to Libraries:</label>
+                            <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                                ${libraries.length > 0 ? libraries.map(lib => {
+                                    const libKey = lib.name.toLowerCase().replace(/[^a-z0-9]/g, '_');
+                                    const isSelected = selectedLibraries.includes(lib.name);
+                                    const typeIcon = lib.type === 'movie' ? '🎬' : '📺';
+                                    return `
+                                    <label style="display: flex; align-items: center; gap: 0.25rem; cursor: pointer; font-size: 0.8rem; padding: 0.25rem 0.5rem; background: var(--bg-color); border-radius: 4px; border: 1px solid var(--border-color);">
+                                        <input type="checkbox" name="cc_${idx}_lib_${libKey}" data-library="${Utils.escapeHtml(lib.name)}" data-libtype="${lib.type}" ${isSelected ? 'checked' : ''} onchange="Settings.updateCustomCollectionLibrarySelection(${idx})">
+                                        ${typeIcon} ${Utils.escapeHtml(lib.name)}
+                                    </label>`;
+                                }).join('') : '<span style="color: var(--text-secondary); font-size: 0.8rem;">No libraries available</span>'}
+                            </div>
+                        </div>
+
+                        <!-- Date Range (conditional) -->
+                        <div id="cc_${idx}_date_range" style="display: ${cc.schedule === 'date_range' ? 'flex' : 'none'}; gap: 0.5rem; align-items: center;">
+                            <span style="font-size: 0.7rem; color: var(--text-secondary);">Show from</span>
+                            <input type="text" class="form-input" name="cc_${idx}_start_date" value="${cc.start_date || ''}" placeholder="MM/DD" style="width: 70px; padding: 0.25rem;">
+                            <span style="font-size: 0.7rem; color: var(--text-secondary);">to</span>
+                            <input type="text" class="form-input" name="cc_${idx}_end_date" value="${cc.end_date || ''}" placeholder="MM/DD" style="width: 70px; padding: 0.25rem;">
+                        </div>
+
+                        <!-- Row 2: Sort Title and Poster -->
+                        <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 0.5rem;">
+                            <div>
+                                <label class="form-label" style="font-size: 0.7rem;">Sort Title</label>
+                                <input type="text" class="form-input" name="cc_${idx}_sort_title" value="${Utils.escapeHtml(cc.sort_title || '')}" placeholder="+++++++_Name" style="padding: 0.25rem;">
+                            </div>
+                            <div>
+                                <label class="form-label" style="font-size: 0.7rem;">Poster URL</label>
+                                <input type="text" class="form-input" name="cc_${idx}_poster" value="${Utils.escapeHtml(cc.poster || '')}" placeholder="https://theposterdb.com/api/assets/..." style="padding: 0.25rem;">
+                            </div>
+                        </div>
+
+                        <!-- Summary -->
+                        <div>
+                            <label class="form-label" style="font-size: 0.7rem;">Summary/Description</label>
+                            <input type="text" class="form-input" name="cc_${idx}_summary" value="${Utils.escapeHtml(cc.summary || '')}" placeholder="Description of this collection" style="padding: 0.25rem;">
+                        </div>
+
+                        <!-- Lists Section -->
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+                            <div>
+                                <label class="form-label" style="font-size: 0.7rem;">Trakt Lists (one URL per line)</label>
+                                <textarea class="form-input" name="cc_${idx}_trakt_lists" rows="3" placeholder="https://trakt.tv/users/.../lists/..." style="padding: 0.25rem; font-size: 0.75rem;">${Utils.escapeHtml(cc.trakt_lists || '')}</textarea>
+                            </div>
+                            <div>
+                                <label class="form-label" style="font-size: 0.7rem;">IMDb Lists (one URL per line)</label>
+                                <textarea class="form-input" name="cc_${idx}_imdb_lists" rows="3" placeholder="https://www.imdb.com/list/ls..." style="padding: 0.25rem; font-size: 0.75rem;">${Utils.escapeHtml(cc.imdb_lists || '')}</textarea>
+                            </div>
+                        </div>
+
+                        <!-- TMDb/Other Sources -->
+                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.5rem;">
+                            <div>
+                                <label class="form-label" style="font-size: 0.7rem;">TMDb Collection ID</label>
+                                <input type="text" class="form-input" name="cc_${idx}_tmdb_collection" value="${Utils.escapeHtml(cc.tmdb_collection || '')}" placeholder="528" style="padding: 0.25rem;">
+                            </div>
+                            <div>
+                                <label class="form-label" style="font-size: 0.7rem;">TMDb Keyword ID</label>
+                                <input type="text" class="form-input" name="cc_${idx}_tmdb_keyword" value="${Utils.escapeHtml(cc.tmdb_keyword || '')}" placeholder="207317" style="padding: 0.25rem;">
+                            </div>
+                            <div>
+                                <label class="form-label" style="font-size: 0.7rem;">Tautulli Days</label>
+                                <input type="number" class="form-input" name="cc_${idx}_tautulli_days" value="${cc.tautulli_days || ''}" placeholder="30" style="padding: 0.25rem;">
+                            </div>
+                        </div>
+
+                        <!-- Radarr Options (show if any movie libraries selected) -->
+                        <div id="cc_${idx}_radarr_section" style="display: ${hasMovieLibrary ? 'block' : 'none'}; border: 1px solid var(--border-color); border-radius: 4px; padding: 0.5rem; background: var(--card-bg);">
+                            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                                <input type="checkbox" name="cc_${idx}_radarr_enabled" id="cc_${idx}_radarr_enabled" ${cc.radarr_enabled ? 'checked' : ''} onchange="document.getElementById('cc_${idx}_radarr_options').style.display = this.checked ? 'flex' : 'none'">
+                                <label for="cc_${idx}_radarr_enabled" style="font-size: 0.8rem; font-weight: 500; cursor: pointer;">🎬 Radarr Integration (Movies)</label>
+                            </div>
+                            <div id="cc_${idx}_radarr_options" style="display: ${cc.radarr_enabled ? 'flex' : 'none'}; flex-wrap: wrap; gap: 0.75rem; margin-left: 1.25rem;">
+                                <label style="display: flex; align-items: center; gap: 0.25rem; cursor: pointer; font-size: 0.75rem;">
+                                    <input type="checkbox" name="cc_${idx}_radarr_add_missing" ${cc.radarr_add_missing !== false ? 'checked' : ''}>
+                                    Add Missing
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 0.25rem; cursor: pointer; font-size: 0.75rem;">
+                                    <input type="checkbox" name="cc_${idx}_radarr_search" ${cc.radarr_search ? 'checked' : ''}>
+                                    Search on Add
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 0.25rem; cursor: pointer; font-size: 0.75rem;">
+                                    <input type="checkbox" name="cc_${idx}_radarr_monitor" ${cc.radarr_monitor !== false ? 'checked' : ''}>
+                                    Monitor
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Sonarr Options (show if any show libraries selected) -->
+                        <div id="cc_${idx}_sonarr_section" style="display: ${hasShowLibrary ? 'block' : 'none'}; border: 1px solid var(--border-color); border-radius: 4px; padding: 0.5rem; background: var(--card-bg);">
+                            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                                <input type="checkbox" name="cc_${idx}_sonarr_enabled" id="cc_${idx}_sonarr_enabled" ${cc.sonarr_enabled ? 'checked' : ''} onchange="document.getElementById('cc_${idx}_sonarr_options').style.display = this.checked ? 'flex' : 'none'">
+                                <label for="cc_${idx}_sonarr_enabled" style="font-size: 0.8rem; font-weight: 500; cursor: pointer;">📺 Sonarr Integration (TV Shows)</label>
+                            </div>
+                            <div id="cc_${idx}_sonarr_options" style="display: ${cc.sonarr_enabled ? 'flex' : 'none'}; flex-wrap: wrap; gap: 0.75rem; margin-left: 1.25rem;">
+                                <label style="display: flex; align-items: center; gap: 0.25rem; cursor: pointer; font-size: 0.75rem;">
+                                    <input type="checkbox" name="cc_${idx}_sonarr_add_missing" ${cc.sonarr_add_missing !== false ? 'checked' : ''}>
+                                    Add Missing
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 0.25rem; cursor: pointer; font-size: 0.75rem;">
+                                    <input type="checkbox" name="cc_${idx}_sonarr_search" ${cc.sonarr_search ? 'checked' : ''}>
+                                    Search on Add
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 0.25rem; cursor: pointer; font-size: 0.75rem;">
+                                    <input type="checkbox" name="cc_${idx}_sonarr_monitor" ${cc.sonarr_monitor !== false ? 'checked' : ''}>
+                                    Monitor
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </details>
+        `;
+    },
+
+    updateCustomCollectionTitle(idx) {
+        const name = document.querySelector(`input[name="cc_${idx}_name"]`).value;
+        const row = document.querySelector(`.kometa-custom-collection-row[data-index="${idx}"]`);
+        if (row) {
+            const summary = row.querySelector('summary span:first-child');
+            if (summary) summary.textContent = name || 'New Collection';
+        }
+    },
+
+    updateCustomCollectionLibrarySelection(idx) {
+        const row = document.querySelector(`.kometa-custom-collection-row[data-index="${idx}"]`);
+        if (!row) return;
+
+        // Get all selected library checkboxes
+        const libraryCheckboxes = row.querySelectorAll(`input[name^="cc_${idx}_lib_"]`);
+        let hasMovie = false;
+        let hasShow = false;
+        let selectedCount = 0;
+
+        libraryCheckboxes.forEach(cb => {
+            if (cb.checked) {
+                selectedCount++;
+                const libType = cb.getAttribute('data-libtype');
+                if (libType === 'movie') hasMovie = true;
+                if (libType === 'show') hasShow = true;
+            }
+        });
+
+        // Update summary badge
+        const badge = row.querySelector('summary span:nth-child(2)');
+        if (badge) {
+            badge.textContent = selectedCount === 0 ? 'No libraries selected' : `${selectedCount} ${selectedCount === 1 ? 'library' : 'libraries'}`;
+        }
+
+        // Show/hide Radarr/Sonarr sections based on selected library types
+        const radarrSection = document.getElementById(`cc_${idx}_radarr_section`);
+        const sonarrSection = document.getElementById(`cc_${idx}_sonarr_section`);
+        if (radarrSection) radarrSection.style.display = hasMovie || selectedCount === 0 ? 'block' : 'none';
+        if (sonarrSection) sonarrSection.style.display = hasShow ? 'block' : 'none';
+    },
+
+    addKometaCustomCollection() {
+        const container = document.getElementById('kometa-custom-collections-container');
+        const existingRows = container.querySelectorAll('.kometa-custom-collection-row');
+        const idx = existingRows.length;
+
+        // Remove "no collections" message if present
+        const noMsg = container.querySelector('p');
+        if (noMsg) noMsg.remove();
+
+        const html = this.renderKometaCustomCollectionRow({ name: '', schedule: 'always', libraries: [] }, idx);
+        container.insertAdjacentHTML('beforeend', html);
+
+        // Open the new collection for editing
+        const newRow = container.querySelector(`.kometa-custom-collection-row[data-index="${idx}"]`);
+        if (newRow) newRow.setAttribute('open', '');
+    },
+
+    removeKometaCustomCollection(idx) {
+        const row = document.querySelector(`.kometa-custom-collection-row[data-index="${idx}"]`);
+        if (row) row.remove();
+
+        // Re-index remaining rows
+        const container = document.getElementById('kometa-custom-collections-container');
+        const rows = container.querySelectorAll('.kometa-custom-collection-row');
+        rows.forEach((row, newIdx) => {
+            row.setAttribute('data-index', newIdx);
+            // Update all input/select/textarea names and ids
+            row.querySelectorAll('input, select, textarea').forEach(el => {
+                if (el.name) {
+                    el.name = el.name.replace(/cc_\d+_/, `cc_${newIdx}_`);
+                }
+                if (el.id) {
+                    el.id = el.id.replace(/cc_\d+_/, `cc_${newIdx}_`);
+                }
+            });
+            // Update div ids
+            row.querySelectorAll('div[id^="cc_"]').forEach(el => {
+                el.id = el.id.replace(/cc_\d+_/, `cc_${newIdx}_`);
+            });
+            // Update onclick/onchange handlers
+            const deleteBtn = row.querySelector('.btn-danger');
+            if (deleteBtn) deleteBtn.setAttribute('onclick', `event.stopPropagation(); Settings.removeKometaCustomCollection(${newIdx})`);
+
+            const nameInput = row.querySelector('input[name$="_name"]');
+            if (nameInput) nameInput.setAttribute('onchange', `Settings.updateCustomCollectionTitle(${newIdx})`);
+
+            // Update library checkbox handlers
+            row.querySelectorAll('input[name*="_lib_"]').forEach(cb => {
+                cb.setAttribute('onchange', `Settings.updateCustomCollectionLibrarySelection(${newIdx})`);
+            });
+
+            const scheduleSelect = row.querySelector('select[name$="_schedule"]');
+            if (scheduleSelect) scheduleSelect.setAttribute('onchange', `document.getElementById('cc_${newIdx}_date_range').style.display = this.value === 'date_range' ? 'flex' : 'none'`);
+
+            const radarrCheckbox = row.querySelector('input[name$="_radarr_enabled"]');
+            if (radarrCheckbox) radarrCheckbox.setAttribute('onchange', `document.getElementById('cc_${newIdx}_radarr_options').style.display = this.checked ? 'flex' : 'none'`);
+
+            const sonarrCheckbox = row.querySelector('input[name$="_sonarr_enabled"]');
+            if (sonarrCheckbox) sonarrCheckbox.setAttribute('onchange', `document.getElementById('cc_${newIdx}_sonarr_options').style.display = this.checked ? 'flex' : 'none'`);
+
+            // Update label for attributes
+            row.querySelectorAll('label[for^="cc_"]').forEach(label => {
+                label.setAttribute('for', label.getAttribute('for').replace(/cc_\d+_/, `cc_${newIdx}_`));
+            });
+        });
+
+        if (rows.length === 0) {
+            container.innerHTML = '<p style="color: var(--text-secondary); text-align: center; font-size: 0.9rem;">No custom collections. Click "Add Collection" to create one.</p>';
+        }
+    },
+
+    async saveKometaConfig() {
+        const form = document.getElementById('kometa-config-form');
+        const formData = new FormData(form);
+
+        // Build config object with all fields
+        const config = {
+            tmdb_apikey: formData.get('tmdb_apikey'),
+            omdb_apikey: formData.get('omdb_apikey'),
+            libraries: [],
+            settings: {
+                sync_mode: formData.get('settings_sync_mode') || 'append',
+                cache: formData.get('settings_cache') === 'on',
+                cache_expiration: parseInt(formData.get('settings_cache_expiration')) || 60,
+                minimum_items: parseInt(formData.get('settings_minimum_items')) || 1,
+                run_again_delay: parseInt(formData.get('settings_run_again_delay')) || 2,
+                item_refresh_delay: parseInt(formData.get('settings_item_refresh_delay')) || 0,
+                tvdb_language: formData.get('settings_tvdb_language') || 'eng',
+                asset_folders: formData.get('settings_asset_folders') === 'on',
+                delete_below_minimum: formData.get('settings_delete_below_minimum') === 'on',
+                delete_not_scheduled: formData.get('settings_delete_not_scheduled') === 'on',
+                missing_only_released: formData.get('settings_missing_only_released') === 'on',
+                show_unmanaged: formData.get('settings_show_unmanaged') === 'on',
+                show_filtered: formData.get('settings_show_filtered') === 'on',
+                show_missing: formData.get('settings_show_missing') === 'on',
+                save_missing: formData.get('settings_save_missing') === 'on',
+                only_filter_missing: formData.get('settings_only_filter_missing') === 'on',
+                show_options: formData.get('settings_show_options') === 'on',
+                verify_ssl: formData.get('settings_verify_ssl') === 'on',
+                overlay_artwork_filetype: formData.get('settings_overlay_artwork_filetype') || 'jpg',
+                overlay_artwork_quality: formData.get('settings_overlay_artwork_quality') ? parseInt(formData.get('settings_overlay_artwork_quality')) : null,
+                playlist_sync_to_users: formData.get('settings_playlist_sync_to_users') || 'all'
+            },
+            trakt: {
+                enabled: formData.get('trakt_enabled') === 'on',
+                client_id: formData.get('trakt_client_id'),
+                client_secret: formData.get('trakt_client_secret')
+            },
+            tautulli: {
+                enabled: formData.get('tautulli_enabled') === 'on',
+                url: formData.get('tautulli_url'),
+                apikey: formData.get('tautulli_apikey')
+            },
+            radarr: {
+                enabled: formData.get('radarr_enabled') === 'on',
+                url: formData.get('radarr_url'),
+                token: formData.get('radarr_token'),
+                root_folder_path: formData.get('radarr_root_folder_path'),
+                quality_profile: formData.get('radarr_quality_profile'),
+                availability: formData.get('radarr_availability') || 'announced',
+                tag: formData.get('radarr_tag') || null,
+                radarr_path: formData.get('radarr_radarr_path') || null,
+                plex_path: formData.get('radarr_plex_path') || null,
+                add_missing: formData.get('radarr_add_missing') === 'on',
+                add_existing: formData.get('radarr_add_existing') === 'on',
+                upgrade_existing: formData.get('radarr_upgrade_existing') === 'on',
+                monitor_existing: formData.get('radarr_monitor_existing') === 'on',
+                monitor: formData.get('radarr_monitor') === 'on',
+                search: formData.get('radarr_search') === 'on',
+                ignore_cache: formData.get('radarr_ignore_cache') === 'on'
+            },
+            sonarr: {
+                enabled: formData.get('sonarr_enabled') === 'on',
+                url: formData.get('sonarr_url'),
+                token: formData.get('sonarr_token'),
+                root_folder_path: formData.get('sonarr_root_folder_path'),
+                quality_profile: formData.get('sonarr_quality_profile'),
+                language_profile: formData.get('sonarr_language_profile') || null,
+                series_type: formData.get('sonarr_series_type') || 'standard',
+                monitor: formData.get('sonarr_monitor') || 'all',
+                tag: formData.get('sonarr_tag') || null,
+                sonarr_path: formData.get('sonarr_sonarr_path') || null,
+                plex_path: formData.get('sonarr_plex_path') || null,
+                add_missing: formData.get('sonarr_add_missing') === 'on',
+                add_existing: formData.get('sonarr_add_existing') === 'on',
+                upgrade_existing: formData.get('sonarr_upgrade_existing') === 'on',
+                monitor_existing: formData.get('sonarr_monitor_existing') === 'on',
+                season_folder: formData.get('sonarr_season_folder') === 'on',
+                search: formData.get('sonarr_search') === 'on',
+                cutoff_search: formData.get('sonarr_cutoff_search') === 'on',
+                ignore_cache: formData.get('sonarr_ignore_cache') === 'on'
+            },
+            plex: {}
+        };
+
+        // Collect Plex server configurations
+        const plexServers = this.kometaConfigState.plexServers || [];
+        plexServers.forEach((server, idx) => {
+            const name = formData.get(`plex_${idx}_name`);
+            if (name) {
+                config.plex[name] = {
+                    url: formData.get(`plex_${idx}_url`),
+                    token: formData.get(`plex_${idx}_token`),
+                    timeout: parseInt(formData.get(`plex_${idx}_timeout`)) || 60,
+                    db_cache: parseInt(formData.get(`plex_${idx}_db_cache`)) || 40,
+                    clean_bundles: formData.get(`plex_${idx}_clean_bundles`) === 'on',
+                    empty_trash: formData.get(`plex_${idx}_empty_trash`) === 'on',
+                    optimize: formData.get(`plex_${idx}_optimize`) === 'on',
+                    verify_ssl: formData.get(`plex_${idx}_verify_ssl`) === 'on'
+                };
+            }
+        });
+
+        // Collect libraries from checkbox selections
+        const libraryRows = document.querySelectorAll('.kometa-library-row');
+        libraryRows.forEach((row, idx) => {
+            const name = formData.get(`library_name_${idx}`);
+            if (!name) return;
+
+            // Collect checked collection checkboxes
+            const collections = [];
+            row.querySelectorAll(`input[name^="lib_${idx}_col_"]:checked`).forEach(cb => {
+                collections.push(cb.value);
+            });
+
+            // Collect checked overlay checkboxes
+            const overlays = [];
+            row.querySelectorAll(`input[name^="lib_${idx}_ovl_"]:checked`).forEach(cb => {
+                overlays.push(cb.value);
+            });
+
+            config.libraries.push({
+                name,
+                collection_files: collections,
+                overlay_files: overlays
+            });
+        });
+
+        // Collections are managed via the unified collections UI
+        // They're already stored in kometaConfigState.config.collections by saveKometaCollectionFromForm()
+        config.collections = this.kometaConfigState.config?.collections || [];
+
+        // Overlays are managed via the unified overlays UI
+        config.overlays = this.kometaConfigState.config?.overlays || [];
+
+        // Validate
+        if (!config.tmdb_apikey) {
+            Utils.showToast('error', 'TMDb API key is required');
+            return;
+        }
+
+        if (config.libraries.length === 0) {
+            Utils.showToast('error', 'Please add at least one library');
+            return;
+        }
+
+        for (const lib of config.libraries) {
+            if (!lib.name.trim()) {
+                Utils.showToast('error', 'All libraries must have a name');
+                return;
+            }
+        }
+
+        try {
+            Utils.showLoading();
+            const response = await fetch(`/api/v2/kometa/instances/${this.kometaConfigState.instanceId}/config`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ config })
+            });
+
+            const data = await response.json();
+            Utils.hideLoading();
+
+            if (data.success) {
+                Utils.showToast('success', 'Configuration saved successfully!');
+                Utils.closeModal();
+                this.loadKometaInstances();
+            } else {
+                throw new Error(data.message);
+            }
+        } catch (error) {
+            Utils.hideLoading();
+            Utils.showToast('error', 'Failed to save: ' + error.message);
+        }
+    },
+
+    async openKometaEditor(instanceId) {
+        // Now opens the configurator with tabs
+        this.kometaState.currentInstanceId = instanceId;
+        this.kometaState.currentFilePath = '';
+        this.kometaState.currentDirectory = '';
+        await this.openKometaConfigurator(instanceId);
+    },
+
+    async loadKometaFileTree(instanceId, subpath = '') {
+        const treeContainer = document.getElementById('kometa-file-tree');
+        const dirLabel = document.getElementById('kometa-current-dir');
+
+        // Track current directory for file creation
+        this.kometaState.currentDirectory = subpath;
+        if (dirLabel) {
+            dirLabel.textContent = '/' + (subpath || '');
+        }
+
+        try {
+            const url = `/api/v2/kometa/instances/${instanceId}/files${subpath ? `?subpath=${encodeURIComponent(subpath)}` : ''}`;
+            const response = await fetch(url);
+            const data = await response.json();
+
+            if (!data.success) throw new Error(data.message);
+
+            let html = '';
+
+            // Add parent directory link if in subdirectory
+            if (subpath) {
+                const parentPath = subpath.split('/').slice(0, -1).join('/');
+                html += `
+                    <div style="padding: 0.25rem 0; cursor: pointer;" onclick="Settings.loadKometaFileTree('${instanceId}', '${parentPath}')">
+                        <i class="fas fa-level-up-alt" style="color: var(--text-secondary);"></i>
+                        <span style="color: var(--text-secondary);">..</span>
+                    </div>
+                `;
+            }
+
+            // Directories first, then files
+            for (const file of data.files) {
+                if (file.type === 'directory') {
+                    html += `
+                        <div style="padding: 0.25rem 0; cursor: pointer;" onclick="Settings.loadKometaFileTree('${instanceId}', '${file.path}')">
+                            <i class="fas fa-folder" style="color: var(--warning-color);"></i>
+                            <span>${Utils.escapeHtml(file.name)}</span>
+                        </div>
+                    `;
+                } else {
+                    const isYaml = file.name.endsWith('.yml') || file.name.endsWith('.yaml');
+                    const icon = isYaml ? 'fa-file-code' : 'fa-file';
+                    html += `
+                        <div style="padding: 0.25rem 0; cursor: pointer;" onclick="Settings.loadKometaFileContent('${instanceId}', '${file.path}')">
+                            <i class="fas ${icon}" style="color: var(--text-secondary);"></i>
+                            <span>${Utils.escapeHtml(file.name)}</span>
+                        </div>
+                    `;
+                }
+            }
+
+            treeContainer.innerHTML = html || '<p style="color: var(--text-secondary); font-size: 0.875rem;">Empty directory</p>';
+        } catch (error) {
+            treeContainer.innerHTML = `<p style="color: var(--danger-color);">Error: ${error.message}</p>`;
+        }
+    },
+
+    async loadKometaFileContent(instanceId, filepath) {
+        const editor = document.getElementById('kometa-editor');
+        const fileLabel = document.getElementById('kometa-current-file');
+        const saveBtn = document.getElementById('kometa-save-btn');
+        const deleteBtn = document.getElementById('kometa-delete-btn');
+
+        try {
+            editor.value = 'Loading...';
+            editor.disabled = true;
+
+            const response = await fetch(`/api/v2/kometa/instances/${instanceId}/file?filepath=${encodeURIComponent(filepath)}`);
+            const data = await response.json();
+
+            if (!data.success) throw new Error(data.message);
+
+            this.kometaState.currentFilePath = filepath;
+            editor.value = data.content;
+            editor.disabled = false;
+            fileLabel.textContent = filepath;
+            saveBtn.disabled = false;
+            // Enable delete for non-protected files
+            const isProtected = filepath === 'config.yml' || filepath === 'instance.json';
+            if (deleteBtn) deleteBtn.disabled = isProtected;
+        } catch (error) {
+            editor.value = `Error loading file: ${error.message}`;
+            editor.disabled = true;
+            saveBtn.disabled = true;
+            if (deleteBtn) deleteBtn.disabled = true;
+        }
+    },
+
+    async saveKometaFile() {
+        const instanceId = this.kometaState.currentInstanceId;
+        const filepath = this.kometaState.currentFilePath;
+        const content = document.getElementById('kometa-editor').value;
+
+        if (!instanceId || !filepath) {
+            Utils.showToast('error', 'No file selected');
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/v2/kometa/instances/${instanceId}/file`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ filepath, content })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                Utils.showToast('success', 'File saved successfully');
+            } else {
+                throw new Error(data.message);
+            }
+        } catch (error) {
+            Utils.showToast('error', 'Failed to save file: ' + error.message);
+        }
+    },
+
+    showCreateKometaFileModal(isDirectory = false) {
+        const instanceId = this.kometaState.currentInstanceId;
+        const currentDir = this.kometaState.currentDirectory || '';
+        const type = isDirectory ? 'Folder' : 'File';
+        const placeholder = isDirectory ? 'my-folder' : 'collections.yml';
+
+        // Create a simple prompt
+        const name = prompt(`Enter ${type.toLowerCase()} name:\n\nWill be created in: /${currentDir || '(root)'}`, placeholder);
+
+        if (!name || !name.trim()) return;
+
+        const cleanName = name.trim();
+
+        // Validate name
+        if (!/^[a-zA-Z0-9._-]+$/.test(cleanName)) {
+            Utils.showToast('error', 'Invalid name. Use only letters, numbers, dots, hyphens, and underscores.');
+            return;
+        }
+
+        // Build full path
+        const filepath = currentDir ? `${currentDir}/${cleanName}` : cleanName;
+
+        this.createKometaFile(instanceId, filepath, isDirectory);
+    },
+
+    async createKometaFile(instanceId, filepath, isDirectory = false) {
+        try {
+            // Default content for YAML files
+            let defaultContent = '';
+            if (!isDirectory && (filepath.endsWith('.yml') || filepath.endsWith('.yaml'))) {
+                defaultContent = `## ${filepath.split('/').pop()}
+## Created by Stream Panel
+
+`;
+            }
+
+            const response = await fetch(`/api/v2/kometa/instances/${instanceId}/file`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    filepath,
+                    content: defaultContent,
+                    isDirectory
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                Utils.showToast('success', `${isDirectory ? 'Folder' : 'File'} created successfully`);
+                // Refresh the file tree
+                await this.loadKometaFileTree(instanceId, this.kometaState.currentDirectory);
+                // If it's a file, open it for editing
+                if (!isDirectory) {
+                    await this.loadKometaFileContent(instanceId, filepath);
+                }
+            } else {
+                throw new Error(data.message);
+            }
+        } catch (error) {
+            Utils.showToast('error', `Failed to create: ${error.message}`);
+        }
+    },
+
+    async deleteKometaFile() {
+        const instanceId = this.kometaState.currentInstanceId;
+        const filepath = this.kometaState.currentFilePath;
+
+        if (!instanceId || !filepath) {
+            Utils.showToast('error', 'No file selected');
+            return;
+        }
+
+        // Protect critical files
+        if (filepath === 'config.yml' || filepath === 'instance.json') {
+            Utils.showToast('error', 'Cannot delete protected file');
+            return;
+        }
+
+        if (!confirm(`Delete "${filepath}"?\n\nThis action cannot be undone.`)) return;
+
+        try {
+            const response = await fetch(`/api/v2/kometa/instances/${instanceId}/file`, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ filepath })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                Utils.showToast('success', 'File deleted successfully');
+                // Clear editor
+                const editor = document.getElementById('kometa-editor');
+                const fileLabel = document.getElementById('kometa-current-file');
+                const saveBtn = document.getElementById('kometa-save-btn');
+                const deleteBtn = document.getElementById('kometa-delete-btn');
+
+                this.kometaState.currentFilePath = '';
+                editor.value = '';
+                editor.disabled = true;
+                editor.placeholder = 'Select a file from the tree to edit...';
+                fileLabel.textContent = 'Select a file to edit';
+                saveBtn.disabled = true;
+                if (deleteBtn) deleteBtn.disabled = true;
+
+                // Refresh file tree
+                await this.loadKometaFileTree(instanceId, this.kometaState.currentDirectory);
+            } else {
+                throw new Error(data.message);
+            }
+        } catch (error) {
+            Utils.showToast('error', `Failed to delete: ${error.message}`);
+        }
+    },
+
+    async viewKometaLogs(instanceId) {
+        Utils.showModal({
+            title: `<i class="fas fa-file-alt"></i> Kometa Logs`,
+            size: 'large',
+            body: `
+                <div style="display: flex; flex-direction: column; height: 400px;">
+                    <div style="margin-bottom: 0.5rem;">
+                        <select id="kometa-log-select" class="form-select" onchange="Settings.loadKometaLogContent('${instanceId}')">
+                            <option value="">Select a log file...</option>
+                        </select>
+                    </div>
+                    <pre id="kometa-log-content" style="flex: 1; overflow: auto; background: var(--bg-color); border: 1px solid var(--border-color); border-radius: 4px; padding: 0.75rem; font-size: 12px; margin: 0;">Select a log file to view...</pre>
+                </div>
+            `,
+            buttons: [
+                { text: 'Close', class: 'btn-outline', onClick: () => Utils.closeModal() }
+            ]
+        });
+
+        // Load log files list
+        try {
+            const response = await fetch(`/api/v2/kometa/instances/${instanceId}/logs`);
+            const data = await response.json();
+
+            const select = document.getElementById('kometa-log-select');
+            if (data.logs && data.logs.length > 0) {
+                data.logs.forEach(log => {
+                    const option = document.createElement('option');
+                    option.value = log.name;
+                    option.textContent = `${log.name} (${Utils.formatFileSize(log.size)})`;
+                    select.appendChild(option);
+                });
+                // Auto-select most recent
+                select.value = data.logs[0].name;
+                await this.loadKometaLogContent(instanceId);
+            } else {
+                select.innerHTML = '<option value="">No logs available</option>';
+            }
+        } catch (error) {
+            document.getElementById('kometa-log-content').textContent = 'Error loading logs: ' + error.message;
+        }
+    },
+
+    async loadKometaLogContent(instanceId) {
+        const select = document.getElementById('kometa-log-select');
+        const logContent = document.getElementById('kometa-log-content');
+        const logfile = select.value;
+
+        if (!logfile) {
+            logContent.textContent = 'Select a log file to view...';
+            return;
+        }
+
+        try {
+            logContent.textContent = 'Loading...';
+            const response = await fetch(`/api/v2/kometa/instances/${instanceId}/logs/${logfile}?tail=500`);
+            const data = await response.json();
+
+            if (data.success) {
+                logContent.textContent = data.content || '(empty log)';
+                // Scroll to bottom
+                logContent.scrollTop = logContent.scrollHeight;
+            } else {
+                throw new Error(data.message);
+            }
+        } catch (error) {
+            logContent.textContent = 'Error: ' + error.message;
+        }
     },
 
     escapeHtml(text) {

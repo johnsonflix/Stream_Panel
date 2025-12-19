@@ -41,6 +41,9 @@
                 <li><a href="#users" class="nav-link" data-page="users">
                     <i class="fas fa-users"></i> Users
                 </a></li>
+                <li><a href="javascript:void(0)" class="nav-link" id="seerr-nav-link" onclick="openSeerrAdmin()" style="display: none;">
+                    <i class="fas fa-ticket-alt"></i> Seerr
+                </a></li>
                 <li><a href="#email" class="nav-link" data-page="email">
                     <i class="fas fa-envelope"></i> Email
                 </a></li>
@@ -95,5 +98,33 @@
     <script src="js/settings.js"></script>
     <script src="js/portal-settings.js"></script>
     <script src="js/app.js"></script>
+    <script>
+        // Seerr navigation functions
+        async function checkSeerrNavVisibility() {
+            try {
+                const response = await fetch('/api/v2/seerr/status');
+                const data = await response.json();
+                const seerrNav = document.getElementById('seerr-nav-link');
+                if (seerrNav) {
+                    // Show Seerr nav if it's installed AND running
+                    seerrNav.style.display = (data.installed && data.running) ? 'block' : 'none';
+                }
+            } catch (error) {
+                console.log('Could not check Seerr status:', error);
+            }
+        }
+
+        function openSeerrAdmin() {
+            // Open Seerr in a new tab - admin will be signed in via Plex OAuth
+            window.open('http://localhost:5055', '_blank');
+        }
+
+        // Check Seerr visibility on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            checkSeerrNavVisibility();
+            // Also check periodically (every 30 seconds) in case Seerr is started/stopped
+            setInterval(checkSeerrNavVisibility, 30000);
+        });
+    </script>
 </body>
 </html>

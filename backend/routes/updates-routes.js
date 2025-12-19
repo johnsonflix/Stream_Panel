@@ -8,8 +8,12 @@ const execPromise = util.promisify(exec);
 
 // GitHub configuration
 const GITHUB_REPO = 'johnsonflix/Stream_Panel';
+const KOMETA_REPO = 'Kometa-Team/Kometa';
 const GITHUB_API_BASE = 'https://api.github.com';
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN || '';
+
+// Kometa version file path (stored in kometa_app for persistence)
+const KOMETA_VERSION_FILE = path.join(__dirname, '../../kometa_app/kometa_version.json');
 
 // Get current version
 router.get('/current-version', async (req, res) => {
@@ -127,6 +131,39 @@ router.get('/check', async (req, res) => {
             }
         }
 
+        // Check Kometa version
+        let kometaInfo = {
+            installed: false,
+            currentVersion: null,
+            latestVersion: null,
+            updateAvailable: false
+        };
+
+        try {
+            // Check if Kometa is installed
+            if (fs.existsSync(KOMETA_VERSION_FILE)) {
+                const kometaVersionData = JSON.parse(fs.readFileSync(KOMETA_VERSION_FILE, 'utf8'));
+                kometaInfo.installed = true;
+                kometaInfo.currentVersion = kometaVersionData.version;
+                kometaInfo.installedAt = kometaVersionData.installedAt;
+
+                // Check for Kometa updates
+                const kometaResponse = await fetch(
+                    `${GITHUB_API_BASE}/repos/${KOMETA_REPO}/releases/latest`,
+                    { headers }
+                );
+
+                if (kometaResponse.ok) {
+                    const kometaRelease = await kometaResponse.json();
+                    kometaInfo.latestVersion = kometaRelease.tag_name.replace(/^v/, '');
+                    kometaInfo.updateAvailable = kometaInfo.currentVersion !== kometaInfo.latestVersion;
+                    kometaInfo.releaseUrl = kometaRelease.html_url;
+                }
+            }
+        } catch (e) {
+            console.log('Could not check Kometa version:', e.message);
+        }
+
         res.json({
             updateAvailable,
             localVersion: localVersion.version,
@@ -139,7 +176,8 @@ router.get('/check', async (req, res) => {
                 message: c.commit.message.split('\n')[0],
                 author: c.commit.author.name,
                 date: c.commit.author.date
-            }))
+            })),
+            kometa: kometaInfo
         });
 
     } catch (error) {
