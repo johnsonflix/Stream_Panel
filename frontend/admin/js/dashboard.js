@@ -147,12 +147,13 @@ const Dashboard = {
         // Clear any existing interval
         this.stopAutoRefresh();
 
-        // Refresh every 30 seconds (30000ms)
+        // Refresh live stats every 30 seconds (IPTV streams, Plex sessions)
+        // This is more efficient than refreshing all stats
         this.refreshInterval = setInterval(() => {
-            this.loadStats(true); // true = silent refresh
+            this.loadLiveStats(true); // silent=true - don't update timestamp
         }, 30000);
 
-        console.log('[Dashboard] Auto-refresh started (30 second interval)');
+        console.log('[Dashboard] Auto-refresh started (30s interval for live stats)');
     },
 
     /**
@@ -415,7 +416,415 @@ const Dashboard = {
             return false;
         }
 
+        // Always fetch fresh live stats after displaying cached stats
+        // This ensures IPTV live streams and Plex now playing are always current
+        this.loadLiveStats(silent);
+
         return true;
+    },
+
+    /**
+     * Load fresh live statistics (Plex sessions, IPTV streams) synchronously
+     * This bypasses the cache to get real-time data
+     */
+    async loadLiveStats(silent = false) {
+        console.log('[Dashboard] Fetching fresh live stats...');
+
+        try {
+            const response = await API.getDashboardLiveStats();
+
+            if (!response.success) {
+                console.error('[Dashboard] Live stats failed:', response.error);
+                return;
+            }
+
+            console.log(`[Dashboard] Live stats received - Plex: ${response.plex.total_live_sessions} sessions, IPTV: ${response.iptv.live_streams} streams`);
+
+            // Update Plex live session data in cached stats
+            if (this.cachedStats) {
+                this.cachedStats.live_sessions = response.plex.live_sessions;
+                this.cachedStats.total_live_sessions = response.plex.total_live_sessions;
+                this.cachedStats.live_plex_users = response.plex.total_live_sessions;
+                this.cachedStats.total_bandwidth_mbps = response.plex.total_bandwidth_mbps;
+                this.cachedStats.wan_bandwidth_mbps = response.plex.wan_bandwidth_mbps;
+                this.cachedStats.direct_plays_count = response.plex.direct_plays_count;
+                this.cachedStats.direct_streams_count = response.plex.direct_streams_count;
+                this.cachedStats.transcodes_count = response.plex.transcodes_count;
+
+                // Update IPTV live streams count
+                this.cachedStats.iptv_live_streams = response.iptv.live_streams;
+
+                // Update IPTV panels data with fresh live viewers
+                if (this.cachedStats.iptv_panels_data && this.cachedStats.iptv_panels_data.panels) {
+                    for (const freshPanel of response.iptv.panels) {
+                        const existingPanel = this.cachedStats.iptv_panels_data.panels.find(p => p.panel_id === freshPanel.panel_id);
+                        if (existingPanel) {
+                            existingPanel.liveViewers = freshPanel.liveViewers || [];
+                            if (existingPanel.users) {
+                                existingPanel.users.liveNow = freshPanel.liveStreams;
+                            }
+                        }
+                    }
+                }
+
+                // Update the sessionStorage cache with fresh live data
+                this.saveToCache(this.cachedStats);
+            }
+
+            // Update the displayed stat cards with fresh live data
+            this.updateLiveStatsDisplay(response);
+
+            if (!silent) {
+                this.updateLastUpdatedTime(false, 0);
+            }
+
+        } catch (error) {
+            console.error('[Dashboard] Error loading live stats:', error);
+        }
+    },
+
+    /**
+     * Update only the live stats display (Plex sessions, IPTV streams) without full re-render
+     */
+    updateLiveStatsDisplay(liveData) {
+        // Update Plex Live Streams stat card
+        const plexLiveCard = document.querySelector('[data-card-id="plex-live-streams"] .stat-value');
+        if (plexLiveCard) {
+            plexLiveCard.textContent = liveData.plex.total_live_sessions || 0;
+        }
+
+        // Update IPTV Live Streams stat card
+        const iptvLiveCard = document.querySelector('[data-card-id="iptv-live-streams"] .stat-value');
+        if (iptvLiveCard) {
+            iptvLiveCard.textContent = liveData.iptv.live_streams || 0;
+        }
+
+        // Update Plex Now Playing section header
+        const nowPlayingHeader = document.querySelector('#now-playing-content')?.previousElementSibling?.querySelector('span');
+        if (nowPlayingHeader && nowPlayingHeader.textContent.includes('Sessions:')) {
+            const sessions = liveData.plex.total_live_sessions;
+            const directPlays = liveData.plex.direct_plays_count;
+            const directStreams = liveData.plex.direct_streams_count;
+            const transcodes = liveData.plex.transcodes_count;
+            const bandwidth = liveData.plex.total_bandwidth_mbps;
+            const wanBandwidth = liveData.plex.wan_bandwidth_mbps || '0.0';
+            nowPlayingHeader.innerHTML = `Sessions: <strong>${sessions}</strong> (${directPlays + directStreams} direct plays, ${transcodes} transcodes) | Bandwidth: <strong>${bandwidth} Mbps (WAN: ${wanBandwidth} Mbps)</strong>`;
+        }
+
+        // Update Plex Now Playing content if expanded
+        const nowPlayingContent = document.getElementById('now-playing-content');
+        if (nowPlayingContent && nowPlayingContent.style.display !== 'none' && this.cachedStats) {
+            // Re-render the now playing section with fresh data
+            const nowPlayingHtml = this.renderNowPlayingContent(this.cachedStats);
+            nowPlayingContent.innerHTML = nowPlayingHtml;
+        }
+
+        // Update IPTV Live Streams content if expanded
+        const iptvLiveContent = document.getElementById('iptv-live-streams-content');
+        if (iptvLiveContent && iptvLiveContent.style.display !== 'none' && this.cachedStats) {
+            // Re-render the IPTV live streams section with fresh data
+            const iptvHtml = this.renderIPTVLiveStreamsContent(this.cachedStats);
+            iptvLiveContent.innerHTML = iptvHtml;
+        }
+
+        // Update IPTV Panel live viewer counts in the panels section
+        if (liveData.iptv && liveData.iptv.panels) {
+            for (const panel of liveData.iptv.panels) {
+                const liveCountSpan = document.querySelector(`[data-panel-live-count="${panel.panel_id}"]`);
+                if (liveCountSpan) {
+                    liveCountSpan.textContent = panel.liveStreams || 0;
+                    console.log(`[Dashboard] Updated panel ${panel.panel_id} live count to ${panel.liveStreams || 0}`);
+                }
+            }
+        }
+
+        // Update panel Live Viewers sections (inside expanded panels)
+        if (liveData.iptv && liveData.iptv.panels && this.cachedStats && this.cachedStats.iptv_panels_data && this.cachedStats.iptv_panels_data.panels) {
+            for (const freshPanel of liveData.iptv.panels) {
+                const liveViewersContainer = document.getElementById(`panel-${freshPanel.panel_id}-live-viewers`);
+                if (liveViewersContainer) {
+                    // Find the panel data with updated liveViewers
+                    const panelData = this.cachedStats.iptv_panels_data.panels.find(p => p.panel_id === freshPanel.panel_id);
+                    if (panelData) {
+                        liveViewersContainer.innerHTML = this.renderPanelLiveViewersContent(panelData);
+                        console.log(`[Dashboard] Updated panel ${freshPanel.panel_id} live viewers content`);
+                    }
+                }
+            }
+        }
+
+        console.log('[Dashboard] Live stats display updated');
+    },
+
+    /**
+     * Render IPTV Live Streams content HTML from stats data
+     * @param {Object} stats - Dashboard stats object containing iptv_panels_data
+     * @returns {string} HTML content for IPTV live streams section
+     */
+    renderIPTVLiveStreamsContent(stats) {
+        // Build iptvLiveStreamsList from stats data (same logic as displayStats)
+        const iptvLiveStreamsByUser = {};
+        let totalIPTVStreams = 0;
+
+        if (stats.iptv_panels_data && stats.iptv_panels_data.panels) {
+            stats.iptv_panels_data.panels.forEach(panel => {
+                if (panel.liveViewers && panel.liveViewers.length > 0) {
+                    panel.liveViewers.forEach(viewer => {
+                        if (viewer.connections && viewer.connections.length > 0) {
+                            // Group by username
+                            if (!iptvLiveStreamsByUser[viewer.username]) {
+                                iptvLiveStreamsByUser[viewer.username] = {
+                                    username: viewer.username,
+                                    streams: [],
+                                    totalConnections: 0,
+                                    maxConnections: viewer.maxConnections
+                                };
+                            }
+
+                            // Add each connection with panel info, logo, and category
+                            viewer.connections.forEach(conn => {
+                                iptvLiveStreamsByUser[viewer.username].streams.push({
+                                    panel_name: panel.panel_name,
+                                    streamName: conn.streamName || 'Unknown',
+                                    ip: conn.ip || 'Unknown',
+                                    userAgent: conn.user_agent || conn.userAgent || 'Unknown',
+                                    dateStart: conn.dateStart || conn.date_start || null,
+                                    logo: conn.logo || null,
+                                    category: conn.category || null
+                                });
+                                totalIPTVStreams++;
+                            });
+
+                            iptvLiveStreamsByUser[viewer.username].totalConnections += viewer.connections.length;
+                        }
+                    });
+                }
+            });
+        }
+
+        const iptvLiveStreamsList = Object.values(iptvLiveStreamsByUser);
+
+        if (iptvLiveStreamsList.length === 0) {
+            return `<div style="text-align: center; padding: 2rem; color: var(--text-secondary);">
+                <i class="fas fa-tv" style="font-size: 2rem; opacity: 0.5; margin-bottom: 1rem;"></i>
+                <p>No active IPTV streams</p>
+            </div>`;
+        }
+
+        return `
+            <!-- Desktop View - Card-based IPTV Live Streams Grid -->
+            <div class="iptv-streams-desktop" style="grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 0.75rem;">
+                ${iptvLiveStreamsList.map(viewer => `
+                    <div style="background: linear-gradient(135deg, rgba(239, 68, 68, 0.05) 0%, rgba(168, 85, 247, 0.05) 100%); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 0.5rem; overflow: hidden;">
+                        <!-- User Header - Compact -->
+                        <div style="padding: 0.5rem 0.75rem; border-bottom: 1px solid rgba(239, 68, 68, 0.1); display: flex; justify-content: space-between; align-items: center;">
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <div style="width: 28px; height: 28px; border-radius: 50%; background: linear-gradient(135deg, #ef4444 0%, #a855f7 100%); display: flex; align-items: center; justify-content: center;">
+                                    <i class="fas fa-user" style="color: white; font-size: 0.7rem;"></i>
+                                </div>
+                                <div style="font-weight: 600; font-size: 0.85rem; color: var(--text-primary);">
+                                    ${viewer.username}
+                                </div>
+                                <div style="font-size: 0.7rem; color: var(--text-secondary);">
+                                    (${viewer.streams.length} ${viewer.streams.length === 1 ? 'stream' : 'streams'})
+                                </div>
+                            </div>
+                            <div style="padding: 0.25rem 0.5rem; background: ${viewer.totalConnections >= viewer.maxConnections ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)'}; border-radius: 0.25rem;">
+                                <span style="font-size: 0.8rem; font-weight: 700; color: ${viewer.totalConnections >= viewer.maxConnections ? '#ef4444' : '#10b981'};">
+                                    ${viewer.totalConnections}/${viewer.maxConnections}
+                                </span>
+                                <span style="font-size: 0.6rem; color: var(--text-secondary); text-transform: uppercase; margin-left: 0.25rem;">conn</span>
+                            </div>
+                        </div>
+
+                        <!-- Streams Grid - 2 columns when possible -->
+                        <div style="padding: 0.5rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 0.5rem;">
+                            ${viewer.streams.map(stream => `
+                                <div style="display: flex; gap: 0.5rem; padding: 0.5rem; background: var(--bg-secondary); border-radius: 0.375rem;">
+                                    <!-- Channel Logo - Smaller -->
+                                    <div style="flex-shrink: 0; width: 50px; height: 50px; border-radius: 0.25rem; overflow: hidden; background: var(--bg-tertiary); display: flex; align-items: center; justify-content: center;">
+                                        ${stream.logo ? `
+                                            <img src="${stream.logo}" alt="${stream.streamName}"
+                                                 style="width: 100%; height: 100%; object-fit: contain;"
+                                                 onerror="this.style.display='none'; this.parentElement.innerHTML='<i class=\\'fas fa-tv\\' style=\\'font-size: 1.2rem; color: var(--text-muted); opacity: 0.5;\\'></i>'"/>
+                                        ` : `
+                                            <i class="fas fa-tv" style="font-size: 1.2rem; color: var(--text-muted); opacity: 0.5;"></i>
+                                        `}
+                                    </div>
+
+                                    <!-- Stream Details - Compact -->
+                                    <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center;">
+                                        <div style="font-weight: 600; font-size: 0.75rem; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${stream.streamName}">
+                                            ${stream.streamName}
+                                        </div>
+
+                                        <div style="display: flex; align-items: center; gap: 0.35rem; margin-top: 0.15rem; flex-wrap: wrap;">
+                                            ${stream.category ? `
+                                                <span style="padding: 0.1rem 0.3rem; background: rgba(139, 92, 246, 0.15); color: #a78bfa; font-size: 0.55rem; border-radius: 0.15rem; text-transform: uppercase; font-weight: 600;">
+                                                    ${stream.category}
+                                                </span>
+                                            ` : ''}
+                                            <span style="padding: 0.1rem 0.3rem; background: rgba(139, 92, 246, 0.1); color: #a78bfa; font-size: 0.55rem; border-radius: 0.15rem;">
+                                                ${stream.panel_name}
+                                            </span>
+                                        </div>
+
+                                        <div class="iptv-stream-ip" style="display: flex; align-items: center; gap: 0.25rem; font-size: 0.6rem; color: var(--text-secondary); margin-top: 0.2rem;">
+                                            <i class="fas fa-map-marker-alt" style="color: #ec4899; font-size: 0.5rem;"></i>
+                                            <span>${stream.ip}</span>
+                                            ${stream.dateStart ? `
+                                                <span style="margin-left: 0.25rem; color: var(--text-muted);">• ${Dashboard.formatRelativeTime(stream.dateStart)}</span>
+                                            ` : ''}
+                                        </div>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+
+            <!-- Mobile View - Compact IPTV Live Streams -->
+            <div class="iptv-streams-mobile" style="grid-template-columns: 1fr; gap: 0.5rem;">
+                ${iptvLiveStreamsList.map(viewer => `
+                    <div style="background: linear-gradient(135deg, rgba(239, 68, 68, 0.05) 0%, rgba(168, 85, 247, 0.05) 100%); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 0.5rem; overflow: hidden;">
+                        <!-- Mobile User Header - Very Compact -->
+                        <div style="padding: 0.4rem 0.6rem; border-bottom: 1px solid rgba(239, 68, 68, 0.1); display: flex; justify-content: space-between; align-items: center;">
+                            <div style="display: flex; align-items: center; gap: 0.4rem;">
+                                <div style="width: 22px; height: 22px; border-radius: 50%; background: linear-gradient(135deg, #ef4444 0%, #a855f7 100%); display: flex; align-items: center; justify-content: center;">
+                                    <i class="fas fa-user" style="color: white; font-size: 0.55rem;"></i>
+                                </div>
+                                <span style="font-weight: 600; font-size: 0.75rem; color: var(--text-primary);">${viewer.username}</span>
+                            </div>
+                            <div style="padding: 0.15rem 0.35rem; background: ${viewer.totalConnections >= viewer.maxConnections ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)'}; border-radius: 0.2rem;">
+                                <span style="font-size: 0.7rem; font-weight: 700; color: ${viewer.totalConnections >= viewer.maxConnections ? '#ef4444' : '#10b981'};">
+                                    ${viewer.totalConnections}/${viewer.maxConnections}
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- Mobile Streams List - Ultra Compact -->
+                        <div style="padding: 0.35rem;">
+                            ${viewer.streams.map(stream => `
+                                <div style="display: flex; align-items: center; gap: 0.4rem; padding: 0.35rem; background: var(--bg-secondary); border-radius: 0.25rem; margin-bottom: 0.25rem;">
+                                    <!-- Mini Channel Logo -->
+                                    <div style="flex-shrink: 0; width: 32px; height: 32px; border-radius: 0.2rem; overflow: hidden; background: var(--bg-tertiary); display: flex; align-items: center; justify-content: center;">
+                                        ${stream.logo ? `
+                                            <img src="${stream.logo}" alt="${stream.streamName}"
+                                                 style="width: 100%; height: 100%; object-fit: contain;"
+                                                 onerror="this.style.display='none'; this.parentElement.innerHTML='<i class=\\'fas fa-tv\\' style=\\'font-size: 0.75rem; color: var(--text-muted); opacity: 0.5;\\'></i>'"/>
+                                        ` : `
+                                            <i class="fas fa-tv" style="font-size: 0.75rem; color: var(--text-muted); opacity: 0.5;"></i>
+                                        `}
+                                    </div>
+
+                                    <!-- Mobile Stream Info -->
+                                    <div style="flex: 1; min-width: 0;">
+                                        <div style="font-weight: 600; font-size: 0.7rem; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                            ${stream.streamName}
+                                        </div>
+                                        <div class="iptv-stream-ip" style="font-size: 0.55rem; color: var(--text-secondary); display: flex; align-items: center; gap: 0.2rem;">
+                                            <span>${stream.ip}</span>
+                                            ${stream.dateStart ? `<span style="color: var(--text-muted);">• ${Dashboard.formatRelativeTime(stream.dateStart)}</span>` : ''}
+                                        </div>
+                                    </div>
+
+                                    <!-- Panel Badge - Mobile -->
+                                    <span style="flex-shrink: 0; padding: 0.1rem 0.25rem; background: rgba(139, 92, 246, 0.1); color: #a78bfa; font-size: 0.5rem; border-radius: 0.15rem;">
+                                        ${stream.panel_name}
+                                    </span>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    },
+
+    /**
+     * Render panel Live Viewers content HTML from panel data
+     * @param {Object} panel - Panel data containing liveViewers array
+     * @returns {string} HTML content for panel's Live Viewers section
+     */
+    renderPanelLiveViewersContent(panel) {
+        if (!panel.liveViewers || panel.liveViewers.length === 0) {
+            return `
+                <div style="background: var(--bg-secondary); padding: 1.5rem; border-radius: 0.5rem; text-align: center; color: var(--text-secondary); font-size: 0.875rem;">
+                    <i class="fas fa-eye-slash" style="font-size: 2rem; opacity: 0.3; margin-bottom: 0.5rem;"></i>
+                    <div>No live viewers</div>
+                </div>
+            `;
+        }
+
+        return `
+            <div style="background: var(--bg-secondary); padding: 1rem; border-radius: 0.5rem;">
+                <div style="font-weight: 600; font-size: 0.9rem; color: var(--text-primary); margin-bottom: 1rem; display: flex; align-items: center;">
+                    <i class="fas fa-eye" style="margin-right: 0.5rem; color: #ef4444;"></i>
+                    Live Viewers (${panel.liveViewers.length})
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 0.75rem;">
+                    ${panel.liveViewers.map(viewer => `
+                        <div style="background: linear-gradient(135deg, rgba(239, 68, 68, 0.05) 0%, rgba(168, 85, 247, 0.05) 100%); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 0.5rem; overflow: hidden;">
+                            <!-- User Header -->
+                            <div style="padding: 0.5rem 0.75rem; border-bottom: 1px solid rgba(239, 68, 68, 0.1); display: flex; justify-content: space-between; align-items: center;">
+                                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <div style="width: 26px; height: 26px; border-radius: 50%; background: linear-gradient(135deg, #ef4444 0%, #a855f7 100%); display: flex; align-items: center; justify-content: center;">
+                                        <i class="fas fa-user" style="color: white; font-size: 0.65rem;"></i>
+                                    </div>
+                                    <span style="font-weight: 600; font-size: 0.8rem; color: var(--text-primary);">${viewer.username}</span>
+                                    <span style="font-size: 0.65rem; color: var(--text-secondary);">(${viewer.connections.length} ${viewer.connections.length === 1 ? 'stream' : 'streams'})</span>
+                                </div>
+                                <div style="padding: 0.2rem 0.4rem; background: ${viewer.activeConnections >= viewer.maxConnections ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)'}; border-radius: 0.25rem;">
+                                    <span style="font-size: 0.75rem; font-weight: 700; color: ${viewer.activeConnections >= viewer.maxConnections ? '#ef4444' : '#10b981'};">
+                                        ${viewer.activeConnections}/${viewer.maxConnections}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <!-- Streams -->
+                            <div style="padding: 0.5rem; display: grid; gap: 0.4rem;">
+                                ${viewer.connections.map(conn => `
+                                    <div style="display: flex; gap: 0.5rem; padding: 0.4rem; background: var(--bg-tertiary); border-radius: 0.375rem; align-items: center;">
+                                        <!-- Channel Logo -->
+                                        <div style="flex-shrink: 0; width: 40px; height: 40px; border-radius: 0.25rem; overflow: hidden; background: var(--bg-secondary); display: flex; align-items: center; justify-content: center;">
+                                            ${conn.logo ? `
+                                                <img src="${conn.logo}" alt="${conn.streamName}"
+                                                     style="width: 100%; height: 100%; object-fit: contain;"
+                                                     onerror="this.style.display='none'; this.parentElement.innerHTML='<i class=\\'fas fa-tv\\' style=\\'font-size: 1rem; color: var(--text-muted); opacity: 0.5;\\'></i>'"/>
+                                            ` : `
+                                                <i class="fas fa-tv" style="font-size: 1rem; color: var(--text-muted); opacity: 0.5;"></i>
+                                            `}
+                                        </div>
+
+                                        <!-- Stream Details -->
+                                        <div style="flex: 1; min-width: 0;">
+                                            <div style="font-weight: 600; font-size: 0.7rem; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${conn.streamName}">
+                                                ${conn.streamName}
+                                            </div>
+                                            <div style="display: flex; align-items: center; gap: 0.25rem; margin-top: 0.15rem; flex-wrap: wrap;">
+                                                ${conn.category ? `
+                                                    <span style="padding: 0.1rem 0.25rem; background: rgba(139, 92, 246, 0.15); color: #a78bfa; font-size: 0.5rem; border-radius: 0.15rem; text-transform: uppercase; font-weight: 600;">
+                                                        ${conn.category}
+                                                    </span>
+                                                ` : ''}
+                                            </div>
+                                            <div style="display: flex; align-items: center; gap: 0.25rem; font-size: 0.55rem; color: var(--text-secondary); margin-top: 0.15rem;">
+                                                <i class="fas fa-map-marker-alt" style="color: #ec4899; font-size: 0.45rem;"></i>
+                                                <span>${conn.ip}</span>
+                                                ${conn.dateStart ? `
+                                                    <span style="color: var(--text-muted);">• ${Dashboard.formatRelativeTime(conn.dateStart)}</span>
+                                                ` : ''}
+                                            </div>
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
     },
 
     /**
@@ -1673,8 +2082,8 @@ const Dashboard = {
                                                 ${panel.panel_name}
                                             </div>
                                             ${!panel.error ? `
-                                                <div style="font-size: 0.75rem; color: #64748b;">
-                                                    ${panel.users.total} Users • ${panel.users.liveNow} Live Viewers
+                                                <div style="font-size: 0.75rem; color: #64748b;" data-panel-id="${panel.panel_id}" data-panel-info="true">
+                                                    ${panel.users.total} Users • <span data-panel-live-count="${panel.panel_id}">${panel.users.liveNow}</span> Live Viewers
                                                 </div>
                                             ` : `
                                                 <div style="font-size: 0.75rem; color: #ef4444;">
@@ -1750,6 +2159,7 @@ const Dashboard = {
                                         ` : ''}
 
                                         <!-- Live Viewers Section - Card Format -->
+                                        <div id="panel-${panel.panel_id}-live-viewers">
                                         ${panel.liveViewers && panel.liveViewers.length > 0 ? `
                                             <div style="background: var(--bg-secondary); padding: 1rem; border-radius: 0.5rem;">
                                                 <div style="font-weight: 600; font-size: 0.9rem; color: var(--text-primary); margin-bottom: 1rem; display: flex; align-items: center;">
@@ -1821,6 +2231,7 @@ const Dashboard = {
                                                 <div>No live viewers</div>
                                             </div>
                                         `}
+                                        </div>
                                     ` : `
                                         <div style="background: var(--bg-secondary); padding: 2rem; border-radius: 0.5rem; text-align: center; color: var(--text-secondary);">
                                             <i class="fas fa-exclamation-triangle" style="font-size: 2.5rem; opacity: 0.3; margin-bottom: 0.75rem; color: #ef4444;"></i>

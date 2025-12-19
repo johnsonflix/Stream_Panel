@@ -1291,20 +1291,22 @@ const EditUser = {
      */
     async updateUserTags(tagIds) {
         const user = this.userData;
-        const originalTagIds = (user.tags || []).map(t => t.id);
+        // Ensure consistent integer types for comparison
+        const originalTagIds = (user.tags || []).map(t => parseInt(t.id));
+        const newTagIds = tagIds.map(id => parseInt(id));
 
         // Determine which tags to add and remove
-        const tagsToAdd = tagIds.filter(id => !originalTagIds.includes(id));
-        const tagsToRemove = originalTagIds.filter(id => !tagIds.includes(id));
+        const tagsToAdd = newTagIds.filter(id => !originalTagIds.includes(id));
+        const tagsToRemove = originalTagIds.filter(id => !newTagIds.includes(id));
 
-        // Add new tags
+        // Add new tags (silent mode handles "already assigned" gracefully without console errors)
         for (const tagId of tagsToAdd) {
-            await API.assignTag(tagId, this.userId);
+            await API.assignTag(tagId, this.userId, { silent: true });
         }
 
-        // Remove old tags
+        // Remove old tags (silent mode handles "not found" gracefully without console errors)
         for (const tagId of tagsToRemove) {
-            await API.unassignTag(tagId, this.userId);
+            await API.unassignTag(tagId, this.userId, { silent: true });
         }
 
         console.log('Tags updated successfully');
@@ -1950,52 +1952,19 @@ const EditUser = {
                 const userData = panelResult.user_data;
 
                 if (userData) {
-                    // Normalize expiration date - handle multiple formats:
-                    // - expiration: Unix timestamp (from NXTDashPanel.findUserByUsername - preferred)
-                    // - exp_date: Could be Unix timestamp or DD-MM-YYYY string (NXT Dash format)
-                    // - expire_at: ISO date string (OneStream format)
-                    let normalizedExpDate = null;
-                    let expDateString = null; // Keep the date string to avoid timezone issues
+                    // Get expiration date string directly (no timestamp conversion to avoid timezone issues)
+                    // Panel returns expiration_date as YYYY-MM-DD string, or expire_at for OneStream
+                    let expDateString = null;
 
-                    if (userData.expiration) {
-                        // Properly parsed Unix timestamp (from updated findUserByUsername)
-                        normalizedExpDate = userData.expiration;
-                    } else if (userData.exp_date) {
-                        // Check if it's a Unix timestamp (number or numeric string)
-                        if (typeof userData.exp_date === 'number') {
-                            normalizedExpDate = userData.exp_date;
-                        } else if (typeof userData.exp_date === 'string') {
-                            // Check if it's a numeric string (Unix timestamp)
-                            if (/^\d+$/.test(userData.exp_date)) {
-                                normalizedExpDate = parseInt(userData.exp_date);
-                            } else if (userData.exp_date.includes('-')) {
-                                // DD-MM-YYYY format (NXT Dash) - parse properly
-                                try {
-                                    const datePart = userData.exp_date.split(' ')[0]; // Get "07-03-2026"
-                                    const parts = datePart.split('-');
-                                    if (parts.length === 3 && parts[2].length === 4) {
-                                        // DD-MM-YYYY format
-                                        const [day, month, year] = parts;
-                                        const isoDateString = `${year}-${month}-${day}`;
-                                        const expirationDate = new Date(isoDateString + 'T00:00:00Z');
-                                        normalizedExpDate = Math.floor(expirationDate.getTime() / 1000);
-                                        console.log(`📅 Parsed DD-MM-YYYY exp_date: ${userData.exp_date} → ${normalizedExpDate}`);
-                                    } else {
-                                        // YYYY-MM-DD format - parse directly
-                                        normalizedExpDate = Math.floor(new Date(userData.exp_date).getTime() / 1000);
-                                    }
-                                } catch (parseError) {
-                                    console.error('❌ Failed to parse exp_date:', parseError);
-                                }
-                            }
-                        }
+                    if (userData.expiration_date) {
+                        // YYYY-MM-DD string from NXTDashPanel (preferred - no conversion needed)
+                        expDateString = userData.expiration_date;
+                        console.log(`📅 Using expiration_date directly: ${expDateString}`);
                     } else if (userData.expire_at) {
-                        // ISO date string (OneStream format) - extract date directly to avoid timezone issues
-                        // expire_at format: "2025-12-03 23:36:00" or "2025-12-03T23:36:00"
-                        expDateString = userData.expire_at.split('T')[0].split(' ')[0]; // Get just YYYY-MM-DD
-                        normalizedExpDate = Math.floor(new Date(userData.expire_at).getTime() / 1000);
+                        // ISO date string (OneStream format) - extract just YYYY-MM-DD
+                        expDateString = userData.expire_at.split('T')[0].split(' ')[0];
+                        console.log(`📅 Extracted date from expire_at: ${expDateString}`);
                     }
-                    userData.exp_date = normalizedExpDate;
 
                     // Update in-memory user data with panel data
                     this.userData.iptv_accounts = [userData];
@@ -2007,23 +1976,17 @@ const EditUser = {
                     if (userData.password) {
                         this.userData.iptv_password = userData.password;
                     }
-                    // Update expiration date - always calculate from timestamp using local timezone
+                    // Update expiration date using the string directly (no timezone conversion)
                     let expDisplay = 'N/A';
-                    if (normalizedExpDate) {
-                        const d = new Date(normalizedExpDate * 1000);
-                        const newExpDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                    if (expDateString) {
                         console.log('📅 Sync expiration update:', {
-                            normalizedExpDate,
                             oldValue: this.userData.iptv_expiration_date,
-                            newValue: newExpDate,
-                            dateObj: d.toString()
+                            newValue: expDateString
                         });
-                        this.userData.iptv_expiration_date = newExpDate;
-                        expDisplay = d.toLocaleDateString();
-                    } else if (expDateString) {
-                        console.log('📅 Using expDateString:', expDateString);
                         this.userData.iptv_expiration_date = expDateString;
-                        expDisplay = new Date(expDateString).toLocaleDateString();
+                        // Format for display: parse YYYY-MM-DD and display in local format
+                        const [year, month, day] = expDateString.split('-');
+                        expDisplay = `${parseInt(month)}/${parseInt(day)}/${year}`;
                     }
 
                     // Re-render the IPTV section to show updated data

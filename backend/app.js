@@ -50,6 +50,7 @@ const { initializeGuideCacheRefresh, preloadAllGuideCaches } = require('./jobs/g
 // and runs as part of each server's sync schedule (hourly/daily/weekly).
 const emailScheduler = require('./services/email/EmailScheduler');
 const { initializeScheduler } = require('./services/plex-sync-scheduler');
+const { initKometaScheduler } = require('./jobs/kometa-scheduler');
 
 // Dashboard cache management
 const { dashboardStatsCache, iptvPanelsCache, saveCacheToDatabase, loadCacheFromDatabase, loadIptvPanelsCacheFromDatabase, getCachedStatsFromDatabase, getCacheAge } = require('./utils/dashboard-cache');
@@ -93,6 +94,8 @@ const jobsRoutes = require('./routes/jobs-routes');
 const ownersRoutes = require('./routes/owners-routes');
 const logsRoutes = require('./routes/logs-routes');
 const updatesRoutes = require('./routes/updates-routes');
+const kometaRoutes = require('./routes/kometa-routes');
+const seerrRoutes = require('./routes/seerr-routes');
 
 // Authentication routes (no auth required for these endpoints)
 app.use('/api/v2/auth', authRoutes);
@@ -130,6 +133,8 @@ app.use('/api/v2/jobs', jobsRoutes);
 app.use('/api/v2/owners', ownersRoutes);
 app.use('/api/v2/logs', logsRoutes);
 app.use('/api/v2/updates', updatesRoutes);
+app.use('/api/v2/kometa', kometaRoutes);
+app.use('/api/v2/seerr', seerrRoutes);
 
 // Health check endpoint
 app.get('/api/v2/health', (req, res) => {
@@ -430,6 +435,206 @@ app.get('/api/v2/dashboard/stats', async (req, res) => {
 
     } catch (error) {
         console.error('[DASHBOARD] Error:', error);
+        return res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// Dashboard LIVE stats endpoint - fetches fresh IPTV/Plex live data synchronously
+// Use this for real-time updates (on refresh button, page load, 30-second interval)
+app.get('/api/v2/dashboard/live-stats', async (req, res) => {
+    console.log('[DASHBOARD LIVE] Fetching fresh live stats...');
+    const startTime = Date.now();
+
+    try {
+        const db = require('./database-config');
+        const IPTVServiceManager = require('./services/iptv/IPTVServiceManager');
+        const axios = require('axios');
+        const xml2js = require('xml2js');
+        const parser = new xml2js.Parser();
+
+        // Results containers
+        const results = {
+            plex: {
+                live_sessions: [],
+                total_live_sessions: 0,
+                total_bandwidth_mbps: '0.0',
+                wan_bandwidth_mbps: '0.0',
+                direct_plays_count: 0,
+                direct_streams_count: 0,
+                transcodes_count: 0
+            },
+            iptv: {
+                live_streams: 0,
+                panels: []
+            }
+        };
+
+        // Fetch Plex and IPTV stats in parallel
+        const [plexServers, iptvPanels] = await Promise.all([
+            db.query(`SELECT id, name, url, server_id, token FROM plex_servers WHERE is_active = 1`),
+            db.query(`SELECT id, name, panel_type, base_url FROM iptv_panels WHERE is_active = 1`)
+        ]);
+
+        // Process Plex servers for live sessions
+        if (plexServers.length > 0) {
+            let totalBandwidth = 0;
+            let directPlays = 0;
+            let directStreams = 0;
+            let transcodes = 0;
+
+            const plexPromises = plexServers.map(async (server) => {
+                try {
+                    const sessionsResponse = await axios.get(`${server.url}/status/sessions`, {
+                        params: { 'X-Plex-Token': server.token },
+                        headers: { 'Accept': 'application/xml' },
+                        timeout: 8000
+                    });
+
+                    const sessionResult = await parser.parseStringPromise(sessionsResponse.data);
+                    const videos = sessionResult.MediaContainer?.Video || [];
+                    const tracks = sessionResult.MediaContainer?.Track || [];
+                    const allMedia = [...(Array.isArray(videos) ? videos : [videos]), ...(Array.isArray(tracks) ? tracks : [tracks])].filter(m => m);
+
+                    const sessions = [];
+                    for (const media of allMedia) {
+                        const attrs = media.$ || {};
+                        const userAttrs = media.User?.[0]?.$ || {};
+                        const playerAttrs = media.Player?.[0]?.$ || {};
+                        const mediaInfo = media.Media?.[0]?.$ || {};
+                        const partInfo = media.Media?.[0]?.Part?.[0]?.$ || {};
+                        const transcodeSess = media.TranscodeSession?.[0]?.$ || {};
+
+                        const bitrate = parseInt(mediaInfo.bitrate) || parseInt(transcodeSess.speed) || 0;
+                        const bitrateMbps = (bitrate / 1000).toFixed(1);
+
+                        let streamDecision = 'Direct Play';
+                        if (transcodeSess && Object.keys(transcodeSess).length > 0) {
+                            streamDecision = 'Transcode';
+                            transcodes++;
+                        } else if (partInfo.decision === 'directstream') {
+                            streamDecision = 'Direct Stream';
+                            directStreams++;
+                        } else {
+                            directPlays++;
+                        }
+
+                        totalBandwidth += bitrate;
+
+                        const videoWidth = parseInt(mediaInfo.width) || 0;
+                        let quality = 'SD';
+                        if (videoWidth >= 3840) quality = '4K';
+                        else if (videoWidth >= 1920) quality = '1080p';
+                        else if (videoWidth >= 1280) quality = '720p';
+                        else if (videoWidth >= 720) quality = '480p';
+
+                        let thumbnail = null;
+                        if (attrs.thumb) {
+                            thumbnail = `${server.url}${attrs.thumb}?X-Plex-Token=${server.token}`;
+                        } else if (attrs.grandparentThumb) {
+                            thumbnail = `${server.url}${attrs.grandparentThumb}?X-Plex-Token=${server.token}`;
+                        }
+
+                        const viewOffset = parseInt(attrs.viewOffset || 0);
+                        const duration = parseInt(attrs.duration || 1);
+                        const progressPercent = duration > 0 ? Math.round((viewOffset / duration) * 100) : 0;
+
+                        sessions.push({
+                            serverId: server.id,
+                            serverName: server.name,
+                            title: attrs.title || 'Unknown',
+                            grandparentTitle: attrs.grandparentTitle || null,
+                            parentTitle: attrs.parentTitle || null,
+                            parentIndex: attrs.parentIndex || null,
+                            index: attrs.index || null,
+                            type: attrs.type || 'unknown',
+                            year: attrs.year || null,
+                            user: userAttrs.title || 'Unknown User',
+                            userThumb: userAttrs.thumb || null,
+                            player: playerAttrs.title || 'Unknown Player',
+                            platform: playerAttrs.platform || 'Unknown',
+                            state: playerAttrs.state || 'playing',
+                            progress: progressPercent,
+                            duration: duration,
+                            bitrateMbps: bitrateMbps,
+                            streamDecision: streamDecision,
+                            quality: quality,
+                            thumbnail: thumbnail,
+                            ipAddress: playerAttrs.address || null
+                        });
+                    }
+
+                    return sessions;
+                } catch (error) {
+                    console.log(`[DASHBOARD LIVE] Plex server ${server.name} error: ${error.message}`);
+                    return [];
+                }
+            });
+
+            const plexResults = await Promise.all(plexPromises);
+            const allSessions = plexResults.flat();
+
+            results.plex.live_sessions = allSessions;
+            results.plex.total_live_sessions = allSessions.length;
+            results.plex.total_bandwidth_mbps = (totalBandwidth / 1000).toFixed(1);
+            results.plex.direct_plays_count = directPlays;
+            results.plex.direct_streams_count = directStreams;
+            results.plex.transcodes_count = transcodes;
+        }
+
+        // Process IPTV panels for live streams
+        if (iptvPanels.length > 0) {
+            const iptvManager = new IPTVServiceManager(db);
+            await iptvManager.initialize();
+
+            let totalLiveStreams = 0;
+
+            const iptvPromises = iptvPanels.map(async (panel) => {
+                try {
+                    const panelService = iptvManager.getPanel(panel.id);
+                    const stats = await panelService.getDashboardStatistics();
+                    const liveNow = stats.users?.liveNow || 0;
+                    totalLiveStreams += liveNow;
+
+                    return {
+                        panel_id: panel.id,
+                        panel_name: panel.name,
+                        panel_type: panel.panel_type,
+                        liveStreams: liveNow,
+                        liveViewers: stats.liveViewers || []
+                    };
+                } catch (error) {
+                    console.log(`[DASHBOARD LIVE] IPTV panel ${panel.name} error: ${error.message}`);
+                    return {
+                        panel_id: panel.id,
+                        panel_name: panel.name,
+                        panel_type: panel.panel_type,
+                        liveStreams: 0,
+                        liveViewers: [],
+                        error: error.message
+                    };
+                }
+            });
+
+            const iptvResults = await Promise.all(iptvPromises);
+            results.iptv.panels = iptvResults;
+            results.iptv.live_streams = totalLiveStreams;
+        }
+
+        const duration = Date.now() - startTime;
+        console.log(`[DASHBOARD LIVE] Fetched in ${duration}ms - Plex: ${results.plex.total_live_sessions} sessions, IPTV: ${results.iptv.live_streams} streams`);
+
+        return res.json({
+            success: true,
+            ...results,
+            fetched_at: new Date().toISOString(),
+            duration_ms: duration
+        });
+
+    } catch (error) {
+        console.error('[DASHBOARD LIVE] Error:', error);
         return res.status(500).json({
             success: false,
             error: error.message
@@ -1989,6 +2194,10 @@ async function startServer() {
             initializeGuideCacheRefresh(); // Guide cache refresh every 2 hours for panels
             emailScheduler.initialize();
             initializeScheduler();
+            initKometaScheduler();
+            // Auto-start Seerr if enabled
+            const { autoStartSeerr } = require('./routes/seerr-routes');
+            autoStartSeerr();
             // Note: plex-library-access-sync runs as part of plex-sync-scheduler
             console.log('✅ All scheduled jobs initialized successfully');
         } catch (error) {

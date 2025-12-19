@@ -67,6 +67,28 @@ class NXTDashPanel extends BaseIPTVPanel {
     }
 
     /**
+     * Override ensureAuthenticated to use a short expiry for NXT Dash panels.
+     * NXT Dash CSRF tokens expire quickly (often within minutes), so we use a
+     * 30-second window to allow parallel calls to share the same auth, but
+     * refresh frequently enough to avoid HTTP 419 errors.
+     */
+    async ensureAuthenticated() {
+        const now = new Date();
+        const CSRF_VALID_DURATION = 30 * 1000; // 30 seconds
+
+        // Check if CSRF token was obtained recently (within 30 seconds)
+        if (this.authToken && this.lastAuthTime && (now - this.lastAuthTime) < CSRF_VALID_DURATION) {
+            console.log(`✓ NXT Dash panel ${this.name}: CSRF token still fresh (${Math.round((CSRF_VALID_DURATION - (now - this.lastAuthTime)) / 1000)}s remaining)`);
+            return true;
+        }
+
+        console.log(`🔑 NXT Dash panel ${this.name}: Refreshing CSRF token...`);
+        await this.authenticate();
+        this.lastAuthTime = new Date();
+        return true;
+    }
+
+    /**
      * Step 1: Get CSRF token from login page
      */
     async getCSRFTokenAndCookies() {
@@ -1086,6 +1108,10 @@ class NXTDashPanel extends BaseIPTVPanel {
             ]);
 
             // Extract data from responses
+            if (connectionsResponse.status === 'rejected') {
+                console.log(`❌ Connections request failed for panel ${this.name}: ${connectionsResponse.reason?.message || 'Unknown error'}`);
+            }
+
             const connectionsData = connectionsResponse.status === 'fulfilled' ?
                 (connectionsResponse.value.data.data || connectionsResponse.value.data.aaData || []) : [];
             const usersData = usersResponse.status === 'fulfilled' ?

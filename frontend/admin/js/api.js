@@ -91,7 +91,10 @@ class API {
 
             return data;
         } catch (error) {
-            console.error('API Error:', error);
+            // Only log errors if not suppressed
+            if (!options.suppressErrorLog) {
+                console.error('API Error:', error);
+            }
             throw error;
         }
     }
@@ -187,6 +190,10 @@ class API {
 
     static async getDashboardIPTVPanels() {
         return this.request('/dashboard/iptv-panels');
+    }
+
+    static async getDashboardLiveStats() {
+        return this.request('/dashboard/live-stats');
     }
 
     // ============ Plex Servers ============
@@ -610,18 +617,36 @@ class API {
         });
     }
 
-    static async assignTag(tagId, userId) {
-        return this.request(`/tags/${tagId}/assign`, {
-            method: 'POST',
-            body: { user_id: userId }
-        });
+    static async assignTag(tagId, userId, options = {}) {
+        try {
+            return await this.request(`/tags/${tagId}/assign`, {
+                method: 'POST',
+                body: { user_id: userId },
+                suppressErrorLog: options.silent  // Don't log expected errors in silent mode
+            });
+        } catch (error) {
+            // Silently handle "already assigned" errors - end result is the same
+            if (options.silent && error.message?.includes('already assigned')) {
+                return { success: true, skipped: true };
+            }
+            throw error;
+        }
     }
 
-    static async unassignTag(tagId, userId) {
-        return this.request(`/tags/${tagId}/unassign`, {
-            method: 'DELETE',
-            body: { user_id: userId }
-        });
+    static async unassignTag(tagId, userId, options = {}) {
+        try {
+            return await this.request(`/tags/${tagId}/unassign`, {
+                method: 'DELETE',
+                body: { user_id: userId },
+                suppressErrorLog: options.silent  // Don't log expected errors in silent mode
+            });
+        } catch (error) {
+            // Silently handle "not found" errors - end result is the same
+            if (options.silent && error.message?.includes('not found')) {
+                return { success: true, skipped: true };
+            }
+            throw error;
+        }
     }
 
     static async runTagAutoAssignment() {
