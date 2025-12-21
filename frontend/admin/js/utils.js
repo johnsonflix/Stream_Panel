@@ -73,8 +73,9 @@ const Utils = {
             });
         }
 
-        // Has time component, parse as UTC
-        const date = new Date(dateString + 'Z');
+        // Has time component - parse directly (already ISO format with Z or timezone)
+        const date = new Date(dateString);
+        if (isNaN(date.getTime())) return 'Invalid Date';
         return date.toLocaleDateString('en-US', {
             year: 'numeric',
             month: 'short',
@@ -85,7 +86,7 @@ const Utils = {
     /**
      * Format datetime
      * For date-only strings, parse as local date
-     * For datetime strings, parse as UTC
+     * For datetime strings, parse directly (already ISO format)
      */
     formatDateTime(dateString) {
         if (!dateString) return 'N/A';
@@ -104,8 +105,9 @@ const Utils = {
             });
         }
 
-        // Has time component, parse as UTC
-        const date = new Date(dateString + 'Z');
+        // Has time component - parse directly (already ISO format with Z or timezone)
+        const date = new Date(dateString);
+        if (isNaN(date.getTime())) return 'Invalid Date';
         return date.toLocaleString('en-US', {
             year: 'numeric',
             month: 'short',
@@ -113,6 +115,17 @@ const Utils = {
             hour: '2-digit',
             minute: '2-digit'
         });
+    },
+
+    /**
+     * Format file size in human-readable format
+     */
+    formatFileSize(bytes) {
+        if (bytes === 0 || bytes === undefined || bytes === null) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     },
 
     /**

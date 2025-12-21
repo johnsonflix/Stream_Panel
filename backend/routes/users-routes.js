@@ -435,8 +435,8 @@ router.post('/', async (req, res) => {
             if (plexPackageCheck.length > 0) {
                 validPlexPackageId = plex_package_id;
                 const plan = plexPackageCheck[0];
-                // Check price_type OR price = 0/null
-                if (plan.price_type === 'free' || plan.price === 0 || plan.price === null) {
+                // Only check price_type - donation plans may have price=0 but should still have expiration
+                if (plan.price_type === 'free') {
                     isFreePlexPlan = true;
                 }
             }
@@ -1063,8 +1063,8 @@ router.put('/:id', async (req, res) => {
                 console.log(`🔍 [FREE PLAN CHECK] plex_package_id: ${plex_package_id}, planCheck:`, planCheck);
                 if (planCheck.length > 0) {
                     const plan = planCheck[0];
-                    // Check price_type OR price = 0/null
-                    if (plan.price_type === 'free' || plan.price === 0 || plan.price === null) {
+                    // Only check price_type - donation plans may have price=0 but should still have expiration
+                    if (plan.price_type === 'free') {
                         isFreePlexPlan = true;
                         console.log('✅ [FREE PLAN] Detected free plan - will clear expiration date');
                     }

@@ -1,16 +1,39 @@
 # StreamPanel Production Dockerfile
-FROM node:20-slim
+FROM node:22-slim
 
-# Install Python, build tools, sqlite3, and git for updates
+# Install Python, build tools, sqlite3, git, rsync, and Kometa dependencies
 RUN apt-get update && apt-get install -y \
     python3 \
     python3-pip \
     python3-requests \
+    python3-lxml \
     build-essential \
     sqlite3 \
     git \
+    curl \
+    unzip \
+    rsync \
     && rm -rf /var/lib/apt/lists/* \
-    && pip3 install --break-system-packages plexapi
+    && pip3 install --break-system-packages plexapi \
+    && npm install -g pnpm@9
+
+# Install Kometa Python dependencies (pre-install common ones for faster startup)
+# Full requirements will be installed when Kometa is downloaded
+RUN pip3 install --break-system-packages \
+    lxml \
+    ruamel.yaml \
+    schedule \
+    tmdbapis \
+    arrapi \
+    GitPython \
+    num2words \
+    pillow \
+    requests \
+    retrying \
+    pathvalidate \
+    psutil \
+    python-dateutil \
+    python-dotenv
 
 # Create app directory
 WORKDIR /app
@@ -40,13 +63,14 @@ COPY plex_resource_monitor.py ./
 # Copy version info
 COPY version.json ./
 
-# Create necessary directories
-RUN mkdir -p /app/backend/logs /app/backend/uploads/branding /app/data
+# Create necessary directories (including Kometa directories)
+RUN mkdir -p /app/backend/logs /app/backend/uploads/branding /app/data /app/data/kometa /app/kometa_app
 
 # Set environment variables
 ENV NODE_ENV=production
 ENV PORT=3050
 ENV PYTHON_PATH=python3
+ENV KOMETA_DATA_DIR=/app/data/kometa
 
 # Create .env file with defaults (will be overridden by docker-compose)
 RUN cp /app/backend/.env.example /app/backend/.env 2>/dev/null || true

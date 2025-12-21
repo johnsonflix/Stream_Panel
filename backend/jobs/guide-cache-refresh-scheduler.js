@@ -4,9 +4,14 @@
  * Schedules automatic refresh of TV guide cache for IPTV panels every 2 hours.
  * Also provides functions for manual refresh and playlist guide refresh after auto-updater.
  * After refreshing database, reloads data into portal in-memory cache for instant guide loading.
+ *
+ * IMPORTANT: Scheduled refreshes now run in a SEPARATE Node.js process (worker) to avoid
+ * blocking the main app during heavy EPG parsing operations.
  */
 
 const cron = require('node-cron');
+const path = require('path');
+const { fork } = require('child_process');
 const GuideCacheRefreshJob = require('./guide-cache-refresh');
 
 // Import the in-memory cache reload function from portal routes
@@ -28,7 +33,105 @@ const PANEL_GUIDE_REFRESH_CRON = process.env.PANEL_GUIDE_REFRESH_CRON || '0 */2 
 const pendingPlaylistRefreshes = new Map();
 
 /**
+ * Start guide cache worker in a separate Node.js process
+ * This prevents EPG caching from blocking the main app
+ *
+ * @param {string} command - Command to send: 'fullRefresh', 'refreshAllPanels', 'refreshAllPlaylists'
+ * @returns {Promise} Resolves when worker completes
+ */
+function startGuideCacheWorker(command) {
+    return new Promise((resolve) => {
+        const workerPath = path.join(__dirname, '..', 'workers', 'guide-cache-worker.js');
+
+        console.log(`[Guide Cache] Forking worker for scheduled: ${command}`);
+        const worker = fork(workerPath, [], {
+            env: { ...process.env }
+        });
+
+        let completed = false;
+
+        worker.on('message', (msg) => {
+            switch (msg.type) {
+                case 'ready':
+                    worker.send({ command });
+                    break;
+                case 'status':
+                    console.log(`[Guide Cache Worker] ${msg.message}`);
+                    break;
+                case 'progress':
+                    if (msg.stage === 'panels') {
+                        console.log(`[Guide Cache Worker] Panels: ${msg.success}/${msg.total} successful, ${msg.failed} failed`);
+                    } else if (msg.stage === 'playlists') {
+                        console.log(`[Guide Cache Worker] Playlists: ${msg.success}/${msg.total} successful, ${msg.failed} failed`);
+                    }
+                    break;
+                case 'complete':
+                    console.log(`[Guide Cache Worker] ✅ ${msg.message}`);
+                    completed = true;
+                    // After worker completes, reload memory cache
+                    reloadAllMemoryCaches().then(() => resolve(msg));
+                    break;
+                case 'error':
+                    console.error(`[Guide Cache Worker] ❌ ${msg.message}`);
+                    completed = true;
+                    resolve(msg);
+                    break;
+            }
+        });
+
+        worker.on('error', (error) => {
+            console.error('[Guide Cache] Worker error:', error);
+            if (!completed) resolve({ success: false, error: error.message });
+        });
+
+        worker.on('exit', (code) => {
+            if (code !== 0 && !completed) {
+                console.error(`[Guide Cache] Worker exited with code ${code}`);
+                resolve({ success: false, error: `Worker exited with code ${code}` });
+            }
+        });
+    });
+}
+
+/**
+ * Reload all source caches into memory after worker completes
+ */
+async function reloadAllMemoryCaches() {
+    if (!reloadSourceCache) {
+        console.log('[Guide Cache] Memory cache reload not available');
+        return;
+    }
+
+    try {
+        const job = new GuideCacheRefreshJob();
+
+        // Get all panels and playlists
+        const panels = job.db.prepare(`SELECT id FROM iptv_panels WHERE is_active = 1`).all();
+        const playlists = job.db.prepare(`SELECT id FROM iptv_editor_playlists WHERE is_active = 1`).all();
+        job.close();
+
+        console.log(`[Guide Cache] Reloading ${panels.length} panels and ${playlists.length} playlists into memory...`);
+
+        for (const panel of panels) {
+            await reloadSourceCache('panel', panel.id);
+        }
+        for (const playlist of playlists) {
+            await reloadSourceCache('playlist', playlist.id);
+        }
+
+        if (clearUserCategoriesCache) {
+            clearUserCategoriesCache();
+        }
+
+        console.log(`[Guide Cache] ✅ Memory cache reloaded`);
+    } catch (error) {
+        console.error('[Guide Cache] Failed to reload memory cache:', error);
+    }
+}
+
+/**
  * Initialize the scheduled guide cache refresh for panels
+ * Uses a WORKER PROCESS to avoid blocking the main app
  */
 function initializeGuideCacheRefresh() {
     console.log(`[Guide Cache] Scheduling panel guide refresh with cron: ${PANEL_GUIDE_REFRESH_CRON}`);
@@ -40,13 +143,14 @@ function initializeGuideCacheRefresh() {
         return;
     }
 
-    // Schedule the job
+    // Schedule the job - uses worker process to avoid blocking
     const task = cron.schedule(PANEL_GUIDE_REFRESH_CRON, async () => {
         console.log(`[Guide Cache] Running scheduled panel guide refresh at ${new Date().toISOString()}`);
-        await refreshAllPanelsGuide();
+        // Use worker process for scheduled refreshes (non-blocking)
+        await startGuideCacheWorker('refreshAllPanels');
     });
 
-    console.log(`[Guide Cache] Panel guide refresh scheduled - runs every 2 hours`);
+    console.log(`[Guide Cache] Panel guide refresh scheduled - runs every 2 hours (in background worker)`);
 
     return task;
 }

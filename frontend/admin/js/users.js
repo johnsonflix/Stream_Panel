@@ -82,6 +82,36 @@ const Users = {
      * Render users page
      */
     async render(container) {
+        // Check if we have saved filters (from returning from edit-user page)
+        const savedFilters = sessionStorage.getItem('usersPageFilters');
+        if (savedFilters) {
+            try {
+                this.currentFilters = JSON.parse(savedFilters);
+            } catch (e) {
+                // Invalid JSON, reset to defaults
+                this.currentFilters = {
+                    search: '',
+                    ownerId: null,
+                    tagId: null,
+                    sortBy: 'created_at',
+                    sortDir: 'desc'
+                };
+            }
+            // Clear saved filters after restoring (one-time restore)
+            sessionStorage.removeItem('usersPageFilters');
+        } else {
+            // Reset filters when page is rendered from other pages
+            // This ensures clean state when coming from Settings, Email, etc.
+            this.currentFilters = {
+                search: '',
+                ownerId: null,
+                tagId: null,
+                sortBy: 'created_at',
+                sortDir: 'desc'
+            };
+        }
+        this.selectedUsers.clear();
+
         this.initPreferences();
 
         container.innerHTML = `
@@ -151,6 +181,10 @@ const Users = {
             this.currentFilters.search = e.target.value;
             this.loadUsers();
         }, 500));
+        // Restore search value if we have saved filters
+        if (this.currentFilters.search) {
+            searchInput.value = this.currentFilters.search;
+        }
 
         // Setup owner filter
         const ownerFilter = document.getElementById('owner-filter');
@@ -171,6 +205,15 @@ const Users = {
             this.loadOwners(),
             this.loadTags()
         ]);
+
+        // Restore dropdown values after options are loaded
+        if (this.currentFilters.ownerId) {
+            ownerFilter.value = this.currentFilters.ownerId;
+        }
+        if (this.currentFilters.tagId) {
+            tagFilter.value = this.currentFilters.tagId;
+        }
+
         await this.loadUsers();
 
         // Load pending service requests banner
@@ -2938,6 +2981,8 @@ const Users = {
      * Edit user - navigate to edit page
      */
     async editUser(userId) {
+        // Save current filters so they persist when returning from edit page
+        sessionStorage.setItem('usersPageFilters', JSON.stringify(this.currentFilters));
         Router.navigate(`edit-user/${userId}`);
     },
 

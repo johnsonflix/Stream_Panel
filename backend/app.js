@@ -9,6 +9,7 @@ const cors = require('cors');
 const path = require('path');
 require('dotenv').config();
 const fs = require('fs');
+const { fork } = require('child_process');
 
 // === CRASH PROTECTION ===
 const logsDir = require('path').join(__dirname, 'logs');
@@ -45,7 +46,7 @@ const { initializePlexAutoSync } = require('./jobs/plex-auto-sync');
 const { initializeWatchStatsAutoRefresh } = require('./jobs/watch-stats-auto-refresh');
 const { initializeServiceCancellationProcessor } = require('./jobs/service-cancellation-processor');
 const { initializeDashboardStatsRefresh, runFullRefresh } = require('./jobs/dashboard-stats-refresh');
-const { initializeGuideCacheRefresh, preloadAllGuideCaches } = require('./jobs/guide-cache-refresh-scheduler');
+const { initializeGuideCacheRefresh } = require('./jobs/guide-cache-refresh-scheduler');
 // Note: plex-library-access-sync is now integrated with plex-sync-scheduler
 // and runs as part of each server's sync schedule (hourly/daily/weekly).
 const emailScheduler = require('./services/email/EmailScheduler');
@@ -95,7 +96,6 @@ const ownersRoutes = require('./routes/owners-routes');
 const logsRoutes = require('./routes/logs-routes');
 const updatesRoutes = require('./routes/updates-routes');
 const kometaRoutes = require('./routes/kometa-routes');
-const seerrRoutes = require('./routes/seerr-routes');
 
 // Authentication routes (no auth required for these endpoints)
 app.use('/api/v2/auth', authRoutes);
@@ -134,7 +134,6 @@ app.use('/api/v2/owners', ownersRoutes);
 app.use('/api/v2/logs', logsRoutes);
 app.use('/api/v2/updates', updatesRoutes);
 app.use('/api/v2/kometa', kometaRoutes);
-app.use('/api/v2/seerr', seerrRoutes);
 
 // Health check endpoint
 app.get('/api/v2/health', (req, res) => {
@@ -2148,6 +2147,88 @@ app.use((err, req, res, next) => {
 // Start server
 const PORT = process.env.PORT || 3050;
 
+/**
+ * Start guide cache worker in a separate Node.js process
+ * This prevents EPG caching from blocking the main app
+ *
+ * @param {string} command - Command to send: 'fullRefresh', 'refreshAllPanels', 'refreshAllPlaylists', 'refreshPanel', 'refreshPlaylist'
+ * @param {object} options - Additional options (panelId, playlistId)
+ * @returns {Promise} Resolves when worker completes
+ */
+function startGuideCacheWorker(command, options = {}) {
+    return new Promise((resolve, reject) => {
+        const workerPath = path.join(__dirname, 'workers', 'guide-cache-worker.js');
+
+        // Check if worker file exists
+        if (!fs.existsSync(workerPath)) {
+            console.error('[GUIDE CACHE] Worker file not found:', workerPath);
+            reject(new Error('Worker file not found'));
+            return;
+        }
+
+        console.log(`[GUIDE CACHE] Forking worker for: ${command}`);
+        const worker = fork(workerPath, [], {
+            env: { ...process.env, DB_PATH: process.env.DB_PATH }
+        });
+
+        let completed = false;
+
+        worker.on('message', (msg) => {
+            switch (msg.type) {
+                case 'ready':
+                    // Worker is ready, send the command
+                    worker.send({ command, ...options });
+                    break;
+
+                case 'status':
+                    console.log(`[GUIDE CACHE WORKER] ${msg.message}`);
+                    break;
+
+                case 'progress':
+                    if (msg.stage === 'panels') {
+                        console.log(`[GUIDE CACHE WORKER] Panels: ${msg.success}/${msg.total} successful, ${msg.failed} failed, ${msg.skipped} skipped`);
+                    } else if (msg.stage === 'playlists') {
+                        console.log(`[GUIDE CACHE WORKER] Playlists: ${msg.success}/${msg.total} successful, ${msg.failed} failed`);
+                    }
+                    break;
+
+                case 'complete':
+                    console.log(`[GUIDE CACHE WORKER] ✅ ${msg.message}`);
+                    completed = true;
+                    resolve(msg);
+                    break;
+
+                case 'error':
+                    console.error(`[GUIDE CACHE WORKER] ❌ ${msg.message}`);
+                    completed = true;
+                    // Don't reject - EPG cache errors shouldn't crash the app
+                    resolve(msg);
+                    break;
+
+                default:
+                    console.log('[GUIDE CACHE WORKER]', msg);
+            }
+        });
+
+        worker.on('error', (error) => {
+            console.error('[GUIDE CACHE] Worker error:', error);
+            if (!completed) {
+                resolve({ success: false, error: error.message });
+            }
+        });
+
+        worker.on('exit', (code) => {
+            if (code !== 0 && !completed) {
+                console.error(`[GUIDE CACHE] Worker exited with code ${code}`);
+                resolve({ success: false, error: `Worker exited with code ${code}` });
+            }
+        });
+    });
+}
+
+// Export for use by scheduler
+module.exports.startGuideCacheWorker = startGuideCacheWorker;
+
 // Async startup function to load cache before accepting requests
 async function startServer() {
     // Load dashboard cache from database BEFORE starting server
@@ -2167,14 +2248,11 @@ async function startServer() {
         console.error('[IPTV PANELS] Failed to load IPTV panels cache from database:', error);
     }
 
-    // Pre-load EPG guide data into memory for instant guide loading
-    try {
-        await preloadAllGuideCaches();
-    } catch (error) {
-        console.error('[GUIDE CACHE] Failed to pre-load EPG caches:', error);
-    }
+    // NOTE: EPG guide data is now loaded in a BACKGROUND WORKER PROCESS
+    // This allows the server to start immediately and be usable right away
+    // The EPG cache will be refreshed in the background after server starts
 
-    // Now start the server - cache will be available for first request
+    // Start the server immediately - no blocking on EPG cache
     app.listen(PORT, () => {
         console.log(`StreamPanel server running on port ${PORT}`);
         console.log(`API base: http://localhost:${PORT}/api/v2`);
@@ -2195,11 +2273,13 @@ async function startServer() {
             emailScheduler.initialize();
             initializeScheduler();
             initKometaScheduler();
-            // Auto-start Seerr if enabled
-            const { autoStartSeerr } = require('./routes/seerr-routes');
-            autoStartSeerr();
             // Note: plex-library-access-sync runs as part of plex-sync-scheduler
             console.log('✅ All scheduled jobs initialized successfully');
+
+            // Start EPG cache refresh in background worker process (non-blocking)
+            // This runs in a SEPARATE Node.js process so the app stays responsive
+            console.log('[GUIDE CACHE] Starting background EPG cache refresh worker...');
+            startGuideCacheWorker('fullRefresh');
         } catch (error) {
             console.error('❌ Failed to initialize scheduled jobs:', error);
         }

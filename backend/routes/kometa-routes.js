@@ -842,7 +842,8 @@ router.post('/instances/:id/run', async (req, res) => {
         }
 
         // Build command arguments
-        const args = [kometaScript, '--config', configPath];
+        // --run flag is required to run immediately instead of waiting for scheduled time
+        const args = [kometaScript, '--config', configPath, '--run'];
         if (dryRun) args.push('--run-tests');
         if (libraries && libraries.length > 0) {
             args.push('--libraries', libraries.join(','));
@@ -1211,7 +1212,7 @@ router.get('/instances/:id/config', async (req, res) => {
                 overlay_artwork_quality: null,
                 playlist_sync_to_users: 'all'
             },
-            trakt: { enabled: false, client_id: '', client_secret: '' },
+            trakt: { enabled: false, client_id: '', client_secret: '', authorization_yaml: '' },
             tautulli: { enabled: false, url: '', apikey: '' },
             radarr: { enabled: false, url: '', apikey: '', root_folder: '/movies', quality_profile: 'HD-1080p' },
             sonarr: { enabled: false, url: '', apikey: '', root_folder: '/tv', quality_profile: 'HD-1080p' }
@@ -1249,7 +1250,18 @@ router.get('/instances/:id/config', async (req, res) => {
 
                 // Extract Trakt
                 if (raw.trakt && raw.trakt.client_id) {
-                    configData.trakt = { enabled: true, client_id: raw.trakt.client_id, client_secret: raw.trakt.client_secret || '' };
+                    // Convert authorization object to YAML text for display in textarea
+                    let authYaml = '';
+                    if (raw.trakt.authorization) {
+                        const auth = raw.trakt.authorization;
+                        authYaml = `access_token: ${auth.access_token || ''}\ntoken_type: ${auth.token_type || 'Bearer'}\nexpires_in: ${auth.expires_in || ''}\nrefresh_token: ${auth.refresh_token || ''}\nscope: ${auth.scope || 'public'}\ncreated_at: ${auth.created_at || ''}`;
+                    }
+                    configData.trakt = {
+                        enabled: true,
+                        client_id: raw.trakt.client_id,
+                        client_secret: raw.trakt.client_secret || '',
+                        authorization_yaml: authYaml
+                    };
                 }
 
                 // Extract optional integrations
@@ -1266,6 +1278,10 @@ router.get('/instances/:id/config', async (req, res) => {
                 console.log('[Kometa] Could not parse existing config:', e.message);
             }
         }
+
+        // Include collections and overlays from metadata (stored in instance.json)
+        configData.collections = metadata.collections || [];
+        configData.overlays = metadata.overlays || [];
 
         res.json({
             success: true,
@@ -1517,6 +1533,25 @@ function generateKometaConfigFromForm(formConfig, plexServers) {
         for (const lib of formConfig.libraries) {
             yaml += `  "${lib.name}":\n`;
 
+            // For multi-server setups, embed the full plex config directly in the library
+            // This ensures Kometa uses the correct server for this library
+            if (plexServers.length > 1 && lib.serverName) {
+                const server = plexServers.find(s => s.name === lib.serverName);
+                if (server) {
+                    const formPlex = formConfig.plex || {};
+                    const serverConfig = formPlex[server.name] || {};
+                    yaml += `    plex:\n`;
+                    yaml += `      url: ${serverConfig.url || server.url}\n`;
+                    yaml += `      token: ${serverConfig.token || server.token}\n`;
+                    yaml += `      timeout: ${serverConfig.timeout || 60}\n`;
+                    yaml += `      db_cache: ${serverConfig.db_cache || 40}\n`;
+                    yaml += `      clean_bundles: ${serverConfig.clean_bundles === true}\n`;
+                    yaml += `      empty_trash: ${serverConfig.empty_trash === true}\n`;
+                    yaml += `      optimize: ${serverConfig.optimize === true}\n`;
+                    yaml += `      verify_ssl: ${serverConfig.verify_ssl !== false}\n`;
+                }
+            }
+
             // Collection files - combine user selections with collection-based defaults
             const collectionFiles = [];
             const libraryName = lib.name;
@@ -1542,14 +1577,16 @@ function generateKometaConfigFromForm(formConfig, plexServers) {
             };
 
             // Check for each collection type and add appropriate defaults
-            // Note: settings.items is used for genre, awards, network, studio (as array)
-            // settings.items (as object) is used for holiday and decade
-            const hasGenre = collections.some(c => c.type === 'genre' && collectionAppliesTo(c) && c.settings?.items?.length > 0);
-            const hasDecade = collections.some(c => c.type === 'decade' && collectionAppliesTo(c) && c.settings?.items && Object.keys(c.settings.items).some(k => c.settings.items[k]?.enabled));
-            const hasAwards = collections.some(c => c.type === 'awards' && collectionAppliesTo(c) && c.settings?.items?.length > 0);
-            const hasNetwork = collections.some(c => c.type === 'network' && collectionAppliesTo(c) && c.settings?.items?.length > 0);
-            const hasStudio = collections.some(c => c.type === 'studio' && collectionAppliesTo(c) && c.settings?.items?.length > 0);
-            const hasHoliday = collections.some(c => c.type === 'holiday' && collectionAppliesTo(c) && c.settings?.items && Object.keys(c.settings.items).length > 0);
+            // All collection types store items as objects keyed by item name
+            // Helper to check if any item is enabled
+            const hasEnabledItem = (items) => items && Object.keys(items).some(k => items[k]?.enabled !== false);
+
+            const hasGenre = collections.some(c => c.type === 'genre' && collectionAppliesTo(c) && hasEnabledItem(c.settings?.items));
+            const hasDecade = collections.some(c => c.type === 'decade' && collectionAppliesTo(c) && hasEnabledItem(c.settings?.items));
+            const hasAwards = collections.some(c => c.type === 'awards' && collectionAppliesTo(c) && hasEnabledItem(c.settings?.items));
+            const hasNetwork = collections.some(c => c.type === 'network' && collectionAppliesTo(c) && hasEnabledItem(c.settings?.items));
+            const hasStudio = collections.some(c => c.type === 'studio' && collectionAppliesTo(c) && hasEnabledItem(c.settings?.items));
+            const hasHoliday = collections.some(c => c.type === 'holiday' && collectionAppliesTo(c) && hasEnabledItem(c.settings?.items));
             const hasCustom = collections.some(c => c.type === 'custom' && collectionAppliesTo(c));
 
             if (hasGenre) collectionFiles.push({ default: 'genre' });
@@ -1691,6 +1728,21 @@ function generateKometaConfigFromForm(formConfig, plexServers) {
     const formPlex = formConfig.plex || {};
     if (plexServers.length > 1) {
         yaml += `plex:\n`;
+        // For multi-server, put global defaults FIRST, then named servers
+        // This ensures Kometa recognizes the structure properly
+        const firstServer = plexServers[0];
+        const firstServerConfig = formPlex[firstServer.name] || {};
+        yaml += `  # Global defaults - using ${firstServer.name} as default\n`;
+        yaml += `  url: ${firstServerConfig.url || firstServer.url}\n`;
+        yaml += `  token: ${firstServerConfig.token || firstServer.token}\n`;
+        yaml += `  timeout: 60\n`;
+        yaml += `  db_cache: 40\n`;
+        yaml += `  clean_bundles: false\n`;
+        yaml += `  empty_trash: false\n`;
+        yaml += `  optimize: false\n`;
+        yaml += `  verify_ssl: true\n`;
+        yaml += `\n`;
+        // Now add named server entries that override defaults
         for (const server of plexServers) {
             const serverConfig = formPlex[server.name] || {};
             const serverKey = server.name.toLowerCase().replace(/[^a-z0-9]/g, '_');
@@ -1747,6 +1799,21 @@ function generateKometaConfigFromForm(formConfig, plexServers) {
         yaml += `  client_id: ${formConfig.trakt.client_id}\n`;
         yaml += `  client_secret: ${formConfig.trakt.client_secret}\n`;
         yaml += `  pin:\n`;
+
+        // Parse and add authorization block if provided
+        if (formConfig.trakt.authorization_yaml && formConfig.trakt.authorization_yaml.trim()) {
+            yaml += `  authorization:\n`;
+            // Parse the YAML-like text from the textarea
+            const authLines = formConfig.trakt.authorization_yaml.trim().split('\n');
+            for (const line of authLines) {
+                const trimmed = line.trim();
+                if (trimmed && trimmed.includes(':')) {
+                    // Add proper indentation for each key: value pair
+                    yaml += `    ${trimmed}\n`;
+                }
+            }
+        }
+        yaml += `  force_refresh:\n`;
     }
 
     // Tautulli integration

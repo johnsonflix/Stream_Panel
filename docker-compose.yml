@@ -12,6 +12,7 @@ services:
       - DB_PATH=/app/data/subsapp_v2.db
       - PYTHON_PATH=python3
       - TZ=America/Chicago
+      - KOMETA_DATA_DIR=/app/data/kometa
     volumes:
       # Persist database
       - ./data:/app/data
@@ -19,4 +20,6 @@ services:
       - ./uploads:/app/backend/uploads
       # Persist logs
       - ./logs:/app/backend/logs
+      # Persist Kometa app (so it doesn't need to be reinstalled on rebuild)
+      - ./kometa_app:/app/kometa_app
     restart: unless-stopped

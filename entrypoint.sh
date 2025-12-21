@@ -86,6 +86,32 @@ else
     echo "✅ Git already initialized"
 fi
 
+# ============================================================================
+# KOMETA INITIALIZATION
+# ============================================================================
+KOMETA_APP_DIR="/app/kometa_app"
+# Version file stored in kometa_app so it persists across container rebuilds
+KOMETA_VERSION_FILE="${KOMETA_APP_DIR}/kometa_version.json"
+KOMETA_DATA_DIR="${KOMETA_DATA_DIR:-/app/data/kometa}"
+
+# Ensure Kometa data directory exists
+mkdir -p "$KOMETA_DATA_DIR"
+
+# Check if Kometa is installed
+if [ -f "$KOMETA_VERSION_FILE" ] && [ -f "$KOMETA_APP_DIR/kometa.py" ]; then
+    KOMETA_VERSION=$(cat "$KOMETA_VERSION_FILE" | grep -o '"version":[^,]*' | sed 's/"version":"\([^"]*\)"/\1/')
+    echo "✅ Kometa v$KOMETA_VERSION is installed"
+
+    # Install Kometa requirements if requirements.txt exists
+    if [ -f "$KOMETA_APP_DIR/requirements.txt" ]; then
+        echo "📦 Installing Kometa Python dependencies..."
+        pip3 install --break-system-packages -q -r "$KOMETA_APP_DIR/requirements.txt" 2>/dev/null || true
+        echo "✅ Kometa dependencies installed"
+    fi
+else
+    echo "ℹ️  Kometa not installed. Install via Settings > Media Apps when ready."
+fi
+
 # Start the application
 echo "🚀 Starting StreamPanel..."
 cd /app/backend

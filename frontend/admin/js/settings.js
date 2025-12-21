@@ -9161,37 +9161,13 @@ const Settings = {
     },
 
     /**
-     * Load Media Apps Tab (Seerr + Kometa)
+     * Load Media Apps Tab (Kometa)
      */
     async loadMediaApps() {
         const container = document.getElementById('media-apps');
 
         container.innerHTML = `
             <div style="padding: 1.5rem;">
-                <!-- SEERR SECTION -->
-                <div class="mb-5">
-                    <div class="mb-4">
-                        <h3><i class="fas fa-ticket-alt"></i> Seerr (Media Request Manager)</h3>
-                        <p style="color: var(--text-secondary); font-size: 0.875rem;">
-                            Allow users to request movies and TV shows for your Plex library
-                        </p>
-                    </div>
-
-                    <!-- Seerr Status Card -->
-                    <div class="card mb-4">
-                        <div class="card-body">
-                            <div id="seerr-status">
-                                <div class="text-center">
-                                    <div class="spinner" style="margin: 0 auto;"></div>
-                                    <p class="mt-2">Checking Seerr status...</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <hr style="border-color: var(--border-color); margin: 2rem 0;">
-
                 <!-- KOMETA SECTION -->
                 <div class="mb-4">
                     <h3><i class="fas fa-layer-group"></i> Kometa (Plex Meta Manager)</h3>
@@ -9231,341 +9207,12 @@ const Settings = {
             </div>
         `;
 
-        // Check both statuses in parallel
-        await Promise.all([
-            this.checkSeerrStatus(),
-            this.checkKometaStatus()
-        ]);
+        // Check Kometa status
+        await this.checkKometaStatus();
     },
 
     // ============================================================================
-    // SEERR MANAGEMENT
-    // ============================================================================
-
-    seerrState: {
-        isInstalled: false,
-        isRunning: false,
-        isEnabled: false,
-        version: null
-    },
-
-    async checkSeerrStatus() {
-        const statusContainer = document.getElementById('seerr-status');
-
-        try {
-            // First check if installation is in progress
-            const installStatusResp = await fetch('/api/v2/seerr/install-status');
-            const installStatus = await installStatusResp.json();
-
-            if (installStatus.inProgress) {
-                // Installation in progress - start polling instead
-                this.pollSeerrInstallStatus();
-                return;
-            }
-
-            // Get version/install status and settings in parallel
-            const [versionResp, settingsResp] = await Promise.all([
-                fetch('/api/v2/seerr/version'),
-                fetch('/api/v2/seerr/settings')
-            ]);
-
-            const versionData = await versionResp.json();
-            const settingsData = await settingsResp.json();
-
-            this.seerrState.isInstalled = versionData.installed;
-            this.seerrState.version = versionData.version;
-            this.seerrState.isEnabled = settingsData.enabled;
-
-            // Get running status
-            const statusResp = await fetch('/api/v2/seerr/status');
-            const statusData = await statusResp.json();
-            this.seerrState.isRunning = statusData.running;
-
-            if (!versionData.installed) {
-                // Not installed
-                statusContainer.innerHTML = `
-                    <div style="display: flex; align-items: center; gap: 1rem;">
-                        <div style="width: 48px; height: 48px; background: rgba(156, 163, 175, 0.1); border-radius: 50%; display: flex; align-items: center; justify-content: center;">
-                            <i class="fas fa-download" style="font-size: 1.5rem; color: var(--text-secondary);"></i>
-                        </div>
-                        <div style="flex: 1;">
-                            <h4 style="margin: 0 0 0.5rem 0;">Seerr Not Installed</h4>
-                            <p style="margin: 0; color: var(--text-secondary); font-size: 0.875rem;">
-                                Seerr allows your users to request movies and TV shows. Install it to enable media requests.
-                            </p>
-                        </div>
-                        <button class="btn btn-primary" onclick="Settings.installSeerr()">
-                            <i class="fas fa-download"></i> Install Seerr
-                        </button>
-                    </div>
-                `;
-            } else {
-                // Installed - show enable/disable toggle and status
-                let updateInfo = '';
-                try {
-                    const updateResp = await fetch('/api/v2/seerr/check-update');
-                    const updateData = await updateResp.json();
-                    if (updateData.success && updateData.updateAvailable) {
-                        updateInfo = `
-                            <div class="alert alert-warning mt-3" style="background: rgba(255, 193, 7, 0.1); border: 1px solid var(--warning-color); border-radius: 8px; padding: 0.75rem;">
-                                <i class="fas fa-exclamation-triangle" style="color: var(--warning-color);"></i>
-                                Update available: v${updateData.latestVersion}
-                                <button class="btn btn-sm btn-warning" onclick="Settings.updateSeerr()" style="margin-left: 1rem;">
-                                    <i class="fas fa-download"></i> Update
-                                </button>
-                            </div>
-                        `;
-                    }
-                } catch (e) {
-                    console.log('Could not check Seerr updates:', e);
-                }
-
-                const statusIcon = this.seerrState.isRunning
-                    ? '<i class="fas fa-check-circle" style="font-size: 1.5rem; color: var(--success-color);"></i>'
-                    : '<i class="fas fa-pause-circle" style="font-size: 1.5rem; color: var(--warning-color);"></i>';
-
-                const statusBg = this.seerrState.isRunning
-                    ? 'rgba(76, 175, 80, 0.1)'
-                    : 'rgba(255, 193, 7, 0.1)';
-
-                const statusText = this.seerrState.isRunning
-                    ? `<span style="color: var(--success-color);"><i class="fas fa-circle" style="font-size: 0.5rem; vertical-align: middle;"></i> Running</span> on port 5055`
-                    : '<span style="color: var(--warning-color);">Stopped</span>';
-
-                statusContainer.innerHTML = `
-                    <div style="display: flex; align-items: center; gap: 1rem;">
-                        <div style="width: 48px; height: 48px; background: ${statusBg}; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
-                            ${statusIcon}
-                        </div>
-                        <div style="flex: 1;">
-                            <h4 style="margin: 0 0 0.25rem 0;">Seerr Installed</h4>
-                            <p style="margin: 0; color: var(--text-secondary); font-size: 0.875rem;">
-                                Version: <strong>v${versionData.version}</strong> &bull;
-                                Status: ${statusText}
-                            </p>
-                        </div>
-                        <div style="display: flex; align-items: center; gap: 0.5rem;">
-                            <label class="switch" style="margin-right: 0.5rem;">
-                                <input type="checkbox" id="seerr-enabled-toggle" ${this.seerrState.isEnabled ? 'checked' : ''} onchange="Settings.toggleSeerr(this.checked)">
-                                <span class="slider"></span>
-                            </label>
-                            <span style="font-size: 0.875rem; color: var(--text-secondary);">
-                                ${this.seerrState.isEnabled ? 'Enabled' : 'Disabled'}
-                            </span>
-                        </div>
-                    </div>
-                    ${updateInfo}
-                    ${this.seerrState.isEnabled && this.seerrState.isRunning ? `
-                        <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color);">
-                            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
-                                <a href="http://localhost:5055" target="_blank" class="btn btn-primary">
-                                    <i class="fas fa-external-link-alt"></i> Open Seerr
-                                </a>
-                                <button class="btn btn-outline" onclick="Settings.restartSeerr()">
-                                    <i class="fas fa-redo"></i> Restart
-                                </button>
-                                <button class="btn btn-outline" onclick="Settings.viewSeerrLogs()">
-                                    <i class="fas fa-file-alt"></i> View Logs
-                                </button>
-                            </div>
-                            <p style="margin: 1rem 0 0 0; color: var(--text-secondary); font-size: 0.875rem;">
-                                <i class="fas fa-info-circle"></i> First-time setup: Open Seerr and sign in with your Plex account to configure.
-                                Users can access Seerr from the portal "Request Content" button.
-                            </p>
-                        </div>
-                    ` : ''}
-                `;
-            }
-        } catch (error) {
-            console.error('Error checking Seerr status:', error);
-            statusContainer.innerHTML = `
-                <div class="alert alert-danger">
-                    <i class="fas fa-exclamation-circle"></i>
-                    Failed to check Seerr status: ${error.message}
-                </div>
-            `;
-        }
-    },
-
-    async installSeerr() {
-        const statusContainer = document.getElementById('seerr-status');
-
-        // Start the installation (returns immediately)
-        try {
-            const response = await fetch('/api/v2/seerr/install', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
-            });
-
-            const data = await response.json();
-
-            if (!data.success && response.status === 409) {
-                // Already installing - just start polling
-                Utils.showToast('info', 'Installation already in progress');
-            } else if (!data.success) {
-                throw new Error(data.message || 'Failed to start installation');
-            }
-
-            // Start polling for status
-            this.pollSeerrInstallStatus();
-
-        } catch (error) {
-            console.error('Error starting Seerr install:', error);
-            Utils.showToast('error', `Failed to start Seerr installation: ${error.message}`);
-        }
-    },
-
-    async pollSeerrInstallStatus() {
-        const statusContainer = document.getElementById('seerr-status');
-
-        const poll = async () => {
-            try {
-                const response = await fetch('/api/v2/seerr/install-status');
-                const data = await response.json();
-
-                // Update UI with current status
-                const statusMessages = {
-                    'starting': 'Starting installation...',
-                    'fetching_version': 'Fetching version info...',
-                    'downloading': 'Downloading Seerr...',
-                    'extracting': 'Extracting files...',
-                    'installing_deps': 'Installing dependencies (this takes a few minutes)...',
-                    'building': 'Building Seerr (this takes a few minutes)...',
-                    'complete': 'Installation complete!',
-                    'error': 'Installation failed'
-                };
-
-                const message = data.message || statusMessages[data.status] || data.status;
-
-                if (data.inProgress) {
-                    statusContainer.innerHTML = `
-                        <div class="text-center">
-                            <div class="spinner" style="margin: 0 auto;"></div>
-                            <h4 style="margin: 1rem 0 0.5rem 0;">Installing Seerr${data.version ? ' v' + data.version : ''}...</h4>
-                            <p style="color: var(--text-secondary);">
-                                ${message}
-                            </p>
-                            <p style="color: var(--text-tertiary); font-size: 0.75rem; margin-top: 0.5rem;">
-                                You can navigate away - installation continues in background
-                            </p>
-                        </div>
-                    `;
-                    // Continue polling
-                    setTimeout(poll, 2000);
-                } else if (data.status === 'complete') {
-                    Utils.showToast('success', `Seerr v${data.version} installed successfully!`);
-                    await this.checkSeerrStatus();
-                } else if (data.status === 'error') {
-                    Utils.showToast('error', `Installation failed: ${data.error}`);
-                    statusContainer.innerHTML = `
-                        <div class="alert alert-danger">
-                            <i class="fas fa-exclamation-circle"></i>
-                            Installation failed: ${data.error}
-                            <br><br>
-                            <button class="btn btn-primary" onclick="Settings.installSeerr()">
-                                <i class="fas fa-redo"></i> Retry Installation
-                            </button>
-                        </div>
-                    `;
-                } else {
-                    // Idle state - check normal status
-                    await this.checkSeerrStatus();
-                }
-            } catch (error) {
-                console.error('Error polling install status:', error);
-                // Continue polling even on error
-                setTimeout(poll, 3000);
-            }
-        };
-
-        // Start polling
-        poll();
-    },
-
-    async updateSeerr() {
-        if (!confirm('Update Seerr to the latest version? This will restart Seerr.')) return;
-        await this.installSeerr();
-    },
-
-    async toggleSeerr(enabled) {
-        try {
-            const response = await fetch('/api/v2/seerr/settings', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ enabled })
-            });
-
-            const data = await response.json();
-
-            if (data.success) {
-                Utils.showToast('success', enabled ? 'Seerr enabled and starting...' : 'Seerr disabled and stopped');
-                // Wait a moment for Seerr to start/stop
-                await new Promise(resolve => setTimeout(resolve, 2000));
-                await this.checkSeerrStatus();
-            } else {
-                throw new Error(data.message);
-            }
-        } catch (error) {
-            console.error('Error toggling Seerr:', error);
-            Utils.showToast('error', `Failed to ${enabled ? 'enable' : 'disable'} Seerr: ${error.message}`);
-            await this.checkSeerrStatus();
-        }
-    },
-
-    async restartSeerr() {
-        try {
-            Utils.showToast('info', 'Restarting Seerr...');
-            const response = await fetch('/api/v2/seerr/restart', { method: 'POST' });
-            const data = await response.json();
-
-            if (data.success) {
-                Utils.showToast('success', 'Seerr restarted successfully');
-                await new Promise(resolve => setTimeout(resolve, 2000));
-                await this.checkSeerrStatus();
-            } else {
-                throw new Error(data.message);
-            }
-        } catch (error) {
-            console.error('Error restarting Seerr:', error);
-            Utils.showToast('error', `Failed to restart Seerr: ${error.message}`);
-        }
-    },
-
-    async viewSeerrLogs() {
-        try {
-            const response = await fetch('/api/v2/seerr/logs');
-            const data = await response.json();
-
-            if (!data.logs || data.logs.length === 0) {
-                Utils.showToast('info', 'No Seerr logs available yet');
-                return;
-            }
-
-            // Get latest log content
-            const latestLog = data.logs[0];
-            const logResponse = await fetch(`/api/v2/seerr/logs/${latestLog.name}?tail=200`);
-            const logData = await logResponse.json();
-
-            Utils.showModal({
-                title: `Seerr Log: ${latestLog.name}`,
-                size: 'large',
-                body: `
-                    <div style="max-height: 500px; overflow: auto;">
-                        <pre style="background: #0d1117; color: #c9d1d9; padding: 1rem; border-radius: 8px; font-size: 0.75rem; white-space: pre-wrap; word-break: break-all;">${logData.content || 'No content'}</pre>
-                    </div>
-                `,
-                footer: `
-                    <button class="btn btn-outline" onclick="Utils.closeModal()">Close</button>
-                `
-            });
-        } catch (error) {
-            console.error('Error viewing Seerr logs:', error);
-            Utils.showToast('error', `Failed to load logs: ${error.message}`);
-        }
-    },
-
-    // ============================================================================
-    // KOMETA MANAGEMENT (existing)
+    // KOMETA MANAGEMENT
     // ============================================================================
 
     /**
@@ -9746,7 +9393,7 @@ const Settings = {
                                             ? '<span class="badge badge-warning"><i class="fas fa-spinner fa-spin"></i> Running</span>'
                                             : '<span class="badge badge-secondary">Idle</span>'}
                                     </td>
-                                    <td>${instance.lastRun ? Utils.formatDate(instance.lastRun) : 'Never'}</td>
+                                    <td>${instance.lastRun ? Utils.formatDateTime(instance.lastRun) : 'Never'}</td>
                                     <td>
                                         <select class="form-select" style="width: auto; min-width: 140px; padding: 0.25rem 0.5rem; font-size: 0.875rem;"
                                                 onchange="Settings.updateKometaSchedule('${instance.id}', this.value)">
@@ -10432,7 +10079,18 @@ const Settings = {
                                 <input type="text" class="form-input" name="trakt_client_id" value="${config.trakt?.client_id || ''}" placeholder="Client ID">
                                 <input type="text" class="form-input" name="trakt_client_secret" value="${config.trakt?.client_secret || ''}" placeholder="Client Secret">
                             </div>
-                            <small class="form-help" style="margin-top: 0.5rem; display: block;">Create app at <a href="https://trakt.tv/oauth/applications" target="_blank">trakt.tv/oauth/applications</a></small>
+                            <div style="margin-top: 0.75rem;">
+                                <label class="form-label" style="font-size: 0.85rem;">Authorization (from Kometa configurator)</label>
+                                <textarea class="form-input" name="trakt_authorization" rows="8"
+                                    placeholder="Paste the authorization block from the Kometa configurator:&#10;&#10;access_token: abc123...&#10;token_type: Bearer&#10;expires_in: 7889238&#10;refresh_token: def456...&#10;scope: public&#10;created_at: 1234567890"
+                                    style="font-family: monospace; font-size: 0.8rem;">${Utils.escapeHtml(config.trakt?.authorization_yaml || '')}</textarea>
+                            </div>
+                            <small class="form-help" style="margin-top: 0.5rem; display: block;">
+                                <strong>Steps:</strong> 1. Create app at <a href="https://trakt.tv/oauth/applications" target="_blank">trakt.tv/oauth/applications</a>
+                                (use <code>urn:ietf:wg:oauth:2.0:oob</code> as redirect URI)
+                                → 2. Use the <a href="https://kometa.wiki/en/nightly/config/trakt/" target="_blank">Kometa Trakt Configurator</a> to authorize
+                                → 3. Paste the authorization block above
+                            </small>
                         </div>
                     </div>
                 </div>
@@ -10956,16 +10614,20 @@ const Settings = {
         if (col.type === 'custom') {
             summaryText = col.name || 'Unnamed Collection';
         } else if (col.type === 'genre' && col.settings?.items) {
-            summaryText = col.settings.items.slice(0, 4).join(', ') + (col.settings.items.length > 4 ? '...' : '');
+            const genres = Object.keys(col.settings.items).filter(k => col.settings.items[k]?.enabled !== false);
+            summaryText = genres.slice(0, 4).map(g => g.replace(/_/g, ' ')).join(', ') + (genres.length > 4 ? '...' : '');
         } else if (col.type === 'holiday' && col.settings?.items) {
             const holidays = Object.keys(col.settings.items).filter(k => col.settings.items[k]?.enabled !== false);
             summaryText = holidays.slice(0, 3).map(h => h.replace(/_/g, ' ')).join(', ') + (holidays.length > 3 ? '...' : '');
         } else if (col.type === 'decade' && col.settings?.items) {
-            summaryText = col.settings.items.slice(0, 4).join(', ') + (col.settings.items.length > 4 ? '...' : '');
+            const decades = Object.keys(col.settings.items).filter(k => col.settings.items[k]?.enabled !== false);
+            summaryText = decades.slice(0, 4).map(d => d.replace(/_/g, ' ')).join(', ') + (decades.length > 4 ? '...' : '');
         } else if (col.type === 'awards' && col.settings?.items) {
-            summaryText = col.settings.items.slice(0, 2).join(', ') + (col.settings.items.length > 2 ? '...' : '');
+            const awards = Object.keys(col.settings.items).filter(k => col.settings.items[k]?.enabled !== false);
+            summaryText = awards.slice(0, 2).map(a => a.replace(/_/g, ' ')).join(', ') + (awards.length > 2 ? '...' : '');
         } else if ((col.type === 'network' || col.type === 'studio') && col.settings?.items) {
-            summaryText = col.settings.items.slice(0, 4).join(', ') + (col.settings.items.length > 4 ? '...' : '');
+            const items = Object.keys(col.settings.items).filter(k => col.settings.items[k]?.enabled !== false);
+            summaryText = items.slice(0, 4).map(n => n.replace(/_/g, ' ')).join(', ') + (items.length > 4 ? '...' : '');
         }
 
         return `
@@ -11039,15 +10701,15 @@ const Settings = {
                         <div id="kometa-col-visibility-section" style="display: ${selectedType === 'holiday' ? 'none' : 'flex'}; flex-direction: column; gap: 0.5rem;">
                             <label style="font-size: 0.75rem; font-weight: 600; color: var(--text-secondary);">VISIBILITY</label>
                             <label style="display: flex; align-items: center; gap: 0.25rem; font-size: 0.85rem; cursor: pointer;">
-                                <input type="checkbox" id="kometa-col-visible-home" ${existingCol?.visible_home !== false ? 'checked' : ''}>
+                                <input type="checkbox" id="kometa-col-visible-home" ${existingCol?.common_options?.visible_home !== false ? 'checked' : ''}>
                                 Visible on Home
                             </label>
                             <label style="display: flex; align-items: center; gap: 0.25rem; font-size: 0.85rem; cursor: pointer;">
-                                <input type="checkbox" id="kometa-col-visible-shared" ${existingCol?.visible_shared !== false ? 'checked' : ''}>
+                                <input type="checkbox" id="kometa-col-visible-shared" ${existingCol?.common_options?.visible_shared !== false ? 'checked' : ''}>
                                 Visible on Shared
                             </label>
                             <label style="display: flex; align-items: center; gap: 0.25rem; font-size: 0.85rem; cursor: pointer;">
-                                <input type="checkbox" id="kometa-col-visible-library" ${existingCol?.visible_library !== false ? 'checked' : ''}>
+                                <input type="checkbox" id="kometa-col-visible-library" ${existingCol?.common_options?.visible_library !== false ? 'checked' : ''}>
                                 Visible in Library
                             </label>
                         </div>
@@ -11056,15 +10718,15 @@ const Settings = {
                         <div style="display: flex; flex-direction: column; gap: 0.5rem;">
                             <label style="font-size: 0.75rem; font-weight: 600; color: var(--text-secondary);">RADARR (Movies)</label>
                             <label style="display: flex; align-items: center; gap: 0.25rem; font-size: 0.85rem; cursor: pointer;">
-                                <input type="checkbox" id="kometa-col-radarr-add" ${existingCol?.radarr_add_missing ? 'checked' : ''}>
+                                <input type="checkbox" id="kometa-col-radarr-add" ${existingCol?.common_options?.radarr_add_missing ? 'checked' : ''}>
                                 Add Missing
                             </label>
                             <label style="display: flex; align-items: center; gap: 0.25rem; font-size: 0.85rem; cursor: pointer;">
-                                <input type="checkbox" id="kometa-col-radarr-search" ${existingCol?.radarr_search ? 'checked' : ''}>
+                                <input type="checkbox" id="kometa-col-radarr-search" ${existingCol?.common_options?.radarr_search ? 'checked' : ''}>
                                 Search
                             </label>
                             <label style="display: flex; align-items: center; gap: 0.25rem; font-size: 0.85rem; cursor: pointer;">
-                                <input type="checkbox" id="kometa-col-radarr-monitor" ${existingCol?.radarr_monitor ? 'checked' : ''}>
+                                <input type="checkbox" id="kometa-col-radarr-monitor" ${existingCol?.common_options?.radarr_monitor ? 'checked' : ''}>
                                 Monitor
                             </label>
                         </div>
@@ -11073,15 +10735,15 @@ const Settings = {
                         <div style="display: flex; flex-direction: column; gap: 0.5rem;">
                             <label style="font-size: 0.75rem; font-weight: 600; color: var(--text-secondary);">SONARR (TV Shows)</label>
                             <label style="display: flex; align-items: center; gap: 0.25rem; font-size: 0.85rem; cursor: pointer;">
-                                <input type="checkbox" id="kometa-col-sonarr-add" ${existingCol?.sonarr_add_missing ? 'checked' : ''}>
+                                <input type="checkbox" id="kometa-col-sonarr-add" ${existingCol?.common_options?.sonarr_add_missing ? 'checked' : ''}>
                                 Add Missing
                             </label>
                             <label style="display: flex; align-items: center; gap: 0.25rem; font-size: 0.85rem; cursor: pointer;">
-                                <input type="checkbox" id="kometa-col-sonarr-search" ${existingCol?.sonarr_search ? 'checked' : ''}>
+                                <input type="checkbox" id="kometa-col-sonarr-search" ${existingCol?.common_options?.sonarr_search ? 'checked' : ''}>
                                 Search
                             </label>
                             <label style="display: flex; align-items: center; gap: 0.25rem; font-size: 0.85rem; cursor: pointer;">
-                                <input type="checkbox" id="kometa-col-sonarr-monitor" ${existingCol?.sonarr_monitor ? 'checked' : ''}>
+                                <input type="checkbox" id="kometa-col-sonarr-monitor" ${existingCol?.common_options?.sonarr_monitor ? 'checked' : ''}>
                                 Monitor
                             </label>
                         </div>
@@ -11091,17 +10753,17 @@ const Settings = {
                         <div>
                             <label style="font-size: 0.7rem; color: var(--text-secondary);">Sync Mode</label>
                             <select class="form-select" id="kometa-col-sync-mode" style="padding: 0.35rem; font-size: 0.85rem;">
-                                <option value="sync" ${(existingCol?.sync_mode || 'sync') === 'sync' ? 'selected' : ''}>Sync (Remove items not in source)</option>
-                                <option value="append" ${existingCol?.sync_mode === 'append' ? 'selected' : ''}>Append (Keep existing items)</option>
+                                <option value="sync" ${(existingCol?.common_options?.sync_mode || 'sync') === 'sync' ? 'selected' : ''}>Sync (Remove items not in source)</option>
+                                <option value="append" ${existingCol?.common_options?.sync_mode === 'append' ? 'selected' : ''}>Append (Keep existing items)</option>
                             </select>
                         </div>
                         <div>
                             <label style="font-size: 0.7rem; color: var(--text-secondary);">Limit (max items)</label>
-                            <input type="number" class="form-input" id="kometa-col-limit" value="${existingCol?.limit || ''}" placeholder="No limit" min="1" max="1000" style="padding: 0.35rem; font-size: 0.85rem;">
+                            <input type="number" class="form-input" id="kometa-col-limit" value="${existingCol?.common_options?.limit || ''}" placeholder="No limit" min="1" max="1000" style="padding: 0.35rem; font-size: 0.85rem;">
                         </div>
                         <div>
                             <label style="font-size: 0.7rem; color: var(--text-secondary);">Minimum Items (to show)</label>
-                            <input type="number" class="form-input" id="kometa-col-minimum" value="${existingCol?.minimum_items || ''}" placeholder="1" min="1" max="100" style="padding: 0.35rem; font-size: 0.85rem;">
+                            <input type="number" class="form-input" id="kometa-col-minimum" value="${existingCol?.common_options?.minimum_items || ''}" placeholder="1" min="1" max="100" style="padding: 0.35rem; font-size: 0.85rem;">
                         </div>
                     </div>
                 </div>
@@ -12741,7 +12403,8 @@ const Settings = {
             trakt: {
                 enabled: formData.get('trakt_enabled') === 'on',
                 client_id: formData.get('trakt_client_id'),
-                client_secret: formData.get('trakt_client_secret')
+                client_secret: formData.get('trakt_client_secret'),
+                authorization_yaml: formData.get('trakt_authorization')
             },
             tautulli: {
                 enabled: formData.get('tautulli_enabled') === 'on',
@@ -12808,31 +12471,6 @@ const Settings = {
             }
         });
 
-        // Collect libraries from checkbox selections
-        const libraryRows = document.querySelectorAll('.kometa-library-row');
-        libraryRows.forEach((row, idx) => {
-            const name = formData.get(`library_name_${idx}`);
-            if (!name) return;
-
-            // Collect checked collection checkboxes
-            const collections = [];
-            row.querySelectorAll(`input[name^="lib_${idx}_col_"]:checked`).forEach(cb => {
-                collections.push(cb.value);
-            });
-
-            // Collect checked overlay checkboxes
-            const overlays = [];
-            row.querySelectorAll(`input[name^="lib_${idx}_ovl_"]:checked`).forEach(cb => {
-                overlays.push(cb.value);
-            });
-
-            config.libraries.push({
-                name,
-                collection_files: collections,
-                overlay_files: overlays
-            });
-        });
-
         // Collections are managed via the unified collections UI
         // They're already stored in kometaConfigState.config.collections by saveKometaCollectionFromForm()
         config.collections = this.kometaConfigState.config?.collections || [];
@@ -12840,17 +12478,41 @@ const Settings = {
         // Overlays are managed via the unified overlays UI
         config.overlays = this.kometaConfigState.config?.overlays || [];
 
+        // Auto-generate libraries from collections and overlays
+        // The unified UI no longer has separate library rows - libraries are selected per-collection/overlay
+        const allLibraryNames = new Set();
+        for (const col of config.collections) {
+            for (const libName of (col.libraries || [])) {
+                allLibraryNames.add(libName);
+            }
+        }
+        for (const ovl of config.overlays) {
+            for (const libName of (ovl.libraries || [])) {
+                allLibraryNames.add(libName);
+            }
+        }
+        // Build libraries array with server info for proper mapping
+        // (the backend will populate collection_files/overlay_files based on assignments)
+        const availableLibraries = this.kometaConfigState.availableLibraries || [];
+        config.libraries = Array.from(allLibraryNames).map(name => {
+            // Find the library in availableLibraries to get server info
+            const libInfo = availableLibraries.find(l => l.name === name);
+            return {
+                name,
+                serverId: libInfo?.serverId || null,
+                serverName: libInfo?.serverName || null,
+                collection_files: [],
+                overlay_files: []
+            };
+        });
+
         // Validate
         if (!config.tmdb_apikey) {
             Utils.showToast('error', 'TMDb API key is required');
             return;
         }
 
-        if (config.libraries.length === 0) {
-            Utils.showToast('error', 'Please add at least one library');
-            return;
-        }
-
+        // Libraries are optional - users can save basic settings first
         for (const lib of config.libraries) {
             if (!lib.name.trim()) {
                 Utils.showToast('error', 'All libraries must have a name');
