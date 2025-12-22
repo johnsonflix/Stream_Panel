@@ -14,7 +14,20 @@ const util = require('util');
 const execPromise = util.promisify(exec);
 const db = require('../database-config');
 const multer = require('multer');
-const AdmZip = require('adm-zip');
+
+// Lazy-load adm-zip only when needed (for Kometa install)
+// This prevents app crash if package isn't installed yet
+let AdmZip = null;
+function getAdmZip() {
+    if (!AdmZip) {
+        try {
+            AdmZip = require('adm-zip');
+        } catch (e) {
+            return null;
+        }
+    }
+    return AdmZip;
+}
 
 /**
  * Download a file using Node.js https (no external dependencies like curl)
@@ -240,10 +253,20 @@ router.post('/install', async (req, res) => {
         console.log(`[Kometa] Downloading from ${downloadUrl}...`);
         await downloadFile(downloadUrl, zipPath);
 
-        // Extract using adm-zip (works without unzip command)
+        // Extract zip file - try adm-zip first, fall back to shell unzip
         console.log('[Kometa] Extracting zip file...');
-        const zip = new AdmZip(zipPath);
-        zip.extractAllTo(KOMETA_APP_DIR, true);
+        const ZipClass = getAdmZip();
+        if (ZipClass) {
+            const zip = new ZipClass(zipPath);
+            zip.extractAllTo(KOMETA_APP_DIR, true);
+        } else {
+            // Fallback to shell unzip if adm-zip not installed
+            try {
+                await execPromise(`unzip -o "${zipPath}" -d "${KOMETA_APP_DIR}"`);
+            } catch (unzipError) {
+                throw new Error('Neither adm-zip package nor unzip command available. Please rebuild Docker container.');
+            }
+        }
 
         // Move contents from extracted folder to app dir
         const extractedDir = path.join(KOMETA_APP_DIR, `Kometa-${targetVersion}`);
