@@ -14,6 +14,7 @@ const util = require('util');
 const execPromise = util.promisify(exec);
 const db = require('../database-config');
 const multer = require('multer');
+const AdmZip = require('adm-zip');
 
 /**
  * Download a file using Node.js https (no external dependencies like curl)
@@ -239,16 +240,35 @@ router.post('/install', async (req, res) => {
         console.log(`[Kometa] Downloading from ${downloadUrl}...`);
         await downloadFile(downloadUrl, zipPath);
 
-        // Extract
-        await execPromise(`unzip -o "${zipPath}" -d "${KOMETA_APP_DIR}"`);
+        // Extract using adm-zip (works without unzip command)
+        console.log('[Kometa] Extracting zip file...');
+        const zip = new AdmZip(zipPath);
+        zip.extractAllTo(KOMETA_APP_DIR, true);
 
         // Move contents from extracted folder to app dir
         const extractedDir = path.join(KOMETA_APP_DIR, `Kometa-${targetVersion}`);
         if (fs.existsSync(extractedDir)) {
-            // Copy all files from extracted dir to app dir
-            await execPromise(`cp -r "${extractedDir}"/* "${KOMETA_APP_DIR}/"`);
-            // Remove extracted dir and zip
-            await execPromise(`rm -rf "${extractedDir}" "${zipPath}"`);
+            // Copy all files from extracted dir to app dir using Node.js
+            const copyRecursive = (src, dest) => {
+                const entries = fs.readdirSync(src, { withFileTypes: true });
+                for (const entry of entries) {
+                    const srcPath = path.join(src, entry.name);
+                    const destPath = path.join(dest, entry.name);
+                    if (entry.isDirectory()) {
+                        if (!fs.existsSync(destPath)) {
+                            fs.mkdirSync(destPath, { recursive: true });
+                        }
+                        copyRecursive(srcPath, destPath);
+                    } else {
+                        fs.copyFileSync(srcPath, destPath);
+                    }
+                }
+            };
+            copyRecursive(extractedDir, KOMETA_APP_DIR);
+
+            // Remove extracted dir and zip using Node.js
+            fs.rmSync(extractedDir, { recursive: true, force: true });
+            fs.unlinkSync(zipPath);
         }
 
         // Install Python dependencies
