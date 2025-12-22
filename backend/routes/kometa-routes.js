@@ -8,11 +8,58 @@ const express = require('express');
 const router = express.Router();
 const fs = require('fs');
 const path = require('path');
+const https = require('https');
 const { exec, spawn } = require('child_process');
 const util = require('util');
 const execPromise = util.promisify(exec);
 const db = require('../database-config');
 const multer = require('multer');
+
+/**
+ * Download a file using Node.js https (no external dependencies like curl)
+ * Follows redirects automatically
+ */
+function downloadFile(url, destPath) {
+    return new Promise((resolve, reject) => {
+        const file = fs.createWriteStream(destPath);
+
+        const request = https.get(url, (response) => {
+            // Handle redirects (GitHub uses 302 redirects)
+            if (response.statusCode === 301 || response.statusCode === 302) {
+                file.close();
+                fs.unlinkSync(destPath); // Remove empty file
+                return downloadFile(response.headers.location, destPath)
+                    .then(resolve)
+                    .catch(reject);
+            }
+
+            if (response.statusCode !== 200) {
+                file.close();
+                fs.unlinkSync(destPath);
+                return reject(new Error(`Download failed with status ${response.statusCode}`));
+            }
+
+            response.pipe(file);
+
+            file.on('finish', () => {
+                file.close();
+                resolve();
+            });
+        });
+
+        request.on('error', (err) => {
+            file.close();
+            fs.unlink(destPath, () => {}); // Delete partial file
+            reject(err);
+        });
+
+        file.on('error', (err) => {
+            file.close();
+            fs.unlink(destPath, () => {});
+            reject(err);
+        });
+    });
+}
 
 // Configure multer for asset uploads
 const assetStorage = multer.diskStorage({
@@ -188,8 +235,9 @@ router.post('/install', async (req, res) => {
         const downloadUrl = `https://github.com/${KOMETA_GITHUB_REPO}/archive/refs/tags/v${targetVersion}.zip`;
         const zipPath = path.join(KOMETA_APP_DIR, 'kometa.zip');
 
-        // Download using curl (more reliable in Docker)
-        await execPromise(`curl -L -o "${zipPath}" "${downloadUrl}"`);
+        // Download using Node.js https (works without curl)
+        console.log(`[Kometa] Downloading from ${downloadUrl}...`);
+        await downloadFile(downloadUrl, zipPath);
 
         // Extract
         await execPromise(`unzip -o "${zipPath}" -d "${KOMETA_APP_DIR}"`);
