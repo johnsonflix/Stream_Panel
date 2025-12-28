@@ -1,6 +1,6 @@
 {
-  "version": "1.4.0",
+  "version": "1.4.1",
   "name": "Stream Panel",
   "releaseDate": "2025-12-27",
-  "description": "Request Site - Complete media request system with user permissions, 4K support, mobile optimization"
+  "description": "Migration ordering fix, request status sync for already-downloaded content"
 }

@@ -1649,13 +1649,36 @@ async function processMovieRequest(requestId, serverId = null) {
     });
 
     if (result.success) {
+        // Check if movie already has file - mark as available immediately
+        const newStatus = result.hasFile ? 'available' : 'processing';
+
         await dbQueue.write(() => {
             db.prepare(`
                 UPDATE media_requests SET
-                    server_id = ?, external_id = ?, status = ?
+                    server_id = ?, external_id = ?, status = ?${result.hasFile ? ', available_at = CURRENT_TIMESTAMP' : ''}
                 WHERE id = ?
-            `).run(radarr.server.id, result.movie?.id, 'processing', requestId);
+            `).run(radarr.server.id, result.movie?.id, newStatus, requestId);
         });
+
+        // If already downloaded, also update request_site_media table
+        if (result.hasFile) {
+            console.log(`[Request Site] Movie already downloaded in Radarr - marking as AVAILABLE`);
+
+            // Update or insert request_site_media record
+            const statusField = is4k ? 'status_4k' : 'status';
+            await dbQueue.write(() => {
+                const existing = db.prepare('SELECT id FROM request_site_media WHERE tmdb_id = ? AND media_type = ?')
+                    .get(request.tmdb_id, 'movie');
+
+                if (existing) {
+                    db.prepare(`UPDATE request_site_media SET ${statusField} = 4, media_added_at = COALESCE(media_added_at, CURRENT_TIMESTAMP), updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
+                        .run(existing.id);
+                } else {
+                    db.prepare(`INSERT INTO request_site_media (tmdb_id, media_type, ${statusField}, media_added_at, created_at, updated_at) VALUES (?, 'movie', 4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`)
+                        .run(request.tmdb_id);
+                }
+            });
+        }
     } else {
         throw new Error(result.error || 'Failed to add to Radarr');
     }
@@ -1705,13 +1728,48 @@ async function processTvRequest(requestId, seasons = null, serverId = null) {
     });
 
     if (result.success) {
+        // Check if series already has files - determine appropriate status
+        const episodeFileCount = result.series?.statistics?.episodeFileCount || 0;
+        const totalEpisodeCount = result.series?.statistics?.totalEpisodeCount || 0;
+        const hasFiles = episodeFileCount > 0;
+        const isFullyAvailable = episodeFileCount >= totalEpisodeCount && totalEpisodeCount > 0;
+
+        let newStatus = 'processing';
+        if (isFullyAvailable) {
+            newStatus = 'available';
+        } else if (hasFiles) {
+            // Partial availability - still mark as processing until fully complete
+            newStatus = 'processing';
+        }
+
         await dbQueue.write(() => {
             db.prepare(`
                 UPDATE media_requests SET
-                    server_id = ?, external_id = ?, tvdb_id = ?, status = ?
+                    server_id = ?, external_id = ?, tvdb_id = ?, status = ?${newStatus === 'available' ? ', available_at = CURRENT_TIMESTAMP' : ''}
                 WHERE id = ?
-            `).run(sonarr.server.id, result.series?.id, tvdbId, 'processing', requestId);
+            `).run(sonarr.server.id, result.series?.id, tvdbId, newStatus, requestId);
         });
+
+        // If already has files, update request_site_media table
+        if (hasFiles) {
+            console.log(`[Request Site] TV show has ${episodeFileCount}/${totalEpisodeCount} episodes in Sonarr - marking as ${isFullyAvailable ? 'AVAILABLE' : 'PARTIALLY_AVAILABLE'}`);
+
+            const mediaStatus = isFullyAvailable ? 4 : 3; // 4 = AVAILABLE, 3 = PARTIALLY_AVAILABLE
+            const statusField = is4k ? 'status_4k' : 'status';
+
+            await dbQueue.write(() => {
+                const existing = db.prepare('SELECT id FROM request_site_media WHERE tmdb_id = ? AND media_type = ?')
+                    .get(request.tmdb_id, 'tv');
+
+                if (existing) {
+                    db.prepare(`UPDATE request_site_media SET ${statusField} = ?, media_added_at = COALESCE(media_added_at, CURRENT_TIMESTAMP), updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
+                        .run(mediaStatus, existing.id);
+                } else {
+                    db.prepare(`INSERT INTO request_site_media (tmdb_id, media_type, ${statusField}, media_added_at, created_at, updated_at) VALUES (?, 'tv', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`)
+                        .run(request.tmdb_id, mediaStatus);
+                }
+            });
+        }
     } else {
         throw new Error(result.error || 'Failed to add to Sonarr');
     }

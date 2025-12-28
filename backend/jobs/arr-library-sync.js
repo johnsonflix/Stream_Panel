@@ -107,13 +107,92 @@ class ArrLibrarySyncJob {
                 }
             }
 
+            // After syncing cache, update any stuck media_requests to 'available' if they have files
+            const requestsUpdated = await this.syncMediaRequestsStatus();
+
             const duration = Math.round((Date.now() - startTime) / 1000);
-            console.log(`[Arr Sync] Complete in ${duration}s: ${totalRadarr} movies, ${totalSonarr} series cached`);
+            console.log(`[Arr Sync] Complete in ${duration}s: ${totalRadarr} movies, ${totalSonarr} series cached, ${requestsUpdated} requests updated`);
 
         } catch (error) {
             console.error('[Arr Sync] Failed:', error);
         } finally {
             this.isRunning = false;
+        }
+    }
+
+    /**
+     * Sync media_requests status based on *arr library cache
+     * Updates any processing/approved requests to 'available' if the content has been downloaded
+     */
+    async syncMediaRequestsStatus() {
+        try {
+            const db = this.getDb();
+
+            // Get all processing/approved requests
+            const pendingRequests = db.prepare(`
+                SELECT id, tmdb_id, media_type, title, status
+                FROM media_requests
+                WHERE status IN ('processing', 'approved')
+            `).all();
+
+            if (pendingRequests.length === 0) {
+                return 0;
+            }
+
+            let updated = 0;
+
+            for (const request of pendingRequests) {
+                let isAvailable = false;
+
+                if (request.media_type === 'movie') {
+                    // Check Radarr cache for downloaded movie
+                    const radarrEntry = db.prepare(
+                        'SELECT * FROM radarr_library_cache WHERE tmdb_id = ? AND has_file = 1'
+                    ).get(request.tmdb_id);
+                    isAvailable = !!radarrEntry;
+                } else if (request.media_type === 'tv') {
+                    // Check Sonarr cache for TV episodes
+                    const sonarrEntry = db.prepare(
+                        'SELECT * FROM sonarr_library_cache WHERE tmdb_id = ? AND episode_file_count > 0'
+                    ).get(request.tmdb_id);
+                    isAvailable = !!sonarrEntry;
+                }
+
+                if (isAvailable) {
+                    // Update media_requests status
+                    db.prepare(`
+                        UPDATE media_requests
+                        SET status = 'available', available_at = CURRENT_TIMESTAMP
+                        WHERE id = ?
+                    `).run(request.id);
+
+                    // Also update or insert request_site_media to ensure Recently Added shows content
+                    const existing = db.prepare(
+                        'SELECT id FROM request_site_media WHERE tmdb_id = ? AND media_type = ?'
+                    ).get(request.tmdb_id, request.media_type);
+
+                    if (existing) {
+                        db.prepare(`
+                            UPDATE request_site_media
+                            SET status = 4, media_added_at = COALESCE(media_added_at, CURRENT_TIMESTAMP), updated_at = CURRENT_TIMESTAMP
+                            WHERE id = ?
+                        `).run(existing.id);
+                    } else {
+                        db.prepare(`
+                            INSERT INTO request_site_media (tmdb_id, media_type, status, media_added_at, created_at, updated_at)
+                            VALUES (?, ?, 4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        `).run(request.tmdb_id, request.media_type);
+                    }
+
+                    updated++;
+                    console.log(`[Arr Sync] ✅ Request "${request.title}" (TMDB ${request.tmdb_id}) marked as available`);
+                }
+            }
+
+            return updated;
+        } catch (error) {
+            console.error('[Arr Sync] Error syncing media_requests status:', error);
+            return 0;
         }
     }
 
