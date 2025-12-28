@@ -686,10 +686,11 @@ class API {
     }
 
     // ============ Users ============
-    static async getUsers(search = '', includeInactive = false, ownerId = null, tagId = null) {
+    static async getUsers(search = '', includeInactive = false, ownerId = null, tagId = null, expiringSoon = '') {
         let url = `/users?search=${encodeURIComponent(search)}&include_inactive=${includeInactive}`;
         if (ownerId) url += `&owner_id=${ownerId}`;
         if (tagId) url += `&tag_id=${tagId}`;
+        if (expiringSoon) url += `&expiring_soon=${encodeURIComponent(expiringSoon)}`;
         return this.request(url);
     }
 

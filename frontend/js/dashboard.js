@@ -82,12 +82,13 @@ const Dashboard = {
         // Clear any existing interval
         this.stopAutoRefresh();
 
-        // Refresh every 30 seconds with force=true to get live data
+        // Refresh live stats every 30 seconds (IPTV streams, Plex sessions)
+        // This is more efficient than refreshing all stats
         this.refreshInterval = setInterval(() => {
-            this.loadStats(true, false, true); // silent=true, showIndicators=false, force=true
+            this.loadLiveStats(true); // silent=true - don't update timestamp
         }, 30000);
 
-        console.log('[Dashboard] Auto-refresh started (30s interval, force=true for live data)');
+        console.log('[Dashboard] Auto-refresh started (30s interval for live stats)');
     },
 
     /**
@@ -171,6 +172,10 @@ const Dashboard = {
                 console.log('[Dashboard] Displaying fresh stats');
             }
 
+            // Always fetch fresh live stats after displaying (runs in background)
+            // This ensures IPTV live streams and Plex now playing are always current
+            this.loadLiveStats(silent);
+
         } catch (error) {
             console.error('Error loading stats:', error);
             if (!silent || showIndicators) {
@@ -195,6 +200,110 @@ const Dashboard = {
         }
 
         return true;
+    },
+
+    /**
+     * Load fresh live statistics (Plex sessions, IPTV streams) synchronously
+     * This bypasses the cache to get real-time data
+     */
+    async loadLiveStats(silent = false) {
+        console.log('[Dashboard] Fetching fresh live stats...');
+
+        try {
+            const response = await API.getDashboardLiveStats();
+
+            if (!response.success) {
+                console.error('[Dashboard] Live stats failed:', response.error);
+                return;
+            }
+
+            console.log(`[Dashboard] Live stats received - Plex: ${response.plex.total_live_sessions} sessions, IPTV: ${response.iptv.live_streams} streams`);
+
+            // Update Plex live session data in cached stats
+            if (this.cachedStats) {
+                this.cachedStats.live_sessions = response.plex.live_sessions;
+                this.cachedStats.total_live_sessions = response.plex.total_live_sessions;
+                this.cachedStats.live_plex_users = response.plex.total_live_sessions;
+                this.cachedStats.total_bandwidth_mbps = response.plex.total_bandwidth_mbps;
+                this.cachedStats.wan_bandwidth_mbps = response.plex.wan_bandwidth_mbps;
+                this.cachedStats.direct_plays_count = response.plex.direct_plays_count;
+                this.cachedStats.direct_streams_count = response.plex.direct_streams_count;
+                this.cachedStats.transcodes_count = response.plex.transcodes_count;
+
+                // Update IPTV live streams count
+                this.cachedStats.iptv_live_streams = response.iptv.live_streams;
+
+                // Update IPTV panels data with fresh live viewers
+                if (this.cachedStats.iptv_panels_data && this.cachedStats.iptv_panels_data.panels) {
+                    for (const freshPanel of response.iptv.panels) {
+                        const existingPanel = this.cachedStats.iptv_panels_data.panels.find(p => p.panel_id === freshPanel.panel_id);
+                        if (existingPanel) {
+                            existingPanel.liveViewers = freshPanel.liveViewers || [];
+                            if (existingPanel.users) {
+                                existingPanel.users.liveNow = freshPanel.liveStreams;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Update the displayed stat cards with fresh live data
+            this.updateLiveStatsDisplay(response);
+
+            if (!silent) {
+                this.updateLastUpdatedTime(false, 0);
+            }
+
+        } catch (error) {
+            console.error('[Dashboard] Error loading live stats:', error);
+        }
+    },
+
+    /**
+     * Update only the live stats display (Plex sessions, IPTV streams) without full re-render
+     */
+    updateLiveStatsDisplay(liveData) {
+        // Update Plex Live Streams stat card
+        const plexLiveCard = document.querySelector('[data-card-id="plex-live-streams"] .stat-value');
+        if (plexLiveCard) {
+            plexLiveCard.textContent = liveData.plex.total_live_sessions || 0;
+        }
+
+        // Update IPTV Live Streams stat card
+        const iptvLiveCard = document.querySelector('[data-card-id="iptv-live-streams"] .stat-value');
+        if (iptvLiveCard) {
+            iptvLiveCard.textContent = liveData.iptv.live_streams || 0;
+        }
+
+        // Update Plex Now Playing section header
+        const nowPlayingHeader = document.querySelector('#now-playing-content')?.previousElementSibling?.querySelector('span');
+        if (nowPlayingHeader && nowPlayingHeader.textContent.includes('Sessions:')) {
+            const sessions = liveData.plex.total_live_sessions;
+            const directPlays = liveData.plex.direct_plays_count;
+            const directStreams = liveData.plex.direct_streams_count;
+            const transcodes = liveData.plex.transcodes_count;
+            const bandwidth = liveData.plex.total_bandwidth_mbps;
+            const wanBandwidth = liveData.plex.wan_bandwidth_mbps || '0.0';
+            nowPlayingHeader.innerHTML = `Sessions: <strong>${sessions}</strong> (${directPlays + directStreams} direct plays, ${transcodes} transcodes) | Bandwidth: <strong>${bandwidth} Mbps (WAN: ${wanBandwidth} Mbps)</strong>`;
+        }
+
+        // Update Plex Now Playing content if expanded
+        const nowPlayingContent = document.getElementById('now-playing-content');
+        if (nowPlayingContent && nowPlayingContent.style.display !== 'none' && this.cachedStats) {
+            // Re-render the now playing section with fresh data
+            const nowPlayingHtml = this.renderNowPlayingContent(this.cachedStats);
+            nowPlayingContent.innerHTML = nowPlayingHtml;
+        }
+
+        // Update IPTV Live Streams content if expanded
+        const iptvLiveContent = document.getElementById('iptv-live-streams-content');
+        if (iptvLiveContent && iptvLiveContent.style.display !== 'none' && this.cachedStats) {
+            // Re-render the IPTV live streams section with fresh data
+            const iptvHtml = this.renderIPTVLiveStreamsContent(this.cachedStats);
+            iptvLiveContent.innerHTML = iptvHtml;
+        }
+
+        console.log('[Dashboard] Live stats display updated');
     },
 
     /**

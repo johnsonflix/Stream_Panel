@@ -1,6 +1,6 @@
 {
-  "version": "1.3.2",
+  "version": "1.4.0",
   "name": "Stream Panel",
-  "releaseDate": "2025-12-21",
-  "description": "Fix Kometa install - use pure Node.js for download and extraction"
+  "releaseDate": "2025-12-27",
+  "description": "Request Site - Complete media request system with user permissions, 4K support, mobile optimization"
 }

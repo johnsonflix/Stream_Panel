@@ -248,12 +248,31 @@ async function syncServerLibraries(server) {
         const libraries = [];
         for (const dir of dirArray) {
             if (dir && dir.$) {
-                libraries.push({
+                const library = {
                     key: dir.$.key,
                     title: dir.$.title,
                     type: dir.$.type,
-                    uuid: dir.$.uuid
-                });
+                    uuid: dir.$.uuid,
+                    count: 0
+                };
+
+                // Fetch item count for this library
+                try {
+                    const countResponse = await axios.get(`${server.url}/library/sections/${dir.$.key}/all`, {
+                        headers: {
+                            'X-Plex-Token': server.token,
+                            'Accept': 'application/xml'
+                        },
+                        params: { 'X-Plex-Container-Start': 0, 'X-Plex-Container-Size': 0 },
+                        timeout: 10000
+                    });
+                    const countResult = await parser.parseStringPromise(countResponse.data);
+                    library.count = parseInt(countResult.MediaContainer?.$?.totalSize || '0', 10);
+                } catch (countError) {
+                    // Ignore count fetch errors - just keep count as 0
+                }
+
+                libraries.push(library);
             }
         }
 

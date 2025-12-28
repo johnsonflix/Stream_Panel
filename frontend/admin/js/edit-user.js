@@ -163,6 +163,9 @@ const EditUser = {
                     <!-- Basic Information -->
                     ${this.renderBasicInfoSection()}
 
+                    <!-- Request Site Permissions -->
+                    ${this.renderRequestSiteSection()}
+
                     <!-- Plex Section -->
                     ${user.plex_enabled ? this.renderPlexSection() : ''}
 
@@ -340,6 +343,158 @@ const EditUser = {
                         </div>
                     </div>
                     <small class="form-hint">Select which payment methods this user can see on the portal</small>
+                </div>
+            </section>
+        `;
+    },
+
+    /**
+     * Render Request Site Permissions section
+     */
+    renderRequestSiteSection() {
+        const user = this.userData;
+
+        // Helper to get checkbox value (NULL = use global, 0 = disabled, 1 = enabled)
+        const getCheckboxState = (value) => {
+            if (value === null || value === undefined) return 'global';
+            return value === 1 ? 'enabled' : 'disabled';
+        };
+
+        return `
+            <section class="edit-section">
+                <h3><i class="fas fa-film"></i> Request Site Permissions</h3>
+                <p class="form-hint" style="margin-bottom: 1rem;">
+                    Configure this user's ability to request movies and TV shows.
+                    "Use Global Default" inherits settings from Request Site Settings.
+                </p>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Can Request Movies</label>
+                        <select id="edit-rs-can-request-movie" class="form-input" data-track-changes>
+                            <option value="global" ${getCheckboxState(user.rs_can_request_movie) === 'global' ? 'selected' : ''}>Use Global Default</option>
+                            <option value="enabled" ${getCheckboxState(user.rs_can_request_movie) === 'enabled' ? 'selected' : ''}>Enabled</option>
+                            <option value="disabled" ${getCheckboxState(user.rs_can_request_movie) === 'disabled' ? 'selected' : ''}>Disabled</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Can Request TV Shows</label>
+                        <select id="edit-rs-can-request-tv" class="form-input" data-track-changes>
+                            <option value="global" ${getCheckboxState(user.rs_can_request_tv) === 'global' ? 'selected' : ''}>Use Global Default</option>
+                            <option value="enabled" ${getCheckboxState(user.rs_can_request_tv) === 'enabled' ? 'selected' : ''}>Enabled</option>
+                            <option value="disabled" ${getCheckboxState(user.rs_can_request_tv) === 'disabled' ? 'selected' : ''}>Disabled</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Can Request 4K Content</label>
+                        <select id="edit-rs-can-request-4k" class="form-input" data-track-changes>
+                            <option value="global" ${getCheckboxState(user.rs_can_request_4k) === 'global' ? 'selected' : ''}>Use Global Default</option>
+                            <option value="enabled" ${getCheckboxState(user.rs_can_request_4k) === 'enabled' ? 'selected' : ''}>Enabled</option>
+                            <option value="disabled" ${getCheckboxState(user.rs_can_request_4k) === 'disabled' ? 'selected' : ''}>Disabled</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Auto-Approve Requests</label>
+                        <select id="edit-rs-can-auto-approve" class="form-input" data-track-changes>
+                            <option value="global" ${getCheckboxState(user.rs_can_auto_approve) === 'global' ? 'selected' : ''}>Use Global Default</option>
+                            <option value="enabled" ${getCheckboxState(user.rs_can_auto_approve) === 'enabled' ? 'selected' : ''}>Enabled</option>
+                            <option value="disabled" ${getCheckboxState(user.rs_can_auto_approve) === 'disabled' ? 'selected' : ''}>Disabled</option>
+                        </select>
+                        <small class="form-hint">Automatically approve this user's requests without admin review</small>
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border-color);">
+                    <label><i class="fas fa-chart-bar"></i> Request Quotas (Override Global)</label>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="edit-rs-movie-quota-limit">
+                            Movie Request Limit
+                            <span class="help-text">Max movies per time period (empty = use global, 0 = unlimited)</span>
+                        </label>
+                        <input
+                            type="number"
+                            id="edit-rs-movie-quota-limit"
+                            class="form-input"
+                            value="${user.rs_movie_quota_limit !== null && user.rs_movie_quota_limit !== undefined ? user.rs_movie_quota_limit : ''}"
+                            placeholder="Use global default"
+                            min="0"
+                            data-track-changes
+                        />
+                    </div>
+
+                    <div class="form-group">
+                        <label for="edit-rs-movie-quota-days">
+                            Movie Quota Days
+                            <span class="help-text">Rolling time period in days (empty = use global)</span>
+                        </label>
+                        <input
+                            type="number"
+                            id="edit-rs-movie-quota-days"
+                            class="form-input"
+                            value="${user.rs_movie_quota_days !== null && user.rs_movie_quota_days !== undefined ? user.rs_movie_quota_days : ''}"
+                            placeholder="Use global default"
+                            min="1"
+                            data-track-changes
+                        />
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="edit-rs-tv-quota-limit">
+                            TV Show Request Limit
+                            <span class="help-text">Max TV shows per time period (empty = use global, 0 = unlimited)</span>
+                        </label>
+                        <input
+                            type="number"
+                            id="edit-rs-tv-quota-limit"
+                            class="form-input"
+                            value="${user.rs_tv_quota_limit !== null && user.rs_tv_quota_limit !== undefined ? user.rs_tv_quota_limit : ''}"
+                            placeholder="Use global default"
+                            min="0"
+                            data-track-changes
+                        />
+                    </div>
+
+                    <div class="form-group">
+                        <label for="edit-rs-tv-quota-days">
+                            TV Quota Days
+                            <span class="help-text">Rolling time period in days (empty = use global)</span>
+                        </label>
+                        <input
+                            type="number"
+                            id="edit-rs-tv-quota-days"
+                            class="form-input"
+                            value="${user.rs_tv_quota_days !== null && user.rs_tv_quota_days !== undefined ? user.rs_tv_quota_days : ''}"
+                            placeholder="Use global default"
+                            min="1"
+                            data-track-changes
+                        />
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="edit-rs-auto-approve-tv-max-seasons">
+                        Auto-Approve TV Shows with Max Seasons
+                        <span class="help-text">Auto-approve TV shows with this many seasons or fewer (empty = use global)</span>
+                    </label>
+                    <input
+                        type="number"
+                        id="edit-rs-auto-approve-tv-max-seasons"
+                        class="form-input"
+                        value="${user.rs_auto_approve_tv_max_seasons !== null && user.rs_auto_approve_tv_max_seasons !== undefined ? user.rs_auto_approve_tv_max_seasons : ''}"
+                        placeholder="Use global default"
+                        min="1"
+                        data-track-changes
+                    />
                 </div>
             </section>
         `;
@@ -1131,6 +1286,31 @@ const EditUser = {
             payment_preference: paymentPreference,
             custom_payment_methods: paymentPreference === 'custom' ? this.getSelectedCustomPaymentMethods() : []
         };
+
+        // Request Site Permissions - helper to convert select value to database value
+        const convertSelectToDbValue = (selectValue) => {
+            if (selectValue === 'global') return null;
+            return selectValue === 'enabled' ? 1 : 0;
+        };
+
+        // Request Site - Permissions
+        basicUpdates.rs_can_request_movie = convertSelectToDbValue(document.getElementById('edit-rs-can-request-movie').value);
+        basicUpdates.rs_can_request_tv = convertSelectToDbValue(document.getElementById('edit-rs-can-request-tv').value);
+        basicUpdates.rs_can_request_4k = convertSelectToDbValue(document.getElementById('edit-rs-can-request-4k').value);
+        basicUpdates.rs_can_auto_approve = convertSelectToDbValue(document.getElementById('edit-rs-can-auto-approve').value);
+
+        // Request Site - Quotas (empty string = NULL)
+        const movieQuotaLimit = document.getElementById('edit-rs-movie-quota-limit').value;
+        const movieQuotaDays = document.getElementById('edit-rs-movie-quota-days').value;
+        const tvQuotaLimit = document.getElementById('edit-rs-tv-quota-limit').value;
+        const tvQuotaDays = document.getElementById('edit-rs-tv-quota-days').value;
+        const autoApproveTvMaxSeasons = document.getElementById('edit-rs-auto-approve-tv-max-seasons').value;
+
+        basicUpdates.rs_movie_quota_limit = movieQuotaLimit === '' ? null : parseInt(movieQuotaLimit);
+        basicUpdates.rs_movie_quota_days = movieQuotaDays === '' ? null : parseInt(movieQuotaDays);
+        basicUpdates.rs_tv_quota_limit = tvQuotaLimit === '' ? null : parseInt(tvQuotaLimit);
+        basicUpdates.rs_tv_quota_days = tvQuotaDays === '' ? null : parseInt(tvQuotaDays);
+        basicUpdates.rs_auto_approve_tv_max_seasons = autoApproveTvMaxSeasons === '' ? null : parseInt(autoApproveTvMaxSeasons);
 
         // Tags (collect from badge display)
         const tagBadges = document.querySelectorAll('.tag-badge');

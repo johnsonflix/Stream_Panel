@@ -372,7 +372,8 @@ body.modal-open {
     gap: 0.5rem;
 }
 
-.nav-link {
+.nav-link,
+.nav-link-external {
     display: flex;
     align-items: center;
     gap: 0.5rem;
@@ -384,7 +385,8 @@ body.modal-open {
     font-weight: 500;
 }
 
-.nav-link:hover {
+.nav-link:hover,
+.nav-link-external:hover {
     background-color: rgba(255, 255, 255, 0.1);
 }
 
@@ -1472,7 +1474,8 @@ tbody tr:hover {
         gap: 8px !important;
     }
 
-    .nav-link {
+    .nav-link,
+    .nav-link-external {
         width: 100%;
         justify-content: flex-start;
         padding: 1rem;

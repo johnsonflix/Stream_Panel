@@ -52,6 +52,10 @@ const { initializeGuideCacheRefresh } = require('./jobs/guide-cache-refresh-sche
 const emailScheduler = require('./services/email/EmailScheduler');
 const { initializeScheduler } = require('./services/plex-sync-scheduler');
 const { initKometaScheduler } = require('./jobs/kometa-scheduler');
+const { initializeDownloadTracker } = require('./jobs/request-site-download-tracker');
+const { initializeAvailabilitySync } = require('./jobs/request-site-availability-sync');
+const { recentScanJob } = require('./jobs/plex-recent-scan');
+const { arrLibrarySyncJob } = require('./jobs/arr-library-sync');
 
 // Dashboard cache management
 const { dashboardStatsCache, iptvPanelsCache, saveCacheToDatabase, loadCacheFromDatabase, loadIptvPanelsCacheFromDatabase, getCachedStatsFromDatabase, getCacheAge } = require('./utils/dashboard-cache');
@@ -96,6 +100,9 @@ const ownersRoutes = require('./routes/owners-routes');
 const logsRoutes = require('./routes/logs-routes');
 const updatesRoutes = require('./routes/updates-routes');
 const kometaRoutes = require('./routes/kometa-routes');
+const requestSiteRoutes = require('./routes/request-site-routes'); // Old routes (legacy)
+const requestSiteApiRoutes = require('./routes/request-site-api-routes'); // New core API routes
+const requestSiteWebhooksRoutes = require('./routes/request-site-webhooks-routes');
 
 // Authentication routes (no auth required for these endpoints)
 app.use('/api/v2/auth', authRoutes);
@@ -134,6 +141,9 @@ app.use('/api/v2/owners', ownersRoutes);
 app.use('/api/v2/logs', logsRoutes);
 app.use('/api/v2/updates', updatesRoutes);
 app.use('/api/v2/kometa', kometaRoutes);
+app.use('/api/v2/request-site', requestSiteRoutes); // Legacy routes (old schema)
+app.use('/api/v2/request-site-api', requestSiteApiRoutes); // New core API routes
+app.use('/api/v2/webhooks', requestSiteWebhooksRoutes); // No auth required - external webhooks
 
 // Health check endpoint
 app.get('/api/v2/health', (req, res) => {
@@ -1563,9 +1573,10 @@ app.get('/api/v2/dashboard/watch-stats', async (req, res) => {
 
             console.log(`[WATCH STATS] Serving from database (age: ${cacheAge}s, force: ${forceRefresh})`);
 
-            // If force refresh requested OR cache is stale, trigger background refresh
-            if ((forceRefresh || !isCacheValid) && !watchStatsRefreshing) {
-                console.log('[WATCH STATS] Triggering background refresh...');
+            // Only trigger refresh if manually requested (not on cache expiry)
+            // Scheduled refresh runs daily at 3 AM - no need to auto-refresh on stale cache
+            if (forceRefresh && !watchStatsRefreshing) {
+                console.log('[WATCH STATS] Manual refresh requested, triggering background refresh...');
                 refreshWatchStatsInBackground();
             }
 
@@ -2273,6 +2284,10 @@ async function startServer() {
             emailScheduler.initialize();
             initializeScheduler();
             initKometaScheduler();
+            initializeDownloadTracker(); // Request Site download tracker (every 60 seconds)
+            initializeAvailabilitySync(); // Request Site availability sync (every 6 hours)
+            recentScanJob.start(); // Plex recent scan (every 30 minutes) - Seerr-style incremental scanning
+            arrLibrarySyncJob.start(); // Sonarr/Radarr library sync (every 15 minutes) - caches *arr library data
             // Note: plex-library-access-sync runs as part of plex-sync-scheduler
             console.log('✅ All scheduled jobs initialized successfully');
 

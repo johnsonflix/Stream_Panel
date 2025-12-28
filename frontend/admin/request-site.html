@@ -1,0 +1,804 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Request Site - StreamPanel Admin</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="../css/request-site.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar will be injected -->
+        <div id="sidebar"></div>
+
+        <main class="main-content">
+            <div class="page-header">
+                <h1><i class="fas fa-film"></i> Request Site</h1>
+                <p>Configure your media request system (Overseerr-style)</p>
+            </div>
+
+            <!-- Tabs -->
+            <div class="tabs-container">
+                <button class="tab active" data-tab="requests">
+                    <i class="fas fa-inbox"></i> Requests
+                </button>
+                <button class="tab" data-tab="servers">
+                    <i class="fas fa-server"></i> Servers
+                </button>
+                <button class="tab" data-tab="settings">
+                    <i class="fas fa-cog"></i> Settings
+                </button>
+            </div>
+
+            <!-- Requests Tab -->
+            <div id="requests-tab" class="tab-content active">
+                <div class="content-card">
+                    <div class="card-header">
+                        <h2><i class="fas fa-clock"></i> Pending Requests</h2>
+                        <div class="filter-group">
+                            <select id="filter-status" class="form-select">
+                                <option value="">All Status</option>
+                                <option value="pending" selected>Pending</option>
+                                <option value="approved">Approved</option>
+                                <option value="processing">Processing</option>
+                                <option value="available">Available</option>
+                                <option value="declined">Declined</option>
+                            </select>
+                            <select id="filter-type" class="form-select">
+                                <option value="">All Types</option>
+                                <option value="movie">Movies</option>
+                                <option value="tv">TV Shows</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div id="requests-list">
+                        <div class="loading-spinner">
+                            <i class="fas fa-spinner fa-spin"></i> Loading requests...
+                        </div>
+                    </div>
+
+                    <div id="requests-pagination" class="pagination-container"></div>
+                </div>
+            </div>
+
+            <!-- Servers Tab -->
+            <div id="servers-tab" class="tab-content">
+                <div class="content-card">
+                    <div class="card-header">
+                        <h2><i class="fas fa-server"></i> Connected Servers</h2>
+                        <button class="btn btn-primary" onclick="showAddServerModal()">
+                            <i class="fas fa-plus"></i> Add Server
+                        </button>
+                    </div>
+
+                    <div id="servers-list" class="server-config-list">
+                        <div class="loading-spinner">
+                            <i class="fas fa-spinner fa-spin"></i> Loading servers...
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Settings Tab -->
+            <div id="settings-tab" class="tab-content">
+                <div class="content-card">
+                    <div class="card-header">
+                        <h2><i class="fas fa-cog"></i> Request Site Settings</h2>
+                    </div>
+
+                    <form id="settings-form" class="settings-form">
+                        <div class="form-section">
+                            <h3>Display Settings</h3>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="default_language">Default Language</label>
+                                    <select id="default_language" class="form-select">
+                                        <option value="en">English</option>
+                                        <option value="es">Spanish</option>
+                                        <option value="fr">French</option>
+                                        <option value="de">German</option>
+                                        <option value="it">Italian</option>
+                                        <option value="pt">Portuguese</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="default_region">Default Region</label>
+                                    <select id="default_region" class="form-select">
+                                        <option value="US">United States</option>
+                                        <option value="GB">United Kingdom</option>
+                                        <option value="CA">Canada</option>
+                                        <option value="AU">Australia</option>
+                                        <option value="DE">Germany</option>
+                                        <option value="FR">France</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-section">
+                            <h3>Request Settings</h3>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="auto_approve_movies">
+                                        <span>Auto-approve Movie Requests</span>
+                                    </label>
+                                </div>
+                                <div class="form-group">
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="auto_approve_tv">
+                                        <span>Auto-approve TV Requests</span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="movie_request_limit">Movie Request Limit (per week)</label>
+                                    <input type="number" id="movie_request_limit" class="form-control" min="0" value="0">
+                                    <small class="form-hint">0 = unlimited</small>
+                                </div>
+                                <div class="form-group">
+                                    <label for="tv_request_limit">TV Request Limit (per week)</label>
+                                    <input type="number" id="tv_request_limit" class="form-control" min="0" value="0">
+                                    <small class="form-hint">0 = unlimited</small>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="allow_4k_requests">
+                                    <span>Allow 4K Requests</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save"></i> Save Settings
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Add Server Modal -->
+    <div id="add-server-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><i class="fas fa-plus"></i> Add Server</h2>
+                <button class="modal-close" onclick="closeAddServerModal()">&times;</button>
+            </div>
+            <form id="add-server-form">
+                <div class="form-group">
+                    <label for="server-type">Server Type</label>
+                    <select id="server-type" class="form-select" required>
+                        <option value="">Select type...</option>
+                        <option value="radarr">Radarr (Movies)</option>
+                        <option value="sonarr">Sonarr (TV Shows)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="server-name">Name</label>
+                    <input type="text" id="server-name" class="form-control" placeholder="e.g., Radarr 4K" required>
+                </div>
+                <div class="form-group">
+                    <label for="server-url">URL</label>
+                    <input type="url" id="server-url" class="form-control" placeholder="http://localhost:7878" required>
+                </div>
+                <div class="form-group">
+                    <label for="server-api-key">API Key</label>
+                    <input type="password" id="server-api-key" class="form-control" placeholder="Enter API key" required>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="server-is-default">
+                            <span>Set as Default</span>
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="server-is-4k">
+                            <span>4K Server</span>
+                        </label>
+                    </div>
+                </div>
+                <div id="server-profiles" class="server-profiles-section" style="display: none;">
+                    <div class="form-group">
+                        <label for="server-quality-profile">Quality Profile</label>
+                        <select id="server-quality-profile" class="form-select"></select>
+                    </div>
+                    <div class="form-group">
+                        <label for="server-root-folder">Root Folder</label>
+                        <select id="server-root-folder" class="form-select"></select>
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="testServerConnection()">
+                        <i class="fas fa-plug"></i> Test Connection
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save"></i> Add Server
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="../js/api.js"></script>
+    <script src="../js/utils.js"></script>
+    <script>
+        // ============ State ============
+        let settings = {};
+        let servers = [];
+        let requests = [];
+        let currentPage = 1;
+        const itemsPerPage = 10;
+
+        // ============ Initialization ============
+        document.addEventListener('DOMContentLoaded', () => {
+            // Load sidebar
+            loadSidebar();
+
+            // Initialize tabs
+            initTabs();
+
+            // Load initial data
+            loadSettings();
+            loadServers();
+            loadRequests();
+
+            // Setup form handlers
+            document.getElementById('settings-form').addEventListener('submit', saveSettings);
+            document.getElementById('add-server-form').addEventListener('submit', addServer);
+
+            // Filter handlers
+            document.getElementById('filter-status').addEventListener('change', () => {
+                currentPage = 1;
+                loadRequests();
+            });
+            document.getElementById('filter-type').addEventListener('change', () => {
+                currentPage = 1;
+                loadRequests();
+            });
+        });
+
+        // ============ Sidebar ============
+        async function loadSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            try {
+                const response = await fetch('../admin/sidebar.html');
+                if (response.ok) {
+                    sidebar.innerHTML = await response.text();
+                    // Mark current page as active
+                    const currentLink = sidebar.querySelector('a[href="request-site.html"]');
+                    if (currentLink) currentLink.classList.add('active');
+                }
+            } catch (e) {
+                console.error('Failed to load sidebar:', e);
+            }
+        }
+
+        // ============ Tabs ============
+        function initTabs() {
+            const tabs = document.querySelectorAll('.tab');
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    // Remove active from all tabs
+                    tabs.forEach(t => t.classList.remove('active'));
+                    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+                    // Add active to clicked tab
+                    tab.classList.add('active');
+                    const tabId = tab.dataset.tab;
+                    document.getElementById(`${tabId}-tab`).classList.add('active');
+                });
+            });
+        }
+
+        // ============ Settings ============
+        async function loadSettings() {
+            try {
+                const response = await fetch('/api/v2/request-site-api/settings');
+                settings = await response.json();
+
+                // Populate form
+                document.getElementById('default_language').value = settings.default_language || 'en';
+                document.getElementById('default_region').value = settings.default_region || 'US';
+                document.getElementById('auto_approve_movies').checked = settings.auto_approve_movies === '1';
+                document.getElementById('auto_approve_tv').checked = settings.auto_approve_tv === '1';
+                document.getElementById('movie_request_limit').value = settings.movie_request_limit || '0';
+                document.getElementById('tv_request_limit').value = settings.tv_request_limit || '0';
+                document.getElementById('allow_4k_requests').checked = settings.allow_4k_requests !== '0';
+            } catch (error) {
+                console.error('Failed to load settings:', error);
+                showToast('Failed to load settings', 'error');
+            }
+        }
+
+        async function saveSettings(e) {
+            e.preventDefault();
+
+            const newSettings = {
+                default_language: document.getElementById('default_language').value,
+                default_region: document.getElementById('default_region').value,
+                auto_approve_movies: document.getElementById('auto_approve_movies').checked ? '1' : '0',
+                auto_approve_tv: document.getElementById('auto_approve_tv').checked ? '1' : '0',
+                movie_request_limit: document.getElementById('movie_request_limit').value,
+                tv_request_limit: document.getElementById('tv_request_limit').value,
+                allow_4k_requests: document.getElementById('allow_4k_requests').checked ? '1' : '0'
+            };
+
+            try {
+                const response = await fetch('/api/v2/request-site-api/settings', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(newSettings)
+                });
+
+                if (response.ok) {
+                    showToast('Settings saved successfully', 'success');
+                } else {
+                    throw new Error('Failed to save settings');
+                }
+            } catch (error) {
+                console.error('Failed to save settings:', error);
+                showToast('Failed to save settings', 'error');
+            }
+        }
+
+        // ============ Servers ============
+        async function loadServers() {
+            const container = document.getElementById('servers-list');
+
+            try {
+                const response = await fetch('/api/v2/request-site-api/servers');
+                servers = await response.json();
+
+                if (servers.length === 0) {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <i class="fas fa-server"></i>
+                            <h3>No Servers Connected</h3>
+                            <p>Add a Radarr or Sonarr server to enable media requests</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                container.innerHTML = servers.map(server => `
+                    <div class="server-config-card">
+                        <div class="server-config-icon ${server.type}">
+                            <i class="fas fa-${server.type === 'radarr' ? 'film' : 'tv'}"></i>
+                        </div>
+                        <div class="server-config-info">
+                            <div class="server-config-name">
+                                ${server.name}
+                                ${server.is_default ? '<span class="server-config-badge">Default</span>' : ''}
+                                ${server.is_4k ? '<span class="server-config-badge">4K</span>' : ''}
+                            </div>
+                            <div class="server-config-url">${server.url}</div>
+                        </div>
+                        <div class="server-config-status" id="server-status-${server.id}">
+                            <i class="fas fa-circle"></i> Checking...
+                        </div>
+                        <div class="server-actions">
+                            <button class="btn btn-sm btn-secondary" onclick="editServer(${server.id})">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="btn btn-sm btn-danger" onclick="deleteServer(${server.id})">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                `).join('');
+
+                // Check server statuses
+                servers.forEach(server => checkServerStatus(server.id));
+            } catch (error) {
+                console.error('Failed to load servers:', error);
+                container.innerHTML = '<div class="error-state">Failed to load servers</div>';
+            }
+        }
+
+        async function checkServerStatus(serverId) {
+            const statusEl = document.getElementById(`server-status-${serverId}`);
+            if (!statusEl) return;
+
+            try {
+                const response = await fetch(`/api/v2/request-site-api/servers/${serverId}/test`, {
+                    method: 'POST'
+                });
+                const result = await response.json();
+
+                if (result.success) {
+                    statusEl.className = 'server-config-status online';
+                    statusEl.innerHTML = `<i class="fas fa-circle"></i> v${result.version}`;
+                } else {
+                    statusEl.className = 'server-config-status offline';
+                    statusEl.innerHTML = '<i class="fas fa-circle"></i> Offline';
+                }
+            } catch (error) {
+                statusEl.className = 'server-config-status offline';
+                statusEl.innerHTML = '<i class="fas fa-circle"></i> Error';
+            }
+        }
+
+        function showAddServerModal() {
+            document.getElementById('add-server-modal').classList.add('show');
+            document.getElementById('add-server-form').reset();
+            document.getElementById('server-profiles').style.display = 'none';
+        }
+
+        function closeAddServerModal() {
+            document.getElementById('add-server-modal').classList.remove('show');
+        }
+
+        async function testServerConnection() {
+            const type = document.getElementById('server-type').value;
+            const url = document.getElementById('server-url').value;
+            const apiKey = document.getElementById('server-api-key').value;
+
+            if (!type || !url || !apiKey) {
+                showToast('Please fill in all fields first', 'error');
+                return;
+            }
+
+            const btn = event.target;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Testing...';
+
+            try {
+                // Create a temporary server to test
+                const response = await fetch('/api/v2/request-site-api/servers', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: 'Test',
+                        type,
+                        url,
+                        apiKey
+                    })
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    showToast(`Connection successful! Version: ${result.version}`, 'success');
+
+                    // Load profiles for this server
+                    await loadServerProfiles(result.id);
+                    document.getElementById('server-profiles').style.display = 'block';
+
+                    // Delete the test server
+                    await fetch(`/api/v2/request-site-api/servers/${result.id}`, { method: 'DELETE' });
+                } else {
+                    showToast(result.error || 'Connection failed', 'error');
+                }
+            } catch (error) {
+                showToast('Connection test failed', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-plug"></i> Test Connection';
+            }
+        }
+
+        async function loadServerProfiles(serverId) {
+            try {
+                const response = await fetch(`/api/v2/request-site-api/servers/${serverId}/profiles`);
+                const profiles = await response.json();
+
+                const qualitySelect = document.getElementById('server-quality-profile');
+                qualitySelect.innerHTML = profiles.qualityProfiles.map(p =>
+                    `<option value="${p.id}">${p.name}</option>`
+                ).join('');
+
+                const rootFolderSelect = document.getElementById('server-root-folder');
+                rootFolderSelect.innerHTML = profiles.rootFolders.map(f =>
+                    `<option value="${f.path}">${f.path} (${formatBytes(f.freeSpace)} free)</option>`
+                ).join('');
+            } catch (error) {
+                console.error('Failed to load profiles:', error);
+            }
+        }
+
+        async function addServer(e) {
+            e.preventDefault();
+
+            const serverData = {
+                name: document.getElementById('server-name').value,
+                type: document.getElementById('server-type').value,
+                url: document.getElementById('server-url').value,
+                apiKey: document.getElementById('server-api-key').value,
+                isDefault: document.getElementById('server-is-default').checked,
+                is4k: document.getElementById('server-is-4k').checked,
+                qualityProfileId: parseInt(document.getElementById('server-quality-profile').value) || null,
+                rootFolderPath: document.getElementById('server-root-folder').value || null
+            };
+
+            try {
+                const response = await fetch('/api/v2/request-site-api/servers', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(serverData)
+                });
+
+                if (response.ok) {
+                    showToast('Server added successfully', 'success');
+                    closeAddServerModal();
+                    loadServers();
+                } else {
+                    const error = await response.json();
+                    showToast(error.error || 'Failed to add server', 'error');
+                }
+            } catch (error) {
+                showToast('Failed to add server', 'error');
+            }
+        }
+
+        async function deleteServer(serverId) {
+            if (!confirm('Are you sure you want to remove this server?')) return;
+
+            try {
+                const response = await fetch(`/api/v2/request-site-api/servers/${serverId}`, {
+                    method: 'DELETE'
+                });
+
+                if (response.ok) {
+                    showToast('Server removed', 'success');
+                    loadServers();
+                } else {
+                    throw new Error('Failed to remove server');
+                }
+            } catch (error) {
+                showToast('Failed to remove server', 'error');
+            }
+        }
+
+        // ============ Requests ============
+        async function loadRequests() {
+            const container = document.getElementById('requests-list');
+            const status = document.getElementById('filter-status').value;
+            const mediaType = document.getElementById('filter-type').value;
+
+            container.innerHTML = '<div class="loading-spinner"><i class="fas fa-spinner fa-spin"></i> Loading requests...</div>';
+
+            try {
+                const params = new URLSearchParams({
+                    page: currentPage,
+                    limit: itemsPerPage
+                });
+                if (status) params.append('status', status);
+                if (mediaType) params.append('mediaType', mediaType);
+
+                const response = await fetch(`/api/v2/request-site-api/requests?${params}`);
+                const data = await response.json();
+                requests = data.requests;
+
+                if (requests.length === 0) {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <i class="fas fa-inbox"></i>
+                            <h3>No Requests Found</h3>
+                            <p>When users request media, it will appear here</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                container.innerHTML = `
+                    <table class="request-queue-table">
+                        <thead>
+                            <tr>
+                                <th>Media</th>
+                                <th>Requested By</th>
+                                <th>Status</th>
+                                <th>Requested</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${requests.map(req => `
+                                <tr>
+                                    <td>
+                                        <div class="request-queue-media">
+                                            <img class="request-queue-poster" src="${getPosterUrl(req.poster_path)}" alt="">
+                                            <div>
+                                                <div class="request-queue-title">${req.title}</div>
+                                                <div class="request-queue-type">${req.media_type}</div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="request-queue-user">
+                                            <div class="request-queue-avatar">${getInitials(req.first_name, req.last_name)}</div>
+                                            <span>${req.first_name || ''} ${req.last_name || ''}</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="badge badge-${getStatusClass(req.status)}">${req.status}</span>
+                                    </td>
+                                    <td>${formatDate(req.requested_at)}</td>
+                                    <td>
+                                        <div class="request-queue-actions">
+                                            ${req.status === 'pending' ? `
+                                                <button class="request-queue-btn approve" onclick="approveRequest(${req.id})">
+                                                    <i class="fas fa-check"></i> Approve
+                                                </button>
+                                                <button class="request-queue-btn decline" onclick="declineRequest(${req.id})">
+                                                    <i class="fas fa-times"></i> Decline
+                                                </button>
+                                            ` : `
+                                                <button class="btn btn-sm btn-secondary" onclick="deleteRequest(${req.id})">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            `}
+                                        </div>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+
+                // Render pagination
+                renderPagination(data.totalPages);
+            } catch (error) {
+                console.error('Failed to load requests:', error);
+                container.innerHTML = '<div class="error-state">Failed to load requests</div>';
+            }
+        }
+
+        function renderPagination(totalPages) {
+            const container = document.getElementById('requests-pagination');
+            if (totalPages <= 1) {
+                container.innerHTML = '';
+                return;
+            }
+
+            let html = '<div class="pagination">';
+            for (let i = 1; i <= totalPages; i++) {
+                html += `<button class="page-btn ${i === currentPage ? 'active' : ''}" onclick="goToPage(${i})">${i}</button>`;
+            }
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        function goToPage(page) {
+            currentPage = page;
+            loadRequests();
+        }
+
+        async function approveRequest(requestId) {
+            try {
+                const response = await fetch(`/api/v2/request-site-api/requests/${requestId}/approve`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ approvedBy: 1 }) // TODO: Get actual admin ID
+                });
+
+                if (response.ok) {
+                    showToast('Request approved', 'success');
+                    loadRequests();
+                } else {
+                    const error = await response.json();
+                    showToast(error.error || 'Failed to approve request', 'error');
+                }
+            } catch (error) {
+                showToast('Failed to approve request', 'error');
+            }
+        }
+
+        async function declineRequest(requestId) {
+            const reason = prompt('Enter reason for declining (optional):');
+            if (reason === null) return; // Cancelled
+
+            try {
+                const response = await fetch(`/api/v2/request-site-api/requests/${requestId}/decline`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ reason })
+                });
+
+                if (response.ok) {
+                    showToast('Request declined', 'success');
+                    loadRequests();
+                } else {
+                    throw new Error('Failed to decline request');
+                }
+            } catch (error) {
+                showToast('Failed to decline request', 'error');
+            }
+        }
+
+        async function deleteRequest(requestId) {
+            if (!confirm('Are you sure you want to delete this request?')) return;
+
+            try {
+                const response = await fetch(`/api/v2/request-site-api/requests/${requestId}`, {
+                    method: 'DELETE'
+                });
+
+                if (response.ok) {
+                    showToast('Request deleted', 'success');
+                    loadRequests();
+                } else {
+                    throw new Error('Failed to delete request');
+                }
+            } catch (error) {
+                showToast('Failed to delete request', 'error');
+            }
+        }
+
+        // ============ Helpers ============
+        function getPosterUrl(posterPath) {
+            if (!posterPath) return '../img/no-poster.png';
+            return `https://image.tmdb.org/t/p/w92${posterPath}`;
+        }
+
+        function getInitials(firstName, lastName) {
+            const f = firstName ? firstName.charAt(0).toUpperCase() : '';
+            const l = lastName ? lastName.charAt(0).toUpperCase() : '';
+            return f + l || '?';
+        }
+
+        function getStatusClass(status) {
+            const classes = {
+                pending: 'warning',
+                approved: 'info',
+                processing: 'info',
+                available: 'success',
+                declined: 'danger',
+                failed: 'danger'
+            };
+            return classes[status] || 'secondary';
+        }
+
+        function formatDate(dateStr) {
+            if (!dateStr) return '-';
+            return new Date(dateStr).toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric'
+            });
+        }
+
+        function formatBytes(bytes) {
+            if (!bytes) return '0 GB';
+            const gb = bytes / (1024 * 1024 * 1024);
+            return gb.toFixed(1) + ' GB';
+        }
+
+        function showToast(message, type = 'info') {
+            // Use existing toast system if available
+            if (typeof window.showToast === 'function') {
+                window.showToast(message, type);
+                return;
+            }
+
+            // Simple fallback toast
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            toast.textContent = message;
+            toast.style.cssText = `
+                position: fixed;
+                bottom: 20px;
+                right: 20px;
+                padding: 12px 20px;
+                border-radius: 8px;
+                background: ${type === 'success' ? '#22c55e' : type === 'error' ? '#ef4444' : '#3b82f6'};
+                color: white;
+                font-weight: 500;
+                z-index: 10000;
+                animation: slideIn 0.3s ease;
+            `;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+    </script>
+</body>
+</html>

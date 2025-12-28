@@ -213,6 +213,61 @@ router.post('/logout', async (req, res) => {
 });
 
 /**
+ * GET /api/v2/auth/verify
+ * Verify if the current session token is valid
+ */
+router.get('/verify', async (req, res) => {
+    try {
+        const sessionToken = req.headers.authorization?.replace('Bearer ', '');
+
+        if (!sessionToken) {
+            return res.status(401).json({
+                success: false,
+                message: 'No session token provided'
+            });
+        }
+
+        // Find session
+        const sessions = await query(`
+            SELECT * FROM sessions
+            WHERE session_token = ?
+            AND datetime(expires_at) > datetime('now')
+        `, [sessionToken]);
+
+        if (sessions.length === 0) {
+            return res.status(401).json({
+                success: false,
+                message: 'Invalid or expired session'
+            });
+        }
+
+        const session = sessions[0];
+
+        // Get user
+        const users = await query('SELECT id, name, email, is_app_user FROM users WHERE id = ?', [session.user_id]);
+
+        if (users.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'User not found'
+            });
+        }
+
+        res.json({
+            success: true,
+            user: users[0]
+        });
+
+    } catch (error) {
+        console.error('Session verify error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error'
+        });
+    }
+});
+
+/**
  * GET /api/v2/auth/me
  * Get current authenticated user
  */

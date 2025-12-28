@@ -24,9 +24,6 @@ const Settings = {
                     <button class="tab active" data-tab="plex-servers">
                         <i class="fas fa-server"></i> Plex Servers
                     </button>
-                    <button class="tab" data-tab="media-apps">
-                        <i class="fas fa-film"></i> Media Apps
-                    </button>
                     <button class="tab" data-tab="iptv-panels">
                         <i class="fas fa-network-wired"></i> IPTV Panels
                     </button>
@@ -67,13 +64,6 @@ const Settings = {
 
                 <!-- Tab Contents -->
                 <div id="plex-servers" class="tab-content active">
-                    <div class="text-center mt-4 mb-4">
-                        <div class="spinner" style="margin: 0 auto;"></div>
-                        <p class="mt-2">Loading...</p>
-                    </div>
-                </div>
-
-                <div id="media-apps" class="tab-content">
                     <div class="text-center mt-4 mb-4">
                         <div class="spinner" style="margin: 0 auto;"></div>
                         <p class="mt-2">Loading...</p>
@@ -196,9 +186,6 @@ const Settings = {
         switch (tabName) {
             case 'plex-servers':
                 await this.loadPlexServers();
-                break;
-            case 'media-apps':
-                await this.loadMediaApps();
                 break;
             case 'iptv-panels':
                 await this.loadIPTVPanels();
@@ -343,8 +330,50 @@ const Settings = {
                             </table>
                         </div>
                     `}
+
+                    <!-- KOMETA SECTION -->
+                    <div class="mt-4" style="border-top: 1px solid var(--border-color); padding-top: 1.5rem;">
+                        <div class="mb-4">
+                            <h3><i class="fas fa-layer-group"></i> Kometa (Plex Meta Manager)</h3>
+                            <p style="color: var(--text-secondary); font-size: 0.875rem;">
+                                Manage Plex collections, overlays, and metadata automatically
+                            </p>
+                        </div>
+
+                        <!-- Kometa Status Card -->
+                        <div class="card mb-4">
+                            <div class="card-body">
+                                <div id="kometa-status">
+                                    <div class="text-center">
+                                        <div class="spinner" style="margin: 0 auto;"></div>
+                                        <p class="mt-2">Checking Kometa status...</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Instances Section -->
+                        <div id="kometa-instances-section" style="display: none;">
+                            <div class="card">
+                                <div class="card-body">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                                        <h4 style="margin: 0;"><i class="fas fa-cubes"></i> Kometa Instances</h4>
+                                        <button class="btn btn-primary" onclick="Settings.showCreateKometaInstanceModal()">
+                                            <i class="fas fa-plus"></i> Create Instance
+                                        </button>
+                                    </div>
+                                    <div id="kometa-instances-list">
+                                        <p style="color: var(--text-secondary);">Loading instances...</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             `;
+
+            // Check Kometa status
+            await this.checkKometaStatus();
 
         } catch (error) {
             console.error('Error loading Plex servers:', error);

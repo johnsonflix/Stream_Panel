@@ -3,10 +3,18 @@
  */
 
 const Users = {
+    // Current filter state
+    _expiringSoonFilter: '',
+    _searchQuery: '',
+
     /**
      * Render users page
      */
     async render(container) {
+        // Reset filters on page load
+        this._expiringSoonFilter = '';
+        this._searchQuery = '';
+
         container.innerHTML = `
             <div id="pending-requests-banner"></div>
             <div class="card">
@@ -29,6 +37,27 @@ const Users = {
                     </div>
                 </div>
 
+                <!-- Expiring Soon Filter Buttons -->
+                <div style="padding: 0 1.5rem; margin-bottom: 1rem;">
+                    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
+                        <span style="color: var(--text-secondary); font-size: 0.9rem; margin-right: 0.5rem;">
+                            <i class="fas fa-filter"></i> Expiring Soon:
+                        </span>
+                        <button class="btn btn-sm btn-primary" id="filter-all" onclick="Users.setExpiringSoonFilter('')">
+                            All Users
+                        </button>
+                        <button class="btn btn-sm btn-outline" id="filter-plex" onclick="Users.setExpiringSoonFilter('plex')">
+                            <i class="fas fa-film" style="color: #e5a00d;"></i> Plex
+                        </button>
+                        <button class="btn btn-sm btn-outline" id="filter-iptv" onclick="Users.setExpiringSoonFilter('iptv')">
+                            <i class="fas fa-tv" style="color: #6366f1;"></i> IPTV
+                        </button>
+                        <button class="btn btn-sm btn-outline" id="filter-any" onclick="Users.setExpiringSoonFilter('any')">
+                            <i class="fas fa-clock" style="color: var(--warning-color);"></i> Any Service
+                        </button>
+                    </div>
+                </div>
+
                 <div id="users-list">
                     <div class="text-center mt-4 mb-4">
                         <div class="spinner" style="margin: 0 auto;"></div>
@@ -41,7 +70,8 @@ const Users = {
         // Setup search
         const searchInput = document.getElementById('user-search');
         searchInput.addEventListener('input', Utils.debounce((e) => {
-            this.loadUsers(e.target.value);
+            this._searchQuery = e.target.value;
+            this.loadUsers();
         }, 500));
 
         // Load pending service requests banner
@@ -49,6 +79,27 @@ const Users = {
 
         // Load users
         await this.loadUsers();
+    },
+
+    /**
+     * Set expiring soon filter and reload users
+     */
+    setExpiringSoonFilter(filter) {
+        this._expiringSoonFilter = filter;
+
+        // Update button styles
+        document.querySelectorAll('[id^="filter-"]').forEach(btn => {
+            btn.classList.remove('btn-primary');
+            btn.classList.add('btn-outline');
+        });
+        const activeBtn = document.getElementById(`filter-${filter || 'all'}`);
+        if (activeBtn) {
+            activeBtn.classList.remove('btn-outline');
+            activeBtn.classList.add('btn-primary');
+        }
+
+        // Reload users with filter
+        this.loadUsers();
     },
 
     /**
@@ -116,21 +167,34 @@ const Users = {
     /**
      * Load users
      */
-    async loadUsers(search = '') {
+    async loadUsers() {
         const container = document.getElementById('users-list');
+        const search = this._searchQuery || '';
+        const expiringSoon = this._expiringSoonFilter || '';
 
         try {
-            const response = await API.getUsers(search, false);
+            const response = await API.getUsers(search, false, expiringSoon);
             const users = response.users;
+
+            // Build empty state message based on filters
+            let emptyMessage = 'No users yet';
+            if (search && expiringSoon) {
+                emptyMessage = 'No users found matching your search with expiring subscriptions';
+            } else if (search) {
+                emptyMessage = 'No users found matching your search';
+            } else if (expiringSoon) {
+                const filterLabels = { plex: 'Plex', iptv: 'IPTV', any: 'any service' };
+                emptyMessage = `No users with ${filterLabels[expiringSoon] || ''} subscriptions expiring within 7 days`;
+            }
 
             if (users.length === 0) {
                 container.innerHTML = `
                     <div class="text-center mt-4 mb-4">
                         <i class="fas fa-users" style="font-size: 3rem; color: var(--text-secondary); opacity: 0.3;"></i>
                         <p class="mt-2" style="color: var(--text-secondary);">
-                            ${search ? 'No users found matching your search' : 'No users yet'}
+                            ${emptyMessage}
                         </p>
-                        ${!search ? `
+                        ${!search && !expiringSoon ? `
                             <button class="btn btn-primary mt-2" onclick="Users.showAddUserModal()">
                                 <i class="fas fa-user-plus"></i> Add Your First User
                             </button>

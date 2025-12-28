@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>User Portal - Login</title>
+    <link rel="icon" type="image/svg+xml" href="/api/v2/public/favicon.ico">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         /* Always Dark Mode */
@@ -572,16 +573,14 @@
 
         async function loadBrandingSettings() {
             try {
-                const [titleRes, logoRes, faviconRes, plexEnabledRes] = await Promise.all([
+                const [titleRes, logoRes, plexEnabledRes] = await Promise.all([
                     fetch(`${API_BASE}/settings/portal_title`).catch(() => ({ json: () => ({}) })),
                     fetch(`${API_BASE}/settings/portal_logo`).catch(() => ({ json: () => ({}) })),
-                    fetch(`${API_BASE}/settings/app_favicon`).catch(() => ({ json: () => ({}) })),
                     fetch(`${API_BASE}/settings/portal_plex_enabled`).catch(() => ({ json: () => ({}) }))
                 ]);
 
                 const titleData = await titleRes.json().catch(() => ({}));
                 const logoData = await logoRes.json().catch(() => ({}));
-                const faviconData = await faviconRes.json().catch(() => ({}));
                 const plexEnabledData = await plexEnabledRes.json().catch(() => ({}));
 
                 // Apply portal title (fall back to app title, then default)
@@ -596,16 +595,6 @@
                         `<img src="${logoData.value}" alt="Logo" class="login-logo" onerror="this.parentElement.innerHTML='<div class=\\'login-icon\\'><i class=\\'fas fa-user-circle\\'></i></div>'">`;
                 }
 
-                // Apply favicon
-                if (faviconData.value) {
-                    let link = document.querySelector("link[rel*='icon']");
-                    if (!link) {
-                        link = document.createElement('link');
-                        link.rel = 'icon';
-                        document.head.appendChild(link);
-                    }
-                    link.href = faviconData.value;
-                }
 
                 // Hide Plex tab if disabled
                 if (plexEnabledData.value === 'false' || plexEnabledData.value === false) {

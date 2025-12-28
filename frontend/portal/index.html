@@ -272,68 +272,235 @@
             padding-left: 20px;
         }
 
+        /* Request Media Hero Banner */
+        .request-media-banner {
+            position: relative;
+            background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4c1d95 100%);
+            border-radius: 12px;
+            margin-bottom: 20px;
+            overflow: hidden;
+            min-height: 120px;
+        }
+
+        /* Fallback poster collage pattern */
+        .request-media-banner::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 200"><defs><linearGradient id="pg1" x1="0%25" y1="0%25" x2="100%25" y2="100%25"><stop offset="0%25" style="stop-color:%237c3aed;stop-opacity:0.3"/><stop offset="100%25" style="stop-color:%234f46e5;stop-opacity:0.2"/></linearGradient><linearGradient id="pg2" x1="0%25" y1="0%25" x2="100%25" y2="100%25"><stop offset="0%25" style="stop-color:%238b5cf6;stop-opacity:0.25"/><stop offset="100%25" style="stop-color:%236366f1;stop-opacity:0.15"/></linearGradient></defs><rect fill="url(%23pg1)" x="10" y="10" width="45" height="70" rx="4"/><rect fill="url(%23pg2)" x="65" y="5" width="45" height="70" rx="4"/><rect fill="url(%23pg1)" x="120" y="15" width="45" height="70" rx="4"/><rect fill="url(%23pg2)" x="175" y="8" width="45" height="70" rx="4"/><rect fill="url(%23pg1)" x="230" y="12" width="45" height="70" rx="4"/><rect fill="url(%23pg2)" x="285" y="5" width="45" height="70" rx="4"/><rect fill="url(%23pg1)" x="340" y="18" width="45" height="70" rx="4"/><rect fill="url(%23pg2)" x="395" y="10" width="45" height="70" rx="4"/><rect fill="url(%23pg1)" x="450" y="6" width="45" height="70" rx="4"/><rect fill="url(%23pg2)" x="505" y="14" width="45" height="70" rx="4"/><rect fill="url(%23pg2)" x="35" y="90" width="45" height="70" rx="4"/><rect fill="url(%23pg1)" x="90" y="95" width="45" height="70" rx="4"/><rect fill="url(%23pg2)" x="145" y="88" width="45" height="70" rx="4"/><rect fill="url(%23pg1)" x="200" y="92" width="45" height="70" rx="4"/><rect fill="url(%23pg2)" x="255" y="85" width="45" height="70" rx="4"/><rect fill="url(%23pg1)" x="310" y="98" width="45" height="70" rx="4"/><rect fill="url(%23pg2)" x="365" y="90" width="45" height="70" rx="4"/><rect fill="url(%23pg1)" x="420" y="86" width="45" height="70" rx="4"/><rect fill="url(%23pg2)" x="475" y="94" width="45" height="70" rx="4"/><rect fill="url(%23pg1)" x="530" y="88" width="45" height="70" rx="4"/></svg>');
+            background-size: 600px 200px;
+            opacity: 1;
+            z-index: 0;
+        }
+
+        .request-media-banner::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(90deg, rgba(30, 27, 75, 0.92) 0%, rgba(30, 27, 75, 0.6) 50%, rgba(30, 27, 75, 0.3) 100%);
+            z-index: 1;
+        }
+
+        .request-media-banner-bg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            display: flex;
+            gap: 6px;
+            padding: 6px;
+            overflow: hidden;
+            z-index: 0;
+        }
+
+        .request-media-banner-bg img {
+            height: 100%;
+            width: auto;
+            border-radius: 6px;
+            object-fit: cover;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+        }
+
+        .request-media-banner-bg img.loaded {
+            opacity: 0.7;
+        }
+
+        .request-media-banner-content {
+            position: relative;
+            z-index: 2;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 24px;
+            gap: 20px;
+        }
+
+        .request-media-banner-info {
+            flex: 1;
+        }
+
+        .request-media-banner-icon {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            color: white;
+            margin-bottom: 10px;
+            box-shadow: 0 4px 12px rgba(124, 58, 237, 0.4);
+        }
+
+        .request-media-banner-title {
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 4px;
+            color: white;
+        }
+
+        .request-media-banner-subtitle {
+            font-size: 13px;
+            color: rgba(255, 255, 255, 0.7);
+            max-width: 350px;
+            line-height: 1.4;
+        }
+
+        .request-media-banner-actions {
+            display: flex;
+            gap: 10px;
+            flex-shrink: 0;
+        }
+
+        .request-media-banner-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 10px 18px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.2s;
+            cursor: pointer;
+            border: none;
+        }
+
+        .request-media-banner-btn.primary {
+            background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%);
+            color: white;
+            box-shadow: 0 4px 12px rgba(124, 58, 237, 0.4);
+        }
+
+        .request-media-banner-btn.primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(124, 58, 237, 0.5);
+        }
+
+        .request-media-banner-btn.secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
+        }
+
+        .request-media-banner-btn.secondary:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        @media (max-width: 768px) {
+            .request-media-banner-content {
+                flex-direction: column;
+                align-items: flex-start;
+                padding: 16px;
+            }
+
+            .request-media-banner-actions {
+                width: 100%;
+                flex-direction: column;
+            }
+
+            .request-media-banner-btn {
+                justify-content: center;
+                width: 100%;
+            }
+
+            .request-media-banner-subtitle {
+                max-width: 100%;
+            }
+        }
+
         /* Welcome Section */
         .welcome-section {
-            margin-bottom: 32px;
+            margin-bottom: 20px;
         }
 
         .welcome-title {
-            font-size: 28px;
+            font-size: 22px;
             font-weight: 600;
-            margin-bottom: 8px;
+            margin-bottom: 4px;
         }
 
         .welcome-subtitle {
             color: var(--text-secondary);
-            font-size: 16px;
+            font-size: 14px;
         }
 
         /* Account Status Card */
         .account-status-card {
             background: var(--card-bg);
             border: 1px solid var(--border-color);
-            border-radius: 12px;
-            padding: 24px;
-            margin-bottom: 24px;
+            border-radius: 10px;
+            padding: 16px 20px;
+            margin-bottom: 20px;
             display: flex;
             justify-content: space-between;
             align-items: center;
             flex-wrap: wrap;
-            gap: 16px;
+            gap: 12px;
         }
 
         .account-info {
             display: flex;
             align-items: center;
-            gap: 16px;
+            gap: 12px;
         }
 
         .account-avatar {
-            width: 56px;
-            height: 56px;
+            width: 44px;
+            height: 44px;
             border-radius: 50%;
             background: var(--bg-tertiary);
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 24px;
+            font-size: 18px;
             color: var(--primary-color);
         }
 
         .account-details h3 {
-            font-size: 18px;
+            font-size: 15px;
             font-weight: 600;
-            margin-bottom: 4px;
+            margin-bottom: 2px;
         }
 
         .account-details p {
-            font-size: 14px;
+            font-size: 13px;
             color: var(--text-secondary);
         }
 
         .status-badges {
             display: flex;
-            gap: 12px;
+            gap: 10px;
             align-items: center;
             flex-wrap: wrap;
         }
@@ -341,10 +508,10 @@
         .status-badge {
             display: inline-flex;
             align-items: center;
-            gap: 6px;
-            padding: 6px 12px;
-            border-radius: 20px;
-            font-size: 13px;
+            gap: 5px;
+            padding: 5px 10px;
+            border-radius: 16px;
+            font-size: 12px;
             font-weight: 500;
         }
 
@@ -442,11 +609,11 @@
         }
 
         .section-title {
-            font-size: 20px;
+            font-size: 16px;
             font-weight: 600;
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 8px;
         }
 
         .section-title i {
@@ -455,32 +622,85 @@
 
         .services-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
-            gap: 24px;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 16px;
         }
 
         .service-card {
             background: var(--card-bg);
             border: 1px solid var(--border-color);
-            border-radius: 12px;
+            border-radius: 10px;
             overflow: hidden;
-            transition: transform 0.2s, box-shadow 0.2s;
-            min-height: 320px;
+            transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+            min-height: 240px;
             display: flex;
             flex-direction: column;
         }
 
         .service-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+            transform: translateY(-3px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.35);
         }
 
         .service-card.plex {
             border-top: 3px solid var(--plex-color);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .service-card.plex::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300"><rect fill="%23e5a00d" opacity="0.08" x="0" y="0" width="60" height="90" rx="4"/><rect fill="%23e5a00d" opacity="0.06" x="70" y="0" width="60" height="90" rx="4"/><rect fill="%23e5a00d" opacity="0.05" x="140" y="0" width="60" height="90" rx="4"/><rect fill="%23e5a00d" opacity="0.07" x="210" y="0" width="60" height="90" rx="4"/><rect fill="%23e5a00d" opacity="0.04" x="280" y="0" width="60" height="90" rx="4"/><rect fill="%23e5a00d" opacity="0.06" x="350" y="0" width="60" height="90" rx="4"/><rect fill="%23e5a00d" opacity="0.05" x="35" y="100" width="60" height="90" rx="4"/><rect fill="%23e5a00d" opacity="0.08" x="105" y="100" width="60" height="90" rx="4"/><rect fill="%23e5a00d" opacity="0.04" x="175" y="100" width="60" height="90" rx="4"/><rect fill="%23e5a00d" opacity="0.06" x="245" y="100" width="60" height="90" rx="4"/><rect fill="%23e5a00d" opacity="0.07" x="315" y="100" width="60" height="90" rx="4"/><rect fill="%23e5a00d" opacity="0.05" x="0" y="200" width="60" height="90" rx="4"/><rect fill="%23e5a00d" opacity="0.04" x="70" y="200" width="60" height="90" rx="4"/><rect fill="%23e5a00d" opacity="0.08" x="140" y="200" width="60" height="90" rx="4"/><rect fill="%23e5a00d" opacity="0.06" x="210" y="200" width="60" height="90" rx="4"/><rect fill="%23e5a00d" opacity="0.05" x="280" y="200" width="60" height="90" rx="4"/><rect fill="%23e5a00d" opacity="0.07" x="350" y="200" width="60" height="90" rx="4"/></svg>');
+            background-size: 400px 300px;
+            opacity: 1;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        .service-card.plex > * {
+            position: relative;
+            z-index: 1;
+        }
+
+        .service-card.plex:hover {
+            box-shadow: 0 8px 30px rgba(229, 160, 13, 0.35), 0 0 0 1px rgba(229, 160, 13, 0.3);
+            border-color: rgba(229, 160, 13, 0.5);
         }
 
         .service-card.iptv {
             border-top: 3px solid var(--iptv-color);
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Channel logo pattern - colorful squares representing channels */
+        .service-card.iptv::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300"><rect fill="%23ef4444" opacity="0.12" x="10" y="10" width="35" height="25" rx="3"/><rect fill="%233b82f6" opacity="0.1" x="55" y="8" width="35" height="25" rx="3"/><rect fill="%2322c55e" opacity="0.11" x="100" y="12" width="35" height="25" rx="3"/><rect fill="%23f59e0b" opacity="0.09" x="145" y="6" width="35" height="25" rx="3"/><rect fill="%238b5cf6" opacity="0.12" x="190" y="14" width="35" height="25" rx="3"/><rect fill="%23ec4899" opacity="0.1" x="235" y="10" width="35" height="25" rx="3"/><rect fill="%2306b6d4" opacity="0.11" x="280" y="8" width="35" height="25" rx="3"/><rect fill="%23ef4444" opacity="0.09" x="325" y="12" width="35" height="25" rx="3"/><rect fill="%233b82f6" opacity="0.11" x="30" y="50" width="35" height="25" rx="3"/><rect fill="%2322c55e" opacity="0.1" x="75" y="48" width="35" height="25" rx="3"/><rect fill="%23f59e0b" opacity="0.12" x="120" y="52" width="35" height="25" rx="3"/><rect fill="%238b5cf6" opacity="0.09" x="165" y="46" width="35" height="25" rx="3"/><rect fill="%23ec4899" opacity="0.11" x="210" y="54" width="35" height="25" rx="3"/><rect fill="%2306b6d4" opacity="0.1" x="255" y="50" width="35" height="25" rx="3"/><rect fill="%23ef4444" opacity="0.12" x="300" y="48" width="35" height="25" rx="3"/><rect fill="%233b82f6" opacity="0.09" x="345" y="52" width="35" height="25" rx="3"/><rect fill="%2322c55e" opacity="0.12" x="10" y="90" width="35" height="25" rx="3"/><rect fill="%23f59e0b" opacity="0.1" x="55" y="88" width="35" height="25" rx="3"/><rect fill="%238b5cf6" opacity="0.11" x="100" y="92" width="35" height="25" rx="3"/><rect fill="%23ec4899" opacity="0.09" x="145" y="86" width="35" height="25" rx="3"/><rect fill="%2306b6d4" opacity="0.12" x="190" y="94" width="35" height="25" rx="3"/><rect fill="%23ef4444" opacity="0.1" x="235" y="90" width="35" height="25" rx="3"/><rect fill="%233b82f6" opacity="0.11" x="280" y="88" width="35" height="25" rx="3"/><rect fill="%2322c55e" opacity="0.09" x="325" y="92" width="35" height="25" rx="3"/><rect fill="%23f59e0b" opacity="0.11" x="30" y="130" width="35" height="25" rx="3"/><rect fill="%238b5cf6" opacity="0.1" x="75" y="128" width="35" height="25" rx="3"/><rect fill="%23ec4899" opacity="0.12" x="120" y="132" width="35" height="25" rx="3"/><rect fill="%2306b6d4" opacity="0.09" x="165" y="126" width="35" height="25" rx="3"/><rect fill="%23ef4444" opacity="0.11" x="210" y="134" width="35" height="25" rx="3"/><rect fill="%233b82f6" opacity="0.1" x="255" y="130" width="35" height="25" rx="3"/><rect fill="%2322c55e" opacity="0.12" x="300" y="128" width="35" height="25" rx="3"/><rect fill="%23f59e0b" opacity="0.09" x="345" y="132" width="35" height="25" rx="3"/><rect fill="%238b5cf6" opacity="0.12" x="10" y="170" width="35" height="25" rx="3"/><rect fill="%23ec4899" opacity="0.1" x="55" y="168" width="35" height="25" rx="3"/><rect fill="%2306b6d4" opacity="0.11" x="100" y="172" width="35" height="25" rx="3"/><rect fill="%23ef4444" opacity="0.09" x="145" y="166" width="35" height="25" rx="3"/><rect fill="%233b82f6" opacity="0.12" x="190" y="174" width="35" height="25" rx="3"/><rect fill="%2322c55e" opacity="0.1" x="235" y="170" width="35" height="25" rx="3"/><rect fill="%23f59e0b" opacity="0.11" x="280" y="168" width="35" height="25" rx="3"/><rect fill="%238b5cf6" opacity="0.09" x="325" y="172" width="35" height="25" rx="3"/><rect fill="%23ec4899" opacity="0.11" x="30" y="210" width="35" height="25" rx="3"/><rect fill="%2306b6d4" opacity="0.1" x="75" y="208" width="35" height="25" rx="3"/><rect fill="%23ef4444" opacity="0.12" x="120" y="212" width="35" height="25" rx="3"/><rect fill="%233b82f6" opacity="0.09" x="165" y="206" width="35" height="25" rx="3"/><rect fill="%2322c55e" opacity="0.11" x="210" y="214" width="35" height="25" rx="3"/><rect fill="%23f59e0b" opacity="0.1" x="255" y="210" width="35" height="25" rx="3"/><rect fill="%238b5cf6" opacity="0.12" x="300" y="208" width="35" height="25" rx="3"/><rect fill="%23ec4899" opacity="0.09" x="345" y="212" width="35" height="25" rx="3"/><rect fill="%2306b6d4" opacity="0.12" x="10" y="250" width="35" height="25" rx="3"/><rect fill="%23ef4444" opacity="0.1" x="55" y="248" width="35" height="25" rx="3"/><rect fill="%233b82f6" opacity="0.11" x="100" y="252" width="35" height="25" rx="3"/><rect fill="%2322c55e" opacity="0.09" x="145" y="246" width="35" height="25" rx="3"/><rect fill="%23f59e0b" opacity="0.12" x="190" y="254" width="35" height="25" rx="3"/><rect fill="%238b5cf6" opacity="0.1" x="235" y="250" width="35" height="25" rx="3"/><rect fill="%23ec4899" opacity="0.11" x="280" y="248" width="35" height="25" rx="3"/><rect fill="%2306b6d4" opacity="0.09" x="325" y="252" width="35" height="25" rx="3"/></svg>');
+            background-size: 400px 300px;
+            opacity: 1;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        .service-card.iptv > * {
+            position: relative;
+            z-index: 1;
+        }
+
+        .service-card.iptv:hover {
+            box-shadow: 0 8px 25px rgba(139, 92, 246, 0.3), 0 0 0 1px rgba(139, 92, 246, 0.3);
+            border-color: rgba(139, 92, 246, 0.5);
         }
 
         .service-card.pending {
@@ -493,7 +713,7 @@
         }
 
         .service-card-header {
-            padding: 20px;
+            padding: 14px 16px;
             display: flex;
             align-items: center;
             justify-content: space-between;
@@ -503,17 +723,17 @@
         .service-card-title {
             display: flex;
             align-items: center;
-            gap: 12px;
+            gap: 10px;
         }
 
         .service-icon {
-            width: 48px;
-            height: 48px;
-            border-radius: 10px;
+            width: 38px;
+            height: 38px;
+            border-radius: 8px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 24px;
+            font-size: 18px;
         }
 
         .service-icon.plex {
@@ -532,12 +752,12 @@
         }
 
         .service-name {
-            font-size: 18px;
+            font-size: 15px;
             font-weight: 600;
         }
 
         .service-type {
-            font-size: 13px;
+            font-size: 12px;
             color: var(--text-tertiary);
         }
 
@@ -587,21 +807,21 @@
         }
 
         .service-card-body {
-            padding: 20px;
+            padding: 14px 16px;
             flex: 1;
         }
 
         .service-details {
             display: flex;
             flex-direction: column;
-            gap: 12px;
+            gap: 8px;
         }
 
         .detail-row {
             display: flex;
             justify-content: space-between;
-            padding: 8px 0;
-            font-size: 14px;
+            padding: 6px 0;
+            font-size: 13px;
             border-bottom: 1px solid var(--border-color);
         }
 
@@ -627,16 +847,16 @@
         }
 
         .service-card-footer {
-            padding: 16px 20px;
+            padding: 12px 16px;
             border-top: 1px solid var(--border-color);
             margin-top: auto;
         }
 
         .service-btn {
             width: 100%;
-            padding: 12px 16px;
+            padding: 10px 14px;
             border-radius: 6px;
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 500;
             cursor: pointer;
             transition: all 0.2s;
@@ -646,7 +866,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 8px;
+            gap: 6px;
         }
 
         .service-btn.primary {
@@ -956,6 +1176,32 @@
                 </div>
                 <div class="account-actions" id="account-actions">
                     <!-- Action buttons will be inserted here -->
+                </div>
+            </div>
+
+            <!-- Request Media Hero Banner -->
+            <div class="request-media-banner" id="request-media-banner">
+                <div class="request-media-banner-bg" id="request-media-banner-bg">
+                    <!-- Dynamic poster images will be loaded here -->
+                </div>
+                <div class="request-media-banner-content">
+                    <div class="request-media-banner-info">
+                        <div class="request-media-banner-icon">
+                            <i class="fas fa-compass"></i>
+                        </div>
+                        <h2 class="request-media-banner-title">Discover & Request</h2>
+                        <p class="request-media-banner-subtitle">Browse trending movies and TV shows. Request anything and we'll add it to your library.</p>
+                    </div>
+                    <div class="request-media-banner-actions">
+                        <a href="/portal/request2.html" class="request-media-banner-btn primary">
+                            <i class="fas fa-search"></i>
+                            Browse & Request
+                        </a>
+                        <a href="/portal/my-requests.html" class="request-media-banner-btn secondary">
+                            <i class="fas fa-list"></i>
+                            My Requests
+                        </a>
+                    </div>
                 </div>
             </div>
 
@@ -1516,6 +1762,42 @@
             }
         }
 
+        // Load trending posters for Request Media banner background
+        async function loadRequestMediaBannerPosters() {
+            try {
+                const token = localStorage.getItem('portal_token');
+                // Fetch trending movies from our backend which caches TMDB data
+                const response = await fetch(`${API_BASE}/request-site/trending/movie/week?page=1`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (!response.ok) return;
+
+                const data = await response.json();
+                if (!data.results || data.results.length === 0) return;
+
+                // Get 8 random posters from the results
+                const shuffled = data.results.filter(m => m.poster_path).sort(() => 0.5 - Math.random());
+                const selectedPosters = shuffled.slice(0, 8);
+
+                const container = document.getElementById('request-media-banner-bg');
+                if (!container) return;
+
+                container.innerHTML = selectedPosters.map(movie =>
+                    `<img src="https://image.tmdb.org/t/p/w342${movie.poster_path}"
+                          alt="${movie.title}"
+                          onload="this.classList.add('loaded')"
+                          onerror="this.style.display='none'">`
+                ).join('');
+
+            } catch (error) {
+                console.log('Could not load banner posters:', error.message);
+                // Banner will still work with gradient background
+            }
+        }
+
         function initDashboard(user, skipServiceRequestsLoad = false) {
             // Clean up stale cancelling services from localStorage
             // If a service is in cancellingServices but the user no longer has that service
@@ -1555,6 +1837,9 @@
 
             // Render service cards
             renderServiceCards(user);
+
+            // Load Request Media banner posters (non-blocking)
+            loadRequestMediaBannerPosters();
 
             // Load pending service requests (skip during optimistic updates)
             // When skipping, we've already cleared the activeServiceRequests array and removed DOM elements
@@ -2240,9 +2525,6 @@
                             <a href="/portal/plex.html" class="service-btn primary">
                                 <i class="fas fa-arrow-right"></i> View Details
                             </a>
-                            <a href="javascript:void(0)" onclick="openSeerr()" class="service-btn secondary seerr-request-btn" style="display: none;">
-                                <i class="fas fa-ticket-alt"></i> Request Content
-                            </a>
                         </div>
                     </div>
                 `;
@@ -2335,6 +2617,8 @@
                     </div>
                 `;
             }
+
+            // Request Media is now shown as a hero banner above announcements
 
             container.innerHTML = html;
         }
@@ -3597,45 +3881,6 @@
                 }
             });
         });
-
-        // ============================================================================
-        // SEERR (Request Content) FUNCTIONS
-        // ============================================================================
-
-        let seerrAvailable = false;
-
-        // Check if Seerr is running and show/hide request buttons
-        async function checkSeerrStatus() {
-            try {
-                const response = await fetch(`${API_BASE}/seerr/status`);
-                const data = await response.json();
-
-                seerrAvailable = data.installed && data.running;
-
-                // Show/hide request content buttons
-                document.querySelectorAll('.seerr-request-btn').forEach(btn => {
-                    btn.style.display = seerrAvailable ? 'flex' : 'none';
-                });
-            } catch (error) {
-                console.log('Could not check Seerr status:', error);
-                seerrAvailable = false;
-            }
-        }
-
-        // Open Seerr for media requests
-        function openSeerr() {
-            if (!seerrAvailable) {
-                showToast('Media requests are not available at this time', 'error');
-                return;
-            }
-            // Open Seerr - user will sign in with Plex on first visit
-            window.open('http://localhost:5055', '_blank');
-        }
-
-        // Check Seerr status on page load (after user data loads)
-        setTimeout(checkSeerrStatus, 1000);
-        // Also check periodically
-        setInterval(checkSeerrStatus, 60000);
     </script>
 </body>
 </html>

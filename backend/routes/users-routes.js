@@ -41,6 +41,7 @@ router.get('/', async (req, res) => {
         const searchQuery = req.query.search;
         const ownerId = req.query.owner_id;
         const tagId = req.query.tag_id;
+        const expiringSoon = req.query.expiring_soon; // 'plex', 'iptv', or 'any'
 
         let sql = `
             SELECT
@@ -98,6 +99,22 @@ router.get('/', async (req, res) => {
             sql = sql.replace('FROM users u', 'FROM users u INNER JOIN user_tags ut ON u.id = ut.user_id');
             conditions.push('ut.tag_id = ?');
             values.push(tagId);
+        }
+
+        // Filter by expiring soon (within 7 days)
+        if (expiringSoon) {
+            const now = new Date().toISOString();
+            const sevenDays = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+            if (expiringSoon === 'plex') {
+                conditions.push(`(u.plex_enabled = 1 AND (sp.price_type IS NULL OR sp.price_type != 'free') AND u.plex_expiration_date IS NOT NULL AND u.plex_expiration_date >= ? AND u.plex_expiration_date <= ?)`);
+                values.push(now, sevenDays);
+            } else if (expiringSoon === 'iptv') {
+                conditions.push(`(u.iptv_enabled = 1 AND u.iptv_expiration_date IS NOT NULL AND u.iptv_expiration_date >= ? AND u.iptv_expiration_date <= ?)`);
+                values.push(now, sevenDays);
+            } else if (expiringSoon === 'any') {
+                conditions.push(`((u.plex_enabled = 1 AND (sp.price_type IS NULL OR sp.price_type != 'free') AND u.plex_expiration_date IS NOT NULL AND u.plex_expiration_date >= ? AND u.plex_expiration_date <= ?) OR (u.iptv_enabled = 1 AND u.iptv_expiration_date IS NOT NULL AND u.iptv_expiration_date >= ? AND u.iptv_expiration_date <= ?))`);
+                values.push(now, sevenDays, now, sevenDays);
+            }
         }
 
         if (conditions.length > 0) {

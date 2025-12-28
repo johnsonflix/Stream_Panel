@@ -180,13 +180,27 @@ class BaseIPTVPanel {
      */
     async saveAuthToDatabase() {
         try {
+            // Convert authExpires to ISO string if it's a Date object
+            const authExpiresStr = this.authExpires instanceof Date
+                ? this.authExpires.toISOString()
+                : this.authExpires;
+
+            // Ensure sessionData is properly serialized (handle circular refs, etc.)
+            let sessionDataStr = null;
+            try {
+                sessionDataStr = this.sessionData ? JSON.stringify(this.sessionData) : null;
+            } catch (jsonError) {
+                console.warn('Could not serialize sessionData:', jsonError.message);
+                sessionDataStr = null;
+            }
+
             await this.db.query(`
                 UPDATE iptv_panels
                 SET auth_token = ?,
                     auth_expires = ?,
                     session_data = ?
                 WHERE id = ?
-            `, [this.authToken, this.authExpires, JSON.stringify(this.sessionData), this.id]);
+            `, [this.authToken, authExpiresStr, sessionDataStr, this.id]);
         } catch (error) {
             console.error('Failed to save auth data to database:', error.message);
         }

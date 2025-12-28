@@ -2,11 +2,13 @@
  * Database Configuration - SQLite
  *
  * Uses better-sqlite3 for fast, synchronous SQLite operations
+ * All write operations are serialized through a write queue to prevent lock contention
  */
 
 const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
+const dbQueue = require('./utils/db-write-queue');
 
 // Database file path
 const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'subsapp_v2.db');
@@ -28,34 +30,43 @@ db.pragma('foreign_keys = ON');
 // Enable WAL mode for better concurrent access
 db.pragma('journal_mode = WAL');
 
+// Set busy timeout - wait up to 5 seconds for locks to clear
+// This prevents SQLITE_BUSY errors when multiple processes write simultaneously
+db.pragma('busy_timeout = 5000');
+
 /**
  * Query function - converts synchronous SQLite to promise-based API
  * to match the MySQL2 interface used throughout the app
+ * Write operations are serialized through a queue to prevent lock contention
  */
 async function query(sql, params = []) {
-    return new Promise((resolve, reject) => {
+    const trimmedSql = sql.trim().toUpperCase();
+    const isReadQuery = trimmedSql.startsWith('SELECT') ||
+                        trimmedSql.startsWith('SHOW') ||
+                        trimmedSql.startsWith('PRAGMA');
+
+    if (isReadQuery) {
+        // Read operations - execute directly (SQLite handles concurrent reads fine)
         try {
-            // Check if it's a SELECT query
-            if (sql.trim().toUpperCase().startsWith('SELECT') ||
-                sql.trim().toUpperCase().startsWith('SHOW')) {
-                const stmt = db.prepare(sql);
-                const rows = stmt.all(...params);
-                resolve(rows);
-            }
-            // INSERT/UPDATE/DELETE
-            else {
-                const stmt = db.prepare(sql);
-                const result = stmt.run(...params);
-                // Return MySQL-compatible result
-                resolve({
-                    insertId: result.lastInsertRowid,
-                    affectedRows: result.changes
-                });
-            }
+            const stmt = db.prepare(sql);
+            const rows = stmt.all(...params);
+            return rows;
         } catch (error) {
-            reject(error);
+            console.error('[DB] Read query failed:', error.message);
+            throw error;
         }
-    });
+    } else {
+        // Write operations - serialize through queue to prevent lock contention
+        return dbQueue.write(() => {
+            const stmt = db.prepare(sql);
+            const result = stmt.run(...params);
+            // Return MySQL-compatible result
+            return {
+                insertId: result.lastInsertRowid,
+                affectedRows: result.changes
+            };
+        });
+    }
 }
 
 /**

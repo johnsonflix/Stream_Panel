@@ -8,6 +8,7 @@ const Users = {
         search: '',
         ownerId: null,
         tagId: null,
+        expiringSoon: '',
         sortBy: 'created_at',
         sortDir: 'desc'
     },
@@ -106,6 +107,7 @@ const Users = {
                 search: '',
                 ownerId: null,
                 tagId: null,
+                expiringSoon: '',
                 sortBy: 'created_at',
                 sortDir: 'desc'
             };
@@ -150,7 +152,7 @@ const Users = {
                     </div>
                 </div>
 
-                <div class="users-filters" style="padding: 1rem 1.5rem; border-bottom: 1px solid var(--border-color); display: flex; gap: 1rem; flex-wrap: wrap;">
+                <div class="users-filters" style="padding: 1rem 1.5rem; border-bottom: 1px solid var(--border-color); display: flex; gap: 1rem; flex-wrap: wrap; align-items: center;">
                     <div style="flex: 1; min-width: 200px;">
                         <input type="search" id="user-search" class="form-input" placeholder="Search users (name, email, plex email, plex username, iptv username)...">
                     </div>
@@ -162,6 +164,14 @@ const Users = {
                     <div style="min-width: 150px;">
                         <select id="tag-filter" class="form-input">
                             <option value="">All Tags</option>
+                        </select>
+                    </div>
+                    <div style="min-width: 150px;">
+                        <select id="expiring-filter" class="form-input">
+                            <option value="">All Expirations</option>
+                            <option value="plex">Plex Expiring Soon</option>
+                            <option value="iptv">IPTV Expiring Soon</option>
+                            <option value="any">Any Expiring Soon</option>
                         </select>
                     </div>
                 </div>
@@ -200,6 +210,13 @@ const Users = {
             this.loadUsers();
         });
 
+        // Setup expiring soon filter
+        const expiringFilter = document.getElementById('expiring-filter');
+        expiringFilter.addEventListener('change', (e) => {
+            this.currentFilters.expiringSoon = e.target.value || '';
+            this.loadUsers();
+        });
+
         // Load filter data and users
         await Promise.all([
             this.loadOwners(),
@@ -212,6 +229,9 @@ const Users = {
         }
         if (this.currentFilters.tagId) {
             tagFilter.value = this.currentFilters.tagId;
+        }
+        if (this.currentFilters.expiringSoon) {
+            expiringFilter.value = this.currentFilters.expiringSoon;
         }
 
         await this.loadUsers();
@@ -278,7 +298,8 @@ const Users = {
                 this.currentFilters.search,
                 false,
                 this.currentFilters.ownerId,
-                this.currentFilters.tagId
+                this.currentFilters.tagId,
+                this.currentFilters.expiringSoon
             );
             let users = response.users;
 
@@ -286,14 +307,24 @@ const Users = {
             users = this.sortUsers(users);
             this.currentUsers = users;
 
+            // Build empty state message based on filters
+            const hasFilters = this.currentFilters.search || this.currentFilters.ownerId || this.currentFilters.tagId || this.currentFilters.expiringSoon;
+            let emptyMessage = 'No users yet';
+            if (this.currentFilters.expiringSoon && !this.currentFilters.search && !this.currentFilters.ownerId && !this.currentFilters.tagId) {
+                const filterLabels = { plex: 'Plex', iptv: 'IPTV', any: 'any service' };
+                emptyMessage = `No users with ${filterLabels[this.currentFilters.expiringSoon] || ''} subscriptions expiring within 7 days`;
+            } else if (hasFilters) {
+                emptyMessage = 'No users found matching your filters';
+            }
+
             if (users.length === 0) {
                 container.innerHTML = `
                     <div class="text-center mt-4 mb-4">
                         <i class="fas fa-users" style="font-size: 3rem; color: var(--text-secondary); opacity: 0.3;"></i>
                         <p class="mt-2" style="color: var(--text-secondary);">
-                            ${this.currentFilters.search || this.currentFilters.ownerId || this.currentFilters.tagId ? 'No users found matching your filters' : 'No users yet'}
+                            ${emptyMessage}
                         </p>
-                        ${!this.currentFilters.search && !this.currentFilters.ownerId && !this.currentFilters.tagId ? `
+                        ${!hasFilters ? `
                             <button class="btn btn-primary mt-2" onclick="Users.showAddUserModal()">
                                 <i class="fas fa-user-plus"></i> Add Your First User
                             </button>

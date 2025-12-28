@@ -24,12 +24,7 @@ function initializeWatchStatsAutoRefresh() {
     });
 
     console.log('[Watch Stats Auto Refresh] Job scheduled - runs daily at 3 AM');
-
-    // Also run on startup after a short delay (let the server fully start first)
-    setTimeout(async () => {
-        console.log('[Watch Stats Auto Refresh] Running initial refresh on startup...');
-        await refreshWatchStats();
-    }, 30000); // 30 seconds after startup
+    console.log('[Watch Stats Auto Refresh] Startup refresh disabled - stats only refresh at 3 AM or manual trigger');
 }
 
 async function refreshWatchStats() {

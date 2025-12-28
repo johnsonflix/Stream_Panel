@@ -173,6 +173,10 @@ class API {
         return this.request('/dashboard/iptv-panels');
     }
 
+    static async getDashboardLiveStats() {
+        return this.request('/dashboard/live-stats');
+    }
+
     // ============ Plex Servers ============
     static async getPlexServers(includeInactive = false) {
         return this.request(`/plex-servers?include_inactive=${includeInactive}`);
@@ -499,8 +503,12 @@ class API {
     }
 
     // ============ Users ============
-    static async getUsers(search = '', includeInactive = false) {
-        return this.request(`/users?search=${encodeURIComponent(search)}&include_inactive=${includeInactive}`);
+    static async getUsers(search = '', includeInactive = false, expiringSoon = '') {
+        let url = `/users?search=${encodeURIComponent(search)}&include_inactive=${includeInactive}`;
+        if (expiringSoon) {
+            url += `&expiring_soon=${encodeURIComponent(expiringSoon)}`;
+        }
+        return this.request(url);
     }
 
     static async getUser(id) {
