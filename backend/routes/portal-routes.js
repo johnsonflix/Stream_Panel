@@ -631,7 +631,14 @@ router.get('/user/full', async (req, res) => {
 
                 // IPTV Editor - only consider enabled if user actually has an editor account
                 iptv_editor_enabled: userData.iptv_editor_enabled === 1 && iptvEditorData !== null,
-                iptv_editor: iptvEditorData
+                iptv_editor: iptvEditorData,
+
+                // Request Site Access
+                // rs_has_access: 1 = enabled, 0 = disabled, null = auto (plex_enabled)
+                // Use Number() to handle string/int type coercion from SQLite
+                has_request_site_access: (userData.rs_has_access !== null && userData.rs_has_access !== undefined && userData.rs_has_access !== '')
+                    ? Number(userData.rs_has_access) === 1
+                    : Number(userData.plex_enabled) === 1
             }
         };
 
