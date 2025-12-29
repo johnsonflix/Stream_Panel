@@ -1,6 +1,6 @@
 {
-  "version": "1.5.5",
+  "version": "1.5.6",
   "name": "Stream Panel",
   "releaseDate": "2025-12-29",
-  "description": "Hotfix - Complete file sync to ensure all features and migrations are included"
+  "description": "Hotfix - Email template preview portal_url and IPTV credentials fix"
 }

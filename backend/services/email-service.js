@@ -339,8 +339,9 @@ async function sendTemplateEmail(options) {
         const appUrlResult = await query(`SELECT setting_value FROM settings WHERE setting_key = 'app_url'`);
         const appUrl = appUrlResult.length > 0 ? appUrlResult[0].setting_value : '';
 
+        // portal_url defaults to app_url if not separately configured
         const portalUrlResult = await query(`SELECT setting_value FROM settings WHERE setting_key = 'portal_url'`);
-        const portalUrl = portalUrlResult.length > 0 ? portalUrlResult[0].setting_value : '';
+        const portalUrl = (portalUrlResult.length > 0 && portalUrlResult[0].setting_value) ? portalUrlResult[0].setting_value : appUrl;
 
         // Get IPTV Editor DNS from iptv_editor_settings
         const editorDnsResult = await query(`SELECT setting_value FROM iptv_editor_settings WHERE setting_key = 'editor_dns'`);
@@ -380,12 +381,12 @@ async function sendTemplateEmail(options) {
                 hasIptvEditor = true;
             }
 
-            // Also get IPTV Panel DNS and credentials
+            // Also get IPTV Panel DNS and credentials from users table
             const panelResult = await query(`
-                SELECT ip.provider_base_url, uis.iptv_username, uis.iptv_password
-                FROM user_iptv_subscriptions uis
-                JOIN iptv_panels ip ON uis.iptv_panel_id = ip.id
-                WHERE uis.user_id = ?
+                SELECT ip.provider_base_url, u.iptv_username, u.iptv_password
+                FROM users u
+                JOIN iptv_panels ip ON u.iptv_panel_id = ip.id
+                WHERE u.id = ?
                 LIMIT 1
             `, [userData.id]);
             if (panelResult.length > 0) {
