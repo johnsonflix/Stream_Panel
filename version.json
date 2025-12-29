@@ -1,6 +1,6 @@
 {
-  "version": "1.5.3",
+  "version": "1.5.4",
   "name": "Stream Panel",
   "releaseDate": "2025-12-29",
-  "description": "Sync missing files: Plex popup login, media manager proxy fixes, user edit modal fix"
+  "description": "Request Site Notification System (Discord, Telegram, Webhook, Email, WebPush), Media Managers with auto-login, Live TV hero banner, expandable credentials cards"
 }

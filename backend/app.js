@@ -104,6 +104,7 @@ const requestSiteRoutes = require('./routes/request-site-routes'); // Old routes
 const requestSiteApiRoutes = require('./routes/request-site-api-routes'); // New core API routes
 const requestSiteWebhooksRoutes = require('./routes/request-site-webhooks-routes');
 const mediaManagersRoutes = require('./routes/media-managers-routes');
+const requestSiteNotificationsRoutes = require('./routes/request-site-notifications-routes');
 
 // Authentication routes (no auth required for these endpoints)
 app.use('/api/v2/auth', authRoutes);
@@ -146,6 +147,7 @@ app.use('/api/v2/request-site', requestSiteRoutes); // Legacy routes (old schema
 app.use('/api/v2/request-site-api', requestSiteApiRoutes); // New core API routes
 app.use('/api/v2/webhooks', requestSiteWebhooksRoutes); // No auth required - external webhooks
 app.use('/api/v2/media-managers', mediaManagersRoutes); // Admin tools (Sonarr, Radarr, qBittorrent, SABnzbd)
+app.use('/api/v2/request-site/notifications', requestSiteNotificationsRoutes); // Request Site notification settings
 
 // Health check endpoint
 app.get('/api/v2/health', (req, res) => {

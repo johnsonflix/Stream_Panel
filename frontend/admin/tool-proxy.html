@@ -166,15 +166,21 @@
             sonarr: 'fa-tv',
             radarr: 'fa-film',
             qbittorrent: 'fa-magnet',
-            sabnzbd: 'fa-download'
+            sabnzbd: 'fa-download',
+            other_arr: 'fa-cube',
+            other: 'fa-cog'
         };
 
-        // Default landing pages for each app type (root "/" shows 404 on some apps)
+        // Default landing pages for each app type
+        // Note: Radarr/Sonarr root "/" should redirect to /movie or /series automatically
+        // Loading directly at /movie causes React Router 404 due to basename timing issues
         const defaultPaths = {
-            sonarr: '/series',
-            radarr: '/movie',
+            sonarr: '',
+            radarr: '',
             qbittorrent: '',
-            sabnzbd: ''
+            sabnzbd: '',
+            other_arr: '',
+            other: ''
         };
 
         async function loadManager() {

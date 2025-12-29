@@ -14,6 +14,16 @@ const router = express.Router();
 // Session storage for qBittorrent (in-memory, keyed by manager ID)
 const qbSessions = new Map();
 
+// Default icons for known tool types (official logos from CDN)
+const DEFAULT_ICONS = {
+    sonarr: 'https://raw.githubusercontent.com/Sonarr/Sonarr/develop/Logo/256.png',
+    radarr: 'https://raw.githubusercontent.com/Radarr/Radarr/develop/Logo/256.png',
+    qbittorrent: 'https://raw.githubusercontent.com/qbittorrent/qBittorrent/master/src/icons/qbittorrent-tray.svg',
+    sabnzbd: 'https://raw.githubusercontent.com/sabnzbd/sabnzbd/develop/icons/logo-full.svg',
+    other_arr: null,  // No default - user should provide custom icon
+    other: null       // No default - user should provide custom icon
+};
+
 // ============ Auth Middleware ============
 
 async function requireAdmin(req, res, next) {
@@ -59,9 +69,14 @@ async function requireAdmin(req, res, next) {
 router.get('/', requireAdmin, async (req, res) => {
     try {
         const managers = await query(
-            'SELECT id, name, type, url, connection_mode, is_enabled, display_order, created_at FROM media_managers ORDER BY display_order ASC, name ASC'
+            'SELECT id, name, type, url, icon_url, connection_mode, is_enabled, display_order, created_at FROM media_managers ORDER BY display_order ASC, name ASC'
         );
-        res.json({ managers });
+        // Add effective_icon (custom or default) to each manager
+        const managersWithIcons = managers.map(m => ({
+            ...m,
+            effective_icon: m.icon_url || DEFAULT_ICONS[m.type] || null
+        }));
+        res.json({ managers: managersWithIcons });
     } catch (error) {
         console.error('[Media Managers] Error listing managers:', error);
         res.status(500).json({ error: 'Failed to list media managers' });
@@ -77,7 +92,10 @@ router.get('/:id', requireAdmin, async (req, res) => {
             return res.status(404).json({ error: 'Media manager not found' });
         }
 
-        res.json({ manager: managers[0] });
+        const manager = managers[0];
+        manager.effective_icon = manager.icon_url || DEFAULT_ICONS[manager.type] || null;
+
+        res.json({ manager });
     } catch (error) {
         console.error('[Media Managers] Error getting manager:', error);
         res.status(500).json({ error: 'Failed to get media manager' });
@@ -87,20 +105,20 @@ router.get('/:id', requireAdmin, async (req, res) => {
 // POST /api/v2/media-managers - Create new media manager
 router.post('/', requireAdmin, async (req, res) => {
     try {
-        const { name, type, url, api_key, username, password, connection_mode, is_enabled, display_order } = req.body;
+        const { name, type, url, api_key, username, password, connection_mode, is_enabled, display_order, icon_url } = req.body;
 
         if (!name || !type || !url) {
             return res.status(400).json({ error: 'Name, type, and URL are required' });
         }
 
-        const validTypes = ['sonarr', 'radarr', 'qbittorrent', 'sabnzbd'];
+        const validTypes = ['sonarr', 'radarr', 'qbittorrent', 'sabnzbd', 'other_arr', 'other'];
         if (!validTypes.includes(type)) {
-            return res.status(400).json({ error: 'Invalid type. Must be: sonarr, radarr, qbittorrent, or sabnzbd' });
+            return res.status(400).json({ error: 'Invalid type. Must be: sonarr, radarr, qbittorrent, sabnzbd, other_arr, or other' });
         }
 
         const result = await query(
-            `INSERT INTO media_managers (name, type, url, api_key, username, password, connection_mode, is_enabled, display_order)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            `INSERT INTO media_managers (name, type, url, api_key, username, password, connection_mode, is_enabled, display_order, icon_url)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 name,
                 type,
@@ -110,7 +128,8 @@ router.post('/', requireAdmin, async (req, res) => {
                 password || null,
                 connection_mode || 'proxy',
                 is_enabled !== undefined ? (is_enabled ? 1 : 0) : 1,
-                display_order || 0
+                display_order || 0,
+                icon_url || null
             ]
         );
 
@@ -124,7 +143,7 @@ router.post('/', requireAdmin, async (req, res) => {
 // PUT /api/v2/media-managers/:id - Update media manager
 router.put('/:id', requireAdmin, async (req, res) => {
     try {
-        const { name, type, url, api_key, username, password, connection_mode, is_enabled, display_order } = req.body;
+        const { name, type, url, api_key, username, password, connection_mode, is_enabled, display_order, icon_url } = req.body;
 
         const existing = await query('SELECT * FROM media_managers WHERE id = ?', [req.params.id]);
         if (existing.length === 0) {
@@ -142,6 +161,7 @@ router.put('/:id', requireAdmin, async (req, res) => {
                 connection_mode = ?,
                 is_enabled = ?,
                 display_order = ?,
+                icon_url = ?,
                 updated_at = CURRENT_TIMESTAMP
              WHERE id = ?`,
             [
@@ -154,6 +174,7 @@ router.put('/:id', requireAdmin, async (req, res) => {
                 connection_mode || existing[0].connection_mode,
                 is_enabled !== undefined ? (is_enabled ? 1 : 0) : existing[0].is_enabled,
                 display_order !== undefined ? display_order : existing[0].display_order,
+                icon_url !== undefined ? icon_url : existing[0].icon_url,
                 req.params.id
             ]
         );
@@ -270,8 +291,11 @@ async function testConnection(manager) {
             }
 
             case 'sabnzbd': {
-                // Test using queue endpoint with API key
-                const response = await axios.get(`${url}/api`, {
+                // Normalize URL (strip /login if present) so API call works correctly
+                // Users may enter either base URL or full login URL
+                const sabBaseUrl = url.replace(/\/login\/?$/, '');
+                // Test using version endpoint with API key
+                const response = await axios.get(`${sabBaseUrl}/api`, {
                     params: {
                         mode: 'version',
                         apikey: api_key,
@@ -284,6 +308,47 @@ async function testConnection(manager) {
                     version: response.data.version,
                     message: `Connected to SABnzbd ${response.data.version}`
                 };
+            }
+
+            case 'other_arr': {
+                // Other *arr tools use different API versions:
+                // - Prowlarr, Lidarr, Readarr use /api/v1/system/status
+                // - Some may use /api/v3/system/status
+                // Try v1 first (more common for other *arr tools), then v3
+                const apiVersions = ['v1', 'v3'];
+                for (const version of apiVersions) {
+                    try {
+                        const response = await axios.get(`${url}/api/${version}/system/status`, {
+                            headers: { 'X-Api-Key': api_key },
+                            timeout: 5000
+                        });
+                        return {
+                            success: true,
+                            version: response.data.version,
+                            message: `Connected! Version: ${response.data.version}`
+                        };
+                    } catch (e) {
+                        // Try next version
+                        continue;
+                    }
+                }
+                // If all API versions fail, throw error
+                throw new Error('Could not connect to API (tried v1 and v3)');
+            }
+
+            case 'other': {
+                // Generic tool - just test if URL is reachable
+                const response = await axios.get(url, {
+                    timeout: 10000,
+                    validateStatus: () => true // Accept any status code
+                });
+                if (response.status >= 200 && response.status < 500) {
+                    return {
+                        success: true,
+                        message: `URL reachable (HTTP ${response.status})`
+                    };
+                }
+                return { success: false, error: `HTTP ${response.status}` };
             }
 
             default:
@@ -515,21 +580,41 @@ router.all('/:id/proxy/*', async (req, res, next) => {
             if (manager.type === 'radarr' || manager.type === 'sonarr') {
                 const appName = manager.type === 'radarr' ? 'Radarr' : 'Sonarr';
 
-                // Replace urlBase: "" or urlBase: "something" with our proxy path
-                // This regex handles: urlBase:"", urlBase: "", urlBase: "/existing"
-                const originalHtml = html;
-                html = html.replace(/(["']urlBase["']\s*:\s*)(["'])([^"']*)(["'])/g, `$1$2${proxyBase}$4`);
+                // Debug: Find all urlBase occurrences in the HTML
+                const urlBaseMatches = html.match(/urlBase[^,}]*/g);
+                console.log(`[Media Managers] Found urlBase patterns in HTML:`, urlBaseMatches);
 
-                if (html !== originalHtml) {
-                    console.log(`[Media Managers] Modified urlBase to: ${proxyBase}`);
+                // Also log a snippet of the HTML around where window.Radarr/Sonarr is defined
+                const configMatch = html.match(new RegExp(`window\\.${appName}\\s*=\\s*\\{[^}]{0,500}`, 'i'));
+                if (configMatch) {
+                    console.log(`[Media Managers] Config snippet: ${configMatch[0].substring(0, 200)}...`);
+                }
+
+                const originalHtml = html;
+                let replacementCount = 0;
+
+                // Replace ALL occurrences of urlBase regardless of quoting style
+                // Pattern 1: Quoted property name "urlBase": "value" or 'urlBase': 'value'
+                html = html.replace(/(["']urlBase["']\s*:\s*)(["'])([^"']*)(["'])/g, (match, prefix, q1, value, q2) => {
+                    replacementCount++;
+                    console.log(`[Media Managers] Replacing quoted urlBase #${replacementCount}: "${value}" -> "${proxyBase}"`);
+                    return `${prefix}${q1}${proxyBase}${q2}`;
+                });
+
+                // Pattern 2: Unquoted property name urlBase: "value" (common in minified code)
+                // Be careful not to re-match already replaced ones
+                html = html.replace(/((?<!['"]))urlBase\s*:\s*(["'])([^"']*)(["'])/g, (match, lookbehind, q1, value, q2) => {
+                    // Skip if already starts with proxy path (was replaced above)
+                    if (value === proxyBase) return match;
+                    replacementCount++;
+                    console.log(`[Media Managers] Replacing unquoted urlBase #${replacementCount}: "${value}" -> "${proxyBase}"`);
+                    return `urlBase:${q1}${proxyBase}${q2}`;
+                });
+
+                if (replacementCount > 0) {
+                    console.log(`[Media Managers] Successfully modified ${replacementCount} urlBase occurrence(s) to: ${proxyBase}`);
                 } else {
-                    // Try without quotes around property name: urlBase: ""
-                    html = html.replace(/(urlBase\s*:\s*)(["'])([^"']*)(["'])/g, `$1$2${proxyBase}$4`);
-                    if (html !== originalHtml) {
-                        console.log(`[Media Managers] Modified urlBase to: ${proxyBase}`);
-                    } else {
-                        console.log(`[Media Managers] WARNING: Could not find urlBase in HTML for ${appName}`);
-                    }
+                    console.log(`[Media Managers] WARNING: Could not find urlBase in HTML for ${appName}`);
                 }
             }
 
@@ -823,12 +908,153 @@ router.all('/:id/proxy/*', async (req, res, next) => {
 })();
 </script>`;
 
+            // CRITICAL: Pre-define app config BEFORE Radarr/Sonarr's own scripts run
+            // The problem: Radarr's inline script does `window.Radarr = { urlBase: '' }`
+            // which OVERWRITES any pre-set value. We use Object.defineProperty to create
+            // a smart property that preserves our urlBase even when the object is reassigned.
+            const earlyConfigScript = manager.type === 'radarr'
+                ? `<script>
+(function() {
+    var URL_BASE = '${proxyBase}';
+    var radarrObj = { urlBase: URL_BASE };
+
+    // Use defineProperty to intercept all assignments to window.Radarr
+    // When Radarr's code does "window.Radarr = { urlBase: '' }", our setter:
+    // 1. Copies all properties from the new object
+    // 2. But PRESERVES our urlBase value
+    Object.defineProperty(window, 'Radarr', {
+        get: function() { return radarrObj; },
+        set: function(newValue) {
+            if (newValue && typeof newValue === 'object') {
+                // Copy all properties from the new object
+                Object.keys(newValue).forEach(function(key) {
+                    // Preserve our urlBase, copy everything else
+                    if (key !== 'urlBase') {
+                        radarrObj[key] = newValue[key];
+                    }
+                });
+            }
+            // Always ensure urlBase stays as our proxy path
+            radarrObj.urlBase = URL_BASE;
+            console.log('[StreamPanel] Radarr assignment intercepted, urlBase preserved:', URL_BASE);
+        },
+        configurable: false,
+        enumerable: true
+    });
+
+    window.__StreamPanelUrlBase = URL_BASE;
+    console.log('[StreamPanel] Radarr urlBase protection installed:', URL_BASE);
+})();
+</script>`
+                : manager.type === 'sonarr'
+                ? `<script>
+(function() {
+    var URL_BASE = '${proxyBase}';
+    var sonarrObj = { urlBase: URL_BASE };
+
+    Object.defineProperty(window, 'Sonarr', {
+        get: function() { return sonarrObj; },
+        set: function(newValue) {
+            if (newValue && typeof newValue === 'object') {
+                Object.keys(newValue).forEach(function(key) {
+                    if (key !== 'urlBase') {
+                        sonarrObj[key] = newValue[key];
+                    }
+                });
+            }
+            sonarrObj.urlBase = URL_BASE;
+            console.log('[StreamPanel] Sonarr assignment intercepted, urlBase preserved:', URL_BASE);
+        },
+        configurable: false,
+        enumerable: true
+    });
+
+    window.__StreamPanelUrlBase = URL_BASE;
+    console.log('[StreamPanel] Sonarr urlBase protection installed:', URL_BASE);
+})();
+</script>`
+                : '';
+
             // CRITICAL: Inject webpack public path BEFORE any other scripts
             // This must run before webpack initializes to ensure chunks load from proxy path
             const webpackScript = `<script>window.__webpack_public_path__='${proxyBase}/';</script>`;
 
-            // Inject webpack script first, then our interceptor right after <head> tag
-            html = html.replace(/<head[^>]*>/i, '$&' + webpackScript + interceptorScript);
+            // Debug script AND route fix - inject before </body>
+            const debugScript = `
+<script>
+(function() {
+    var PROXY_BASE = '${proxyBase}';
+
+    // WORKAROUND: Force React Router to re-evaluate the route after initialization
+    // React Router may have initialized before urlBase was properly set
+    // By triggering a popstate event, we force it to re-read the URL with correct basename
+    function forceRouteRefresh() {
+        var appConfig = window.Radarr || window.Sonarr;
+
+        // Log debug info
+        console.log('[StreamPanel Debug] App config:', appConfig ? {
+            urlBase: appConfig.urlBase,
+            expectedUrlBase: PROXY_BASE,
+            match: appConfig.urlBase === PROXY_BASE
+        } : 'NOT FOUND');
+
+        // Check if we're on the wrong route (404 page showing)
+        // The 404 page has a specific element or the route isn't matching
+        var isOn404 = document.querySelector('[class*="NotFound"]') ||
+                      document.querySelector('[class*="not-found"]') ||
+                      document.body.textContent.includes('nothing to see here');
+
+        if (isOn404) {
+            console.log('[StreamPanel Debug] Detected 404 page, attempting route refresh...');
+
+            // Method 1: Trigger popstate to make React Router re-evaluate
+            window.dispatchEvent(new PopStateEvent('popstate', { state: null }));
+
+            // Method 2: If that doesn't work, try re-pushing the current state
+            setTimeout(function() {
+                var stillOn404 = document.querySelector('[class*="NotFound"]') ||
+                                 document.querySelector('[class*="not-found"]') ||
+                                 document.body.textContent.includes('nothing to see here');
+                if (stillOn404) {
+                    console.log('[StreamPanel Debug] Still on 404, trying history push...');
+                    // Extract the intended path from current URL
+                    var pathname = window.location.pathname;
+                    var intendedPath = pathname.replace(PROXY_BASE, '');
+                    if (!intendedPath || intendedPath === '') intendedPath = '/';
+
+                    // Use React Router's navigate if available
+                    if (window.__REACT_ROUTER_NAVIGATE__) {
+                        window.__REACT_ROUTER_NAVIGATE__(intendedPath);
+                    } else {
+                        // Force navigation by pushing then replacing
+                        history.pushState(null, '', pathname);
+                        window.dispatchEvent(new PopStateEvent('popstate', { state: null }));
+                    }
+                }
+            }, 200);
+        }
+    }
+
+    // Run after React has had time to initialize
+    setTimeout(forceRouteRefresh, 150);
+
+    // Also try on DOMContentLoaded in case timing is different
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(forceRouteRefresh, 100);
+        });
+    }
+})();
+</script>`;
+
+            // Inject scripts right after <head> tag in this order:
+            // 1. Early config (pre-define urlBase before any Radarr scripts)
+            // 2. Webpack public path
+            // 3. Interceptor for fetch/XHR/etc
+            html = html.replace(/<head[^>]*>/i, '$&' + earlyConfigScript + webpackScript + interceptorScript);
+
+            // Inject debug script before </body> to run after all other scripts
+            html = html.replace(/<\/body>/i, debugScript + '$&');
 
             // Note: We intentionally DON'T add a <base> tag as it can confuse React Router
 
@@ -921,6 +1147,36 @@ router.get('/:id/open-url', requireAdmin, async (req, res) => {
     } catch (error) {
         console.error('[Media Managers] Error getting open URL:', error);
         res.status(500).json({ error: 'Failed to get open URL' });
+    }
+});
+
+// GET /api/v2/media-managers/:id/credentials - Get credentials for auto-login
+// Used by tool-login.html to auto-submit login form to target server
+router.get('/:id/credentials', requireAdmin, async (req, res) => {
+    try {
+        const managers = await query('SELECT * FROM media_managers WHERE id = ?', [req.params.id]);
+
+        if (managers.length === 0) {
+            return res.status(404).json({ error: 'Media manager not found' });
+        }
+
+        const manager = managers[0];
+
+        // Return credentials for auto-login
+        // Note: Only username/password are returned for form submission
+        // API key is NOT exposed as it's not needed for web UI login
+        res.json({
+            id: manager.id,
+            name: manager.name,
+            type: manager.type,
+            url: manager.url,
+            username: manager.username || null,
+            password: manager.password || null,
+            connection_mode: manager.connection_mode
+        });
+    } catch (error) {
+        console.error('[Media Managers] Error getting credentials:', error);
+        res.status(500).json({ error: 'Failed to get credentials' });
     }
 });
 

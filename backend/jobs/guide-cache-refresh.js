@@ -287,6 +287,15 @@ class GuideCacheRefreshJob {
     async refreshAllPlaylists() {
         console.log('\n🔄 Refreshing IPTV Editor Playlist caches...');
 
+        // Check if guide_username column exists (migration may not have run)
+        const columns = this.db.pragma('table_info(iptv_editor_playlists)');
+        const columnNames = columns.map(c => c.name);
+        if (!columnNames.includes('guide_username') || !columnNames.includes('guide_password')) {
+            console.log('   ⚠️ Guide credential columns not found in database - skipping playlists');
+            console.log('   ℹ️  Run migration: add-guide-credentials-to-playlists.js');
+            return { total: 0, success: 0, failed: 0, errors: [] };
+        }
+
         // Get IPTV Editor DNS setting
         const editorDns = this.db.prepare(`
             SELECT setting_value FROM iptv_editor_settings WHERE setting_key = 'editor_dns'

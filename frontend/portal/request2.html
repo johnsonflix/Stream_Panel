@@ -263,11 +263,21 @@
             justify-content: center;
             font-size: 12px;
             color: white;
+            overflow: hidden;
+            flex-shrink: 0;
         }
-        .tools-dropdown-menu .tool-icon.sonarr { background: linear-gradient(135deg, #3b82f6, #2563eb); }
-        .tools-dropdown-menu .tool-icon.radarr { background: linear-gradient(135deg, #f59e0b, #d97706); }
-        .tools-dropdown-menu .tool-icon.qbittorrent { background: linear-gradient(135deg, #a855f7, #9333ea); }
-        .tools-dropdown-menu .tool-icon.sabnzbd { background: linear-gradient(135deg, #f97316, #ea580c); }
+        .tools-dropdown-menu .tool-icon img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+        /* Fallback colored backgrounds only when no image is provided */
+        .tools-dropdown-menu .tool-icon.no-image.sonarr { background: linear-gradient(135deg, #3b82f6, #2563eb); }
+        .tools-dropdown-menu .tool-icon.no-image.radarr { background: linear-gradient(135deg, #f59e0b, #d97706); }
+        .tools-dropdown-menu .tool-icon.no-image.qbittorrent { background: linear-gradient(135deg, #a855f7, #9333ea); }
+        .tools-dropdown-menu .tool-icon.no-image.sabnzbd { background: linear-gradient(135deg, #f97316, #ea580c); }
+        .tools-dropdown-menu .tool-icon.no-image.other_arr { background: linear-gradient(135deg, #10b981, #059669); }
+        .tools-dropdown-menu .tool-icon.no-image.other { background: linear-gradient(135deg, #6b7280, #4b5563); }
         .tools-dropdown-menu .dropdown-footer {
             border-top: 1px solid #374151;
             margin-top: 8px;
@@ -450,41 +460,47 @@
             position: absolute;
             top: 8px;
             right: 8px;
-            width: 24px;
-            height: 24px;
-            border-radius: 50%;
+            height: 22px;
+            border-radius: 4px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 12px;
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
             background: rgba(0, 0, 0, 0.7);
             backdrop-filter: blur(4px);
-            border: 2px solid transparent;
             z-index: 5;
+            padding: 0 8px;
+            gap: 4px;
         }
         .media-card-status.available {
-            background: rgba(34, 197, 94, 0.9);
-            border-color: #22c55e;
+            background: rgba(34, 197, 94, 0.95);
             color: #fff;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            padding: 0;
         }
-        .media-card-status.pending {
-            background: rgba(234, 179, 8, 0.9);
-            border-color: #eab308;
+        .media-card-status.pending,
+        .media-card-status.processing {
+            background: rgba(99, 102, 241, 0.95);
             color: #fff;
         }
         .media-card-status.processing {
-            background: rgba(59, 130, 246, 0.9);
-            border-color: #3b82f6;
-            color: #fff;
             animation: pulse 2s ease-in-out infinite;
         }
         .media-card-status.partial {
-            background: rgba(34, 197, 94, 0.9);
-            border-color: #22c55e;
+            background: rgba(34, 197, 94, 0.95);
             color: #fff;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            padding: 0;
         }
         .media-card-status.partial i {
-            font-size: 14px;
+            font-size: 12px;
             font-weight: bold;
         }
         @keyframes pulse {
@@ -3813,6 +3829,49 @@
             outline: none;
             border-color: #6366f1;
         }
+        /* Style inputs inside settings-form (notifications section) */
+        .settings-form .settings-row {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+        .settings-form .settings-row > label:not(.settings-checkbox) {
+            font-size: 14px;
+            font-weight: 500;
+            color: #f8fafc;
+        }
+        .settings-form .settings-row > input[type="text"],
+        .settings-form .settings-row > input[type="password"],
+        .settings-form .settings-row > input[type="url"] {
+            width: 100%;
+            padding: 10px 14px;
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid #334155;
+            border-radius: 8px;
+            color: #f8fafc;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        .settings-form .settings-row > input[type="text"]:focus,
+        .settings-form .settings-row > input[type="password"]:focus,
+        .settings-form .settings-row > input[type="url"]:focus {
+            outline: none;
+            border-color: #6366f1;
+        }
+        .settings-form .settings-row > input::placeholder {
+            color: #64748b;
+        }
+        .notif-type-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px 20px;
+            margin-bottom: 12px;
+        }
+        .notif-type-grid .settings-checkbox {
+            flex: 0 0 auto;
+            font-size: 13px;
+        }
         .settings-checkbox {
             display: flex;
             align-items: center;
@@ -4001,6 +4060,114 @@
         }
         .settings-status-offline i {
             color: #ef4444;
+        }
+        /* Expandable card wrapper */
+        .settings-card-wrapper {
+            background: rgba(30, 41, 59, 0.5);
+            border: 1px solid rgba(51, 65, 85, 0.5);
+            border-radius: 12px;
+            overflow: hidden;
+            transition: all 0.2s;
+        }
+        .settings-card-wrapper:hover {
+            border-color: rgba(99, 102, 241, 0.3);
+        }
+        .settings-card-wrapper .settings-card {
+            background: transparent;
+            border: none;
+            margin: 0;
+            border-radius: 0;
+        }
+        .settings-card-expand-btn {
+            background: transparent;
+            border: none;
+            color: #64748b;
+            cursor: pointer;
+            padding: 8px;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .settings-card-expand-btn:hover {
+            color: #94a3b8;
+        }
+        .settings-card-expand-btn.expanded {
+            transform: rotate(180deg);
+        }
+        .settings-card-credentials {
+            display: none;
+            padding: 16px 20px;
+            border-top: 1px solid rgba(51, 65, 85, 0.5);
+            background: rgba(15, 23, 42, 0.3);
+        }
+        .settings-card-credentials.show {
+            display: block;
+        }
+        .credentials-row {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+        .credential-field {
+            flex: 1;
+            min-width: 150px;
+        }
+        .credential-label {
+            font-size: 11px;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 6px;
+        }
+        .credential-value {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(30, 41, 59, 0.8);
+            border: 1px solid rgba(51, 65, 85, 0.5);
+            border-radius: 6px;
+            padding: 8px 12px;
+        }
+        .credential-value input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: #e2e8f0;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 13px;
+            outline: none;
+            min-width: 0;
+        }
+        .credential-value .copy-btn {
+            background: transparent;
+            border: none;
+            color: #64748b;
+            cursor: pointer;
+            padding: 4px;
+            transition: all 0.2s;
+        }
+        .credential-value .copy-btn:hover {
+            color: #3b82f6;
+        }
+        .credential-value .copy-btn.copied {
+            color: #22c55e;
+        }
+        .credential-value .toggle-btn {
+            background: transparent;
+            border: none;
+            color: #64748b;
+            cursor: pointer;
+            padding: 4px;
+            transition: all 0.2s;
+        }
+        .credential-value .toggle-btn:hover {
+            color: #94a3b8;
+        }
+        .no-credentials {
+            color: #64748b;
+            font-size: 13px;
+            font-style: italic;
         }
         .settings-card-actions {
             display: flex;
@@ -4334,6 +4501,30 @@
         .form-select option {
             background: #1e293b;
             color: #f8fafc;
+        }
+        /* Copy and toggle buttons for form fields */
+        .copy-field-btn,
+        .toggle-password-btn {
+            position: absolute;
+            right: 8px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: transparent;
+            border: none;
+            color: #64748b;
+            cursor: pointer;
+            padding: 4px 6px;
+            border-radius: 4px;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+        .copy-field-btn:hover,
+        .toggle-password-btn:hover {
+            color: #f8fafc;
+            background: rgba(255, 255, 255, 0.1);
+        }
+        .copy-field-btn.copied {
+            color: #22c55e;
         }
         /* Modal show/hide state */
         .request-modal:not(.show) {
@@ -7590,7 +7781,9 @@
             sonarr: 'fa-tv',
             radarr: 'fa-film',
             qbittorrent: 'fa-magnet',
-            sabnzbd: 'fa-download'
+            sabnzbd: 'fa-download',
+            other_arr: 'fa-cube',
+            other: 'fa-cog'
         };
 
         async function loadToolsDropdown() {
@@ -7615,14 +7808,22 @@
 
                 container.style.display = 'inline-block';
 
-                let menuHtml = managers.map(m => `
+                let menuHtml = managers.map(m => {
+                    // Use logo image if available, otherwise fall back to Font Awesome icon
+                    const iconContent = m.effective_icon
+                        ? `<img src="${escapeHtml(m.effective_icon)}" alt="" onerror="this.parentElement.classList.add('no-image'); this.style.display='none'; this.nextElementSibling.style.display='block';">
+                           <i class="fas ${toolIcons[m.type] || 'fa-server'}" style="display: none;"></i>`
+                        : `<i class="fas ${toolIcons[m.type] || 'fa-server'}"></i>`;
+                    const noImageClass = m.effective_icon ? '' : 'no-image';
+                    return `
                     <a href="#" onclick="openTool(${m.id}); return false;">
-                        <span class="tool-icon ${m.type}">
-                            <i class="fas ${toolIcons[m.type] || 'fa-server'}"></i>
+                        <span class="tool-icon ${m.type} ${noImageClass}">
+                            ${iconContent}
                         </span>
                         ${escapeHtml(m.name)}
                     </a>
-                `).join('');
+                    `;
+                }).join('');
 
                 menuHtml += `
                     <div class="dropdown-footer">
@@ -8498,11 +8699,11 @@
                     // Partially available - green line/minus (for TV shows with some seasons)
                     statusBadge = '<div class="media-card-status partial" title="Partially Available"><i class="fas fa-minus"></i></div>';
                 } else if (cached.status === 2) {
-                    // Processing
-                    statusBadge = '<div class="media-card-status processing" title="Processing"><i class="fas fa-clock"></i></div>';
+                    // Processing - show "Requested" badge
+                    statusBadge = '<div class="media-card-status processing" title="Processing"><i class="fas fa-clock"></i> Requested</div>';
                 } else if (cached.status === 1) {
-                    // Pending request
-                    statusBadge = '<div class="media-card-status pending" title="Pending Approval"><i class="fas fa-hourglass-half"></i></div>';
+                    // Pending request - show "Requested" badge
+                    statusBadge = '<div class="media-card-status pending" title="Pending Approval"><i class="fas fa-hourglass-half"></i> Requested</div>';
                 }
             }
 
@@ -8606,9 +8807,9 @@
                 } else if (cached.status === 3) {
                     badgeHtml = '<div class="media-card-status partial" title="Partially Available"><i class="fas fa-minus"></i></div>';
                 } else if (cached.status === 2) {
-                    badgeHtml = '<div class="media-card-status processing" title="Processing"><i class="fas fa-clock"></i></div>';
+                    badgeHtml = '<div class="media-card-status processing" title="Processing"><i class="fas fa-clock"></i> Requested</div>';
                 } else if (cached.status === 1) {
-                    badgeHtml = '<div class="media-card-status pending" title="Pending"><i class="fas fa-hourglass-half"></i></div>';
+                    badgeHtml = '<div class="media-card-status pending" title="Pending"><i class="fas fa-hourglass-half"></i> Requested</div>';
                 }
 
                 if (badgeHtml) {
@@ -12558,6 +12759,53 @@
                                         <span><i class="fas fa-gem" style="color: #c4b5fd;"></i><i class="fas fa-tv" style="font-size: 10px; margin-left: 4px; color: #34d399;"></i> Can approve 4K TV shows</span>
                                     </label>
                                 </div>
+
+                                <hr style="border-color: #374151; margin: 16px 0;">
+
+                                <h4 style="color: #f59e0b; margin-bottom: 12px; font-size: 14px;"><i class="fas fa-bell" style="margin-right: 6px;"></i>Notification Preferences <span style="font-weight: normal; font-size: 12px; color: #9ca3af;">(override system defaults)</span></h4>
+                                <p style="color: #6b7280; font-size: 12px; margin-bottom: 12px;">Shows effective settings. <span style="opacity: 0.7;">Faded checkboxes</span> = inherited from system. Click to override.</p>
+
+                                <div id="user-notif-loading" style="color: #9ca3af; font-size: 13px; margin-bottom: 12px;">
+                                    <i class="fas fa-spinner fa-spin"></i> Loading notification preferences...
+                                </div>
+                                <div id="user-notif-fields" style="display: none;">
+                                    <div style="margin-bottom: 16px;">
+                                        <p style="color: #94a3b8; font-size: 13px; font-weight: 500; margin-bottom: 8px;">Notification Events:</p>
+                                        <div class="settings-row">
+                                            <label class="settings-checkbox">
+                                                <input type="checkbox" id="user-notif-approved" data-indeterminate="true">
+                                                <span>Notify when request approved</span>
+                                            </label>
+                                        </div>
+                                        <div class="settings-row">
+                                            <label class="settings-checkbox">
+                                                <input type="checkbox" id="user-notif-declined" data-indeterminate="true">
+                                                <span>Notify when request declined</span>
+                                            </label>
+                                        </div>
+                                        <div class="settings-row">
+                                            <label class="settings-checkbox">
+                                                <input type="checkbox" id="user-notif-available" data-indeterminate="true">
+                                                <span>Notify when media available</span>
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div style="margin-bottom: 16px;">
+                                        <p style="color: #94a3b8; font-size: 13px; font-weight: 500; margin-bottom: 8px;">Notification Channels:</p>
+                                        <div class="settings-row">
+                                            <label class="settings-checkbox">
+                                                <input type="checkbox" id="user-notif-email" data-indeterminate="true">
+                                                <span><i class="fas fa-envelope" style="color: #60a5fa;"></i> Email notifications</span>
+                                            </label>
+                                        </div>
+                                        <div class="settings-row">
+                                            <label class="settings-checkbox">
+                                                <input type="checkbox" id="user-notif-webpush" data-indeterminate="true">
+                                                <span><i class="fas fa-mobile-alt" style="color: #a78bfa;"></i> Browser push notifications</span>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -12571,7 +12819,94 @@
             `;
 
             document.body.appendChild(modal);
+
+            // Load user notification preferences
+            loadUserNotificationPreferences(userId);
         }
+
+        async function loadUserNotificationPreferences(userId) {
+            try {
+                const token = localStorage.getItem('sessionToken') || sessionStorage.getItem('sessionToken');
+
+                // Fetch both user preferences AND system defaults
+                const [userResponse, systemResponse] = await Promise.all([
+                    fetch(`/api/v2/request-site/notifications/user/${userId}/preferences`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    }),
+                    fetch(`/api/v2/request-site/notifications/settings`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    })
+                ]);
+
+                const userData = await userResponse.json();
+                const systemData = await systemResponse.json();
+                const prefs = userData.preferences;
+                const systemSettings = systemData.settings || {};
+
+                // Hide loading, show fields
+                document.getElementById('user-notif-loading').style.display = 'none';
+                document.getElementById('user-notif-fields').style.display = 'block';
+
+                // System defaults for notification events (global toggles)
+                const sysApproved = systemSettings.notifyUserOnApproved !== false;
+                const sysDeclined = systemSettings.notifyUserOnDeclined !== false;
+                const sysAvailable = systemSettings.notifyUserOnAvailable !== false;
+
+                // System defaults for channels
+                const sysEmail = systemSettings.email?.enabled !== false;
+                const sysWebpush = systemSettings.webpush?.enabled === true;
+
+                if (prefs) {
+                    // User has preferences - show their overrides, fall back to system defaults
+                    setUserNotifCheckbox('user-notif-approved', prefs.notify_on_approved, sysApproved);
+                    setUserNotifCheckbox('user-notif-declined', prefs.notify_on_declined, sysDeclined);
+                    setUserNotifCheckbox('user-notif-available', prefs.notify_on_available, sysAvailable);
+                    setUserNotifCheckbox('user-notif-email', prefs.email_enabled, sysEmail);
+                    setUserNotifCheckbox('user-notif-webpush', prefs.webpush_enabled, sysWebpush);
+                } else {
+                    // No user preferences - show system defaults as the effective value
+                    setUserNotifCheckbox('user-notif-approved', null, sysApproved);
+                    setUserNotifCheckbox('user-notif-declined', null, sysDeclined);
+                    setUserNotifCheckbox('user-notif-available', null, sysAvailable);
+                    setUserNotifCheckbox('user-notif-email', null, sysEmail);
+                    setUserNotifCheckbox('user-notif-webpush', null, sysWebpush);
+                }
+            } catch (error) {
+                console.error('Error loading notification preferences:', error);
+                document.getElementById('user-notif-loading').innerHTML = '<span style="color: #ef4444;">Failed to load notification preferences</span>';
+            }
+        }
+
+        function setUserNotifCheckbox(id, value, systemDefault = false) {
+            const cb = document.getElementById(id);
+            if (value === null || value === undefined) {
+                // No user override - show system default as the effective value
+                cb.checked = systemDefault;
+                cb.dataset.value = 'default';
+                // Add visual indicator that this is inherited
+                cb.style.opacity = '0.7';
+            } else {
+                // User has explicit override
+                cb.checked = value === 1 || value === true;
+                cb.dataset.value = cb.checked ? 'enabled' : 'disabled';
+                cb.style.opacity = '1';
+            }
+        }
+
+        function getUserNotifCheckboxValue(id) {
+            const cb = document.getElementById(id);
+            // If checkbox hasn't been interacted with or is in default state, return null
+            if (cb.dataset.value === 'default') return null;
+            return cb.checked ? 1 : 0;
+        }
+
+        // Add click handlers to notification checkboxes to track user interaction
+        document.addEventListener('change', function(e) {
+            if (e.target.id && e.target.id.startsWith('user-notif-') && e.target.type === 'checkbox') {
+                e.target.dataset.value = e.target.checked ? 'enabled' : 'disabled';
+                e.target.style.opacity = '1'; // User has now explicitly set this
+            }
+        });
 
         function toggleUserCustomPermissions(enabled) {
             const fields = document.getElementById('user-perm-fields');
@@ -12619,6 +12954,8 @@
 
             try {
                 const token = localStorage.getItem('sessionToken') || sessionStorage.getItem('sessionToken');
+
+                // Save permissions
                 const response = await fetch(`/api/v2/request-site/permissions/users/${userId}`, {
                     method: 'PUT',
                     headers: {
@@ -12628,18 +12965,41 @@
                     body: JSON.stringify(data)
                 });
 
-                if (response.ok) {
-                    document.querySelector('.request-modal')?.remove();
-                    loadUsersSettings(document.getElementById('settings-tab-content'));
-                    showRequestToast('User permissions saved successfully', 'success');
-                } else {
+                if (!response.ok) {
                     const errorData = await response.json().catch(() => ({}));
                     showRequestToast('Failed to save permissions: ' + (errorData.error || 'Unknown error'), 'error');
                     setButtonLoading(btn, false);
+                    return;
                 }
+
+                // Also save notification preferences
+                const notifData = {
+                    notify_on_approved: getUserNotifCheckboxValue('user-notif-approved'),
+                    notify_on_declined: getUserNotifCheckboxValue('user-notif-declined'),
+                    notify_on_available: getUserNotifCheckboxValue('user-notif-available'),
+                    email_enabled: getUserNotifCheckboxValue('user-notif-email'),
+                    webpush_enabled: getUserNotifCheckboxValue('user-notif-webpush')
+                };
+
+                // Only save notification prefs if any field has a value
+                const hasNotifChanges = Object.values(notifData).some(v => v !== null && v !== '');
+                if (hasNotifChanges) {
+                    await fetch(`/api/v2/request-site/notifications/user/${userId}/preferences`, {
+                        method: 'PUT',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(notifData)
+                    });
+                }
+
+                document.querySelector('.request-modal')?.remove();
+                loadUsersSettings(document.getElementById('settings-tab-content'));
+                showRequestToast('User settings saved successfully', 'success');
             } catch (error) {
                 console.error('Error saving user permissions:', error);
-                showRequestToast('Error saving permissions: ' + error.message, 'error');
+                showRequestToast('Error saving settings: ' + error.message, 'error');
                 setButtonLoading(btn, false);
             }
         }
@@ -12672,40 +13032,466 @@
             return colors[hash % colors.length];
         }
 
-        async function loadNotificationSettings(container) {
-            container.innerHTML = `
-                <div class="settings-card">
-                    <div class="settings-card-header">
-                        <h3><i class="fas fa-envelope"></i> Email Notifications</h3>
-                    </div>
-                    <div class="settings-form">
-                        <div class="settings-row">
-                            <label class="settings-checkbox">
-                                <input type="checkbox" id="notify-new-request" checked>
-                                <span>Notify admins when new requests are submitted</span>
-                            </label>
-                        </div>
-                        <div class="settings-row">
-                            <label class="settings-checkbox">
-                                <input type="checkbox" id="notify-request-approved" checked>
-                                <span>Notify users when their request is approved</span>
-                            </label>
-                        </div>
-                        <div class="settings-row">
-                            <label class="settings-checkbox">
-                                <input type="checkbox" id="notify-request-available" checked>
-                                <span>Notify users when their requested media is available</span>
-                            </label>
-                        </div>
-                    </div>
-                </div>
+        let notificationSettings = null;
 
-                <div class="settings-actions">
-                    <button class="settings-btn settings-btn-primary" onclick="saveNotificationSettings()">
-                        <i class="fas fa-save"></i> Save Settings
-                    </button>
-                </div>
-            `;
+        async function loadNotificationSettings(container) {
+            container.innerHTML = '<div class="request-loading"><div class="request-loading-spinner"></div><div class="request-loading-text">Loading notification settings...</div></div>';
+
+            try {
+                const token = localStorage.getItem('sessionToken') || sessionStorage.getItem('sessionToken');
+                const response = await fetch('/api/v2/request-site/notifications/settings', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    notificationSettings = data.settings;
+                } else {
+                    notificationSettings = {
+                        notifyAdminOnRequest: true,
+                        notifyApproversOnRequest: true,
+                        notifyUserOnApproved: true,
+                        notifyUserOnDeclined: true,
+                        notifyUserOnAvailable: true,
+                        email: { enabled: true },
+                        discord: { enabled: false, webhookUrl: '', botUsername: '', botAvatarUrl: '' },
+                        telegram: { enabled: false, botToken: '', botUsername: '', chatId: '', sendSilently: false },
+                        webhook: { enabled: false, webhookUrl: '', authHeader: '', jsonPayload: '' },
+                        webpush: { enabled: false }
+                    };
+                }
+
+                container.innerHTML = `
+                    <!-- Global Notification Events -->
+                    <div class="settings-card">
+                        <div class="settings-card-header">
+                            <h3><i class="fas fa-bell"></i> Notification Events</h3>
+                        </div>
+                        <div class="settings-form">
+                            <p style="color: #94a3b8; font-size: 13px; margin-bottom: 16px;">Configure which events trigger notifications</p>
+                            <div class="settings-row">
+                                <label class="settings-checkbox">
+                                    <input type="checkbox" id="notify-admin-on-request" ${notificationSettings.notifyAdminOnRequest ? 'checked' : ''}>
+                                    <span>Notify admins when new requests are submitted</span>
+                                </label>
+                            </div>
+                            <div class="settings-row">
+                                <label class="settings-checkbox">
+                                    <input type="checkbox" id="notify-approvers-on-request" ${notificationSettings.notifyApproversOnRequest ? 'checked' : ''}>
+                                    <span>Notify authorized approvers (based on their approval rights)</span>
+                                </label>
+                            </div>
+                            <div class="settings-row">
+                                <label class="settings-checkbox">
+                                    <input type="checkbox" id="notify-user-on-approved" ${notificationSettings.notifyUserOnApproved ? 'checked' : ''}>
+                                    <span>Notify users when their request is approved</span>
+                                </label>
+                            </div>
+                            <div class="settings-row">
+                                <label class="settings-checkbox">
+                                    <input type="checkbox" id="notify-user-on-declined" ${notificationSettings.notifyUserOnDeclined ? 'checked' : ''}>
+                                    <span>Notify users when their request is declined</span>
+                                </label>
+                            </div>
+                            <div class="settings-row">
+                                <label class="settings-checkbox">
+                                    <input type="checkbox" id="notify-user-on-available" ${notificationSettings.notifyUserOnAvailable ? 'checked' : ''}>
+                                    <span>Notify users when their requested media is available</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Email Settings -->
+                    <div class="settings-card">
+                        <div class="settings-card-header">
+                            <h3><i class="fas fa-envelope"></i> Email</h3>
+                            <label class="settings-toggle">
+                                <input type="checkbox" id="email-enabled" ${notificationSettings.email?.enabled ? 'checked' : ''} onchange="toggleNotificationSection('email')">
+                                <span class="settings-toggle-slider"></span>
+                            </label>
+                        </div>
+                        <div class="settings-form" id="email-settings-form" style="${notificationSettings.email?.enabled ? '' : 'display: none;'}">
+                            <p style="color: #94a3b8; font-size: 13px; margin-bottom: 12px;">
+                                Uses your configured SMTP server from Settings > Email
+                            </p>
+                            <p style="color: #94a3b8; font-size: 13px; margin-bottom: 8px; font-weight: 500;">Send email for:</p>
+                            <div class="notif-type-grid">
+                                <label class="settings-checkbox">
+                                    <input type="checkbox" id="email-type-pending" ${notificationSettings.email?.types?.includes('media_pending') ? 'checked' : ''}>
+                                    <span>New Requests</span>
+                                </label>
+                                <label class="settings-checkbox">
+                                    <input type="checkbox" id="email-type-approved" ${notificationSettings.email?.types?.includes('media_approved') ? 'checked' : ''}>
+                                    <span>Approved</span>
+                                </label>
+                                <label class="settings-checkbox">
+                                    <input type="checkbox" id="email-type-declined" ${notificationSettings.email?.types?.includes('media_declined') ? 'checked' : ''}>
+                                    <span>Declined</span>
+                                </label>
+                                <label class="settings-checkbox">
+                                    <input type="checkbox" id="email-type-available" ${notificationSettings.email?.types?.includes('media_available') ? 'checked' : ''}>
+                                    <span>Available</span>
+                                </label>
+                            </div>
+                            <div class="settings-actions" style="margin-top: 16px;">
+                                <button class="settings-btn" onclick="testNotification('email')">
+                                    <i class="fas fa-paper-plane"></i> Send Test Email
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Discord Settings -->
+                    <div class="settings-card">
+                        <div class="settings-card-header">
+                            <h3><i class="fab fa-discord"></i> Discord</h3>
+                            <label class="settings-toggle">
+                                <input type="checkbox" id="discord-enabled" ${notificationSettings.discord?.enabled ? 'checked' : ''} onchange="toggleNotificationSection('discord')">
+                                <span class="settings-toggle-slider"></span>
+                            </label>
+                        </div>
+                        <div class="settings-form" id="discord-settings-form" style="${notificationSettings.discord?.enabled ? '' : 'display: none;'}">
+                            <div class="settings-row">
+                                <label>Webhook URL</label>
+                                <input type="text" id="discord-webhook-url" placeholder="https://discord.com/api/webhooks/..." value="${notificationSettings.discord?.webhookUrl || ''}">
+                            </div>
+                            <div class="settings-row">
+                                <label>Bot Username (optional)</label>
+                                <input type="text" id="discord-bot-username" placeholder="Stream Panel" value="${notificationSettings.discord?.botUsername || ''}">
+                                <small style="color: #64748b; font-size: 12px; margin-top: 4px; display: block;">Customize the name displayed for webhook messages</small>
+                            </div>
+                            <div class="settings-row">
+                                <label>Bot Avatar URL (optional)</label>
+                                <input type="text" id="discord-bot-avatar" placeholder="https://your-domain.com/avatar.png" value="${notificationSettings.discord?.botAvatarUrl || ''}">
+                                <small style="color: #64748b; font-size: 12px; margin-top: 4px; display: block;">URL to an image to use as the webhook avatar</small>
+                            </div>
+                            <p style="color: #94a3b8; font-size: 13px; margin: 16px 0 8px 0; font-weight: 500;">Send Discord messages for:</p>
+                            <div class="notif-type-grid">
+                                <label class="settings-checkbox">
+                                    <input type="checkbox" id="discord-type-pending" ${notificationSettings.discord?.types?.includes('media_pending') ? 'checked' : ''}>
+                                    <span>New Requests</span>
+                                </label>
+                                <label class="settings-checkbox">
+                                    <input type="checkbox" id="discord-type-available" ${notificationSettings.discord?.types?.includes('media_available') ? 'checked' : ''}>
+                                    <span>Available</span>
+                                </label>
+                            </div>
+                            <div class="settings-actions" style="margin-top: 16px;">
+                                <button class="settings-btn" onclick="testNotification('discord')">
+                                    <i class="fab fa-discord"></i> Send Test Message
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Telegram Settings -->
+                    <div class="settings-card">
+                        <div class="settings-card-header">
+                            <h3><i class="fab fa-telegram"></i> Telegram</h3>
+                            <label class="settings-toggle">
+                                <input type="checkbox" id="telegram-enabled" ${notificationSettings.telegram?.enabled ? 'checked' : ''} onchange="toggleNotificationSection('telegram')">
+                                <span class="settings-toggle-slider"></span>
+                            </label>
+                        </div>
+                        <div class="settings-form" id="telegram-settings-form" style="${notificationSettings.telegram?.enabled ? '' : 'display: none;'}">
+                            <div class="settings-row">
+                                <label>Bot Token</label>
+                                <input type="password" id="telegram-bot-token" placeholder="123456789:ABCdefGHIjklMNOpqrsTUVwxyz" value="${notificationSettings.telegram?.botToken || ''}">
+                            </div>
+                            <div class="settings-row">
+                                <label>Bot Username (optional)</label>
+                                <input type="text" id="telegram-bot-username" placeholder="@YourBotName" value="${notificationSettings.telegram?.botUsername || ''}">
+                                <small style="color: #64748b; font-size: 12px; margin-top: 4px; display: block;">Display this in user settings so they can message your bot for personal notifications</small>
+                            </div>
+                            <div class="settings-row">
+                                <label>Chat ID</label>
+                                <input type="text" id="telegram-chat-id" placeholder="-1001234567890 or @channelname" value="${notificationSettings.telegram?.chatId || ''}">
+                            </div>
+                            <div class="settings-row">
+                                <label class="settings-checkbox">
+                                    <input type="checkbox" id="telegram-send-silently" ${notificationSettings.telegram?.sendSilently ? 'checked' : ''}>
+                                    <span>Send messages silently (no notification sound)</span>
+                                </label>
+                            </div>
+                            <p style="color: #94a3b8; font-size: 13px; margin: 16px 0 8px 0; font-weight: 500;">Send Telegram messages for:</p>
+                            <div class="notif-type-grid">
+                                <label class="settings-checkbox">
+                                    <input type="checkbox" id="telegram-type-pending" ${notificationSettings.telegram?.types?.includes('media_pending') ? 'checked' : ''}>
+                                    <span>New Requests</span>
+                                </label>
+                                <label class="settings-checkbox">
+                                    <input type="checkbox" id="telegram-type-available" ${notificationSettings.telegram?.types?.includes('media_available') ? 'checked' : ''}>
+                                    <span>Available</span>
+                                </label>
+                            </div>
+                            <div class="settings-actions" style="margin-top: 16px;">
+                                <button class="settings-btn" onclick="testNotification('telegram')">
+                                    <i class="fab fa-telegram"></i> Send Test Message
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Webhook Settings -->
+                    <div class="settings-card">
+                        <div class="settings-card-header">
+                            <h3><i class="fas fa-globe"></i> Webhook</h3>
+                            <label class="settings-toggle">
+                                <input type="checkbox" id="webhook-enabled" ${notificationSettings.webhook?.enabled ? 'checked' : ''} onchange="toggleNotificationSection('webhook')">
+                                <span class="settings-toggle-slider"></span>
+                            </label>
+                        </div>
+                        <div class="settings-form" id="webhook-settings-form" style="${notificationSettings.webhook?.enabled ? '' : 'display: none;'}">
+                            <div class="settings-row">
+                                <label>Webhook URL</label>
+                                <input type="text" id="webhook-url" placeholder="https://your-server.com/webhook" value="${notificationSettings.webhook?.webhookUrl || ''}">
+                            </div>
+                            <div class="settings-row">
+                                <label>Authorization Header (optional)</label>
+                                <input type="text" id="webhook-auth-header" placeholder="Bearer your-token-here" value="${notificationSettings.webhook?.authHeader || ''}">
+                            </div>
+                            <div class="settings-row">
+                                <label>JSON Payload (optional)</label>
+                                <textarea id="webhook-json-payload" rows="8" style="font-family: monospace; font-size: 12px; background: #0f172a; border: 1px solid #334155; border-radius: 6px; padding: 12px; color: #e2e8f0; resize: vertical;" placeholder='{"notification_type": "{{notification_type}}", "subject": "{{subject}}"}'>${notificationSettings.webhook?.jsonPayload || ''}</textarea>
+                                <small style="color: #64748b; font-size: 12px; margin-top: 8px; display: block;">
+                                    <strong>Available placeholders:</strong><br>
+                                    <code style="color: #94a3b8;">{{notification_type}}</code> - Event type (media_pending, media_approved, etc.)<br>
+                                    <code style="color: #94a3b8;">{{subject}}</code> - Media title<br>
+                                    <code style="color: #94a3b8;">{{message}}</code> - Full notification message<br>
+                                    <code style="color: #94a3b8;">{{image}}</code> - Poster image URL<br>
+                                    <code style="color: #94a3b8;">{{media_title}}</code>, <code style="color: #94a3b8;">{{media_type}}</code>, <code style="color: #94a3b8;">{{media_tmdbid}}</code>, <code style="color: #94a3b8;">{{media_is4k}}</code><br>
+                                    <code style="color: #94a3b8;">{{request_id}}</code>, <code style="color: #94a3b8;">{{requestedby_username}}</code>, <code style="color: #94a3b8;">{{extra}}</code> (decline reason)
+                                </small>
+                            </div>
+                            <p style="color: #94a3b8; font-size: 13px; margin: 16px 0 8px 0; font-weight: 500;">Send webhook for:</p>
+                            <div class="notif-type-grid">
+                                <label class="settings-checkbox">
+                                    <input type="checkbox" id="webhook-type-pending" ${notificationSettings.webhook?.types?.includes('media_pending') ? 'checked' : ''}>
+                                    <span>New Requests</span>
+                                </label>
+                                <label class="settings-checkbox">
+                                    <input type="checkbox" id="webhook-type-available" ${notificationSettings.webhook?.types?.includes('media_available') ? 'checked' : ''}>
+                                    <span>Available</span>
+                                </label>
+                            </div>
+                            <div class="settings-actions" style="margin-top: 16px;">
+                                <button class="settings-btn" onclick="testNotification('webhook')">
+                                    <i class="fas fa-globe"></i> Send Test Webhook
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- WebPush Settings -->
+                    <div class="settings-card">
+                        <div class="settings-card-header">
+                            <h3><i class="fas fa-mobile-alt"></i> Web Push</h3>
+                            <label class="settings-toggle">
+                                <input type="checkbox" id="webpush-enabled" ${notificationSettings.webpush?.enabled ? 'checked' : ''} onchange="toggleNotificationSection('webpush')">
+                                <span class="settings-toggle-slider"></span>
+                            </label>
+                        </div>
+                        <div class="settings-form" id="webpush-settings-form" style="${notificationSettings.webpush?.enabled ? '' : 'display: none;'}">
+                            <div style="background: #1e293b; border-radius: 8px; padding: 16px; margin-bottom: 16px; border-left: 4px solid #6366f1;">
+                                <h4 style="margin: 0 0 8px 0; color: #e2e8f0; font-size: 14px;"><i class="fas fa-info-circle" style="margin-right: 8px;"></i>How Web Push Works</h4>
+                                <p style="color: #94a3b8; font-size: 13px; margin: 0; line-height: 1.5;">
+                                    Web Push sends browser notifications to users even when they're not on the site. Users can add the portal to their phone's home screen for a native app experience.
+                                    To receive notifications, users must:<br>
+                                    <span style="color: #e2e8f0;">1.</span> Visit the portal in their browser<br>
+                                    <span style="color: #e2e8f0;">2.</span> Allow notifications when prompted<br>
+                                    <span style="color: #e2e8f0;">3.</span> Optionally add to home screen (iOS Safari / Android Chrome)
+                                </p>
+                            </div>
+                            <p style="color: #94a3b8; font-size: 13px; margin-bottom: 8px; font-weight: 500;">Send push notifications for:</p>
+                            <div class="notif-type-grid">
+                                <label class="settings-checkbox">
+                                    <input type="checkbox" id="webpush-type-approved" ${notificationSettings.webpush?.types?.includes('media_approved') ? 'checked' : ''}>
+                                    <span>Approved</span>
+                                </label>
+                                <label class="settings-checkbox">
+                                    <input type="checkbox" id="webpush-type-declined" ${notificationSettings.webpush?.types?.includes('media_declined') ? 'checked' : ''}>
+                                    <span>Declined</span>
+                                </label>
+                                <label class="settings-checkbox">
+                                    <input type="checkbox" id="webpush-type-available" ${notificationSettings.webpush?.types?.includes('media_available') ? 'checked' : ''}>
+                                    <span>Available</span>
+                                </label>
+                            </div>
+                            <div class="settings-actions" style="margin-top: 16px;">
+                                <button class="settings-btn" onclick="generateVapidKeys()">
+                                    <i class="fas fa-key"></i> Generate VAPID Keys
+                                </button>
+                            </div>
+                            <small style="color: #64748b; font-size: 12px; margin-top: 12px; display: block;">
+                                VAPID keys are required for browser push notifications. Generate once - keys are saved to your database.
+                            </small>
+                        </div>
+                    </div>
+
+                    <!-- Save Button -->
+                    <div class="settings-actions">
+                        <button class="settings-btn settings-btn-primary" onclick="saveNotificationSettings(event)">
+                            <i class="fas fa-save"></i> Save All Settings
+                        </button>
+                    </div>
+                `;
+            } catch (error) {
+                console.error('Error loading notification settings:', error);
+                container.innerHTML = `
+                    <div class="request-empty-state">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <h3>Failed to Load Settings</h3>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        function toggleNotificationSection(channel) {
+            const enabled = document.getElementById(`${channel}-enabled`)?.checked;
+            const form = document.getElementById(`${channel}-settings-form`);
+            if (form) {
+                form.style.display = enabled ? '' : 'none';
+            }
+        }
+
+        async function testNotification(channel) {
+            const token = localStorage.getItem('sessionToken') || sessionStorage.getItem('sessionToken');
+            let settings = {};
+
+            if (channel === 'discord') {
+                settings.webhookUrl = document.getElementById('discord-webhook-url')?.value;
+                settings.botUsername = document.getElementById('discord-bot-username')?.value;
+                settings.botAvatarUrl = document.getElementById('discord-bot-avatar')?.value;
+            } else if (channel === 'telegram') {
+                settings.botToken = document.getElementById('telegram-bot-token')?.value;
+                settings.chatId = document.getElementById('telegram-chat-id')?.value;
+                settings.sendSilently = document.getElementById('telegram-send-silently')?.checked;
+            } else if (channel === 'webhook') {
+                settings.webhookUrl = document.getElementById('webhook-url')?.value;
+                settings.authHeader = document.getElementById('webhook-auth-header')?.value;
+                settings.jsonPayload = document.getElementById('webhook-json-payload')?.value;
+            } else if (channel === 'webpush') {
+                showRequestToast('Web Push requires users to subscribe via their browser. Enable Web Push and save settings first, then users can subscribe from the portal.', 'info');
+                return;
+            }
+
+            try {
+                showRequestToast(`Sending test ${channel} notification...`, 'info');
+                const response = await fetch(`/api/v2/request-site/notifications/test/${channel}`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(settings)
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    showRequestToast(`Test ${channel} notification sent!`, 'success');
+                } else {
+                    showRequestToast(`Failed: ${data.error || 'Unknown error'}`, 'error');
+                }
+            } catch (error) {
+                showRequestToast(`Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function generateVapidKeys() {
+            const token = localStorage.getItem('sessionToken') || sessionStorage.getItem('sessionToken');
+            try {
+                showRequestToast('Generating VAPID keys...', 'info');
+                const response = await fetch('/api/v2/request-site/notifications/webpush/generate-vapid', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    showRequestToast('VAPID keys generated successfully!', 'success');
+                } else {
+                    const data = await response.json();
+                    showRequestToast(`Failed: ${data.error || 'Unknown error'}`, 'error');
+                }
+            } catch (error) {
+                showRequestToast(`Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function saveNotificationSettings(event) {
+            const btn = event?.target || document.querySelector('[onclick*="saveNotificationSettings"]');
+            if (btn?.disabled) return;
+            setButtonLoading(btn, true);
+
+            const token = localStorage.getItem('sessionToken') || sessionStorage.getItem('sessionToken');
+
+            // Helper to collect notification types for a channel
+            function getChannelTypes(channel, availableTypes) {
+                return availableTypes.filter(type =>
+                    document.getElementById(`${channel}-type-${type.replace('media_', '')}`)?.checked
+                );
+            }
+
+            const settings = {
+                notifyAdminOnRequest: document.getElementById('notify-admin-on-request')?.checked || false,
+                notifyApproversOnRequest: document.getElementById('notify-approvers-on-request')?.checked || false,
+                notifyUserOnApproved: document.getElementById('notify-user-on-approved')?.checked || false,
+                notifyUserOnDeclined: document.getElementById('notify-user-on-declined')?.checked || false,
+                notifyUserOnAvailable: document.getElementById('notify-user-on-available')?.checked || false,
+                email: {
+                    enabled: document.getElementById('email-enabled')?.checked || false,
+                    types: getChannelTypes('email', ['media_pending', 'media_approved', 'media_declined', 'media_available'])
+                },
+                discord: {
+                    enabled: document.getElementById('discord-enabled')?.checked || false,
+                    webhookUrl: document.getElementById('discord-webhook-url')?.value || '',
+                    botUsername: document.getElementById('discord-bot-username')?.value || '',
+                    botAvatarUrl: document.getElementById('discord-bot-avatar')?.value || '',
+                    types: getChannelTypes('discord', ['media_pending', 'media_available'])
+                },
+                telegram: {
+                    enabled: document.getElementById('telegram-enabled')?.checked || false,
+                    botToken: document.getElementById('telegram-bot-token')?.value || '',
+                    botUsername: document.getElementById('telegram-bot-username')?.value || '',
+                    chatId: document.getElementById('telegram-chat-id')?.value || '',
+                    sendSilently: document.getElementById('telegram-send-silently')?.checked || false,
+                    types: getChannelTypes('telegram', ['media_pending', 'media_available'])
+                },
+                webhook: {
+                    enabled: document.getElementById('webhook-enabled')?.checked || false,
+                    webhookUrl: document.getElementById('webhook-url')?.value || '',
+                    authHeader: document.getElementById('webhook-auth-header')?.value || '',
+                    jsonPayload: document.getElementById('webhook-json-payload')?.value || '',
+                    types: getChannelTypes('webhook', ['media_pending', 'media_available'])
+                },
+                webpush: {
+                    enabled: document.getElementById('webpush-enabled')?.checked || false,
+                    types: getChannelTypes('webpush', ['media_approved', 'media_declined', 'media_available'])
+                }
+            };
+
+            try {
+                const response = await fetch('/api/v2/request-site/notifications/settings', {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(settings)
+                });
+
+                if (response.ok) {
+                    showRequestToast('Notification settings saved!', 'success');
+                } else {
+                    const data = await response.json();
+                    showRequestToast(`Failed: ${data.error || 'Unknown error'}`, 'error');
+                }
+            } catch (error) {
+                showRequestToast(`Error: ${error.message}`, 'error');
+            } finally {
+                setButtonLoading(btn, false);
+            }
         }
 
         async function saveRequestSettings(event) {
@@ -13230,7 +14016,9 @@
             sonarr: { icon: 'fa-tv', color: '#3b82f6' },
             radarr: { icon: 'fa-film', color: '#f59e0b' },
             qbittorrent: { icon: 'fa-magnet', color: '#a855f7' },
-            sabnzbd: { icon: 'fa-download', color: '#f97316' }
+            sabnzbd: { icon: 'fa-download', color: '#f97316' },
+            other_arr: { icon: 'fa-cube', color: '#10b981' },
+            other: { icon: 'fa-cog', color: '#6b7280' }
         };
 
         async function loadManagersSettings(container) {
@@ -13280,33 +14068,53 @@
 
             return settingsManagers.map(manager => {
                 const iconInfo = managerIcons[manager.type] || { icon: 'fa-server', color: '#6b7280' };
+                // Use effective_icon image if available, otherwise fallback to Font Awesome icon with colored background
+                const hasImage = !!manager.effective_icon;
+                const iconContent = hasImage
+                    ? `<img src="${escapeHtml(manager.effective_icon)}" alt="${escapeHtml(manager.name)}" style="width: 36px; height: 36px; object-fit: contain;" onerror="this.style.display='none'; this.nextElementSibling.style.display='block'; this.parentElement.style.background='linear-gradient(135deg, ${iconInfo.color} 0%, ${adjustManagerColor(iconInfo.color, -20)} 100%)';">
+                       <i class="fas ${iconInfo.icon}" style="display: none;"></i>`
+                    : `<i class="fas ${iconInfo.icon}"></i>`;
+                // Only show colored background if no image
+                const bgStyle = hasImage ? 'background: transparent;' : `background: linear-gradient(135deg, ${iconInfo.color} 0%, ${adjustManagerColor(iconInfo.color, -20)} 100%);`;
+
+                // Build credentials section - stored in data attribute for lazy loading
+                const hasCredentials = manager.type === 'qbittorrent' || manager.type === 'sabnzbd' || manager.type === 'other_arr' || manager.type === 'other' || manager.type === 'sonarr' || manager.type === 'radarr';
+
                 return `
-                    <div class="settings-card">
-                        <div class="settings-card-icon" style="background: linear-gradient(135deg, ${iconInfo.color} 0%, ${adjustManagerColor(iconInfo.color, -20)} 100%);">
-                            <i class="fas ${iconInfo.icon}"></i>
-                        </div>
-                        <div class="settings-card-info">
-                            <div class="settings-card-title">
-                                ${escapeHtml(manager.name)}
-                                <span class="settings-badge">${manager.type}</span>
-                                <span class="settings-badge">${manager.connection_mode}</span>
-                                ${!manager.is_enabled ? '<span class="settings-badge settings-badge-disabled">Disabled</span>' : ''}
+                    <div class="settings-card-wrapper">
+                        <div class="settings-card" onclick="toggleManagerExpand(${manager.id})" style="cursor: pointer;">
+                            <div class="settings-card-icon" style="${bgStyle}">
+                                ${iconContent}
                             </div>
-                            <div class="settings-card-subtitle">${escapeHtml(manager.url)}</div>
+                            <div class="settings-card-info">
+                                <div class="settings-card-title">
+                                    ${escapeHtml(manager.name)}
+                                    <span class="settings-badge">${manager.type}</span>
+                                    <span class="settings-badge">${manager.connection_mode}</span>
+                                    ${!manager.is_enabled ? '<span class="settings-badge settings-badge-disabled">Disabled</span>' : ''}
+                                </div>
+                                <div class="settings-card-subtitle">${escapeHtml(manager.url)}</div>
+                            </div>
+                            <div class="settings-card-status" id="manager-status-${manager.id}">
+                                <i class="fas fa-circle"></i> Checking...
+                            </div>
+                            <div class="settings-card-actions" onclick="event.stopPropagation();">
+                                <button class="settings-btn settings-btn-sm" onclick="openManager(${manager.id})" title="Open">
+                                    <i class="fas fa-external-link-alt"></i>
+                                </button>
+                                <button class="settings-btn settings-btn-sm" onclick="editManager(${manager.id})" title="Edit">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button class="settings-btn settings-btn-sm settings-btn-danger" onclick="deleteManager(${manager.id})" title="Delete">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                                <button class="settings-card-expand-btn" id="manager-expand-btn-${manager.id}" onclick="toggleManagerExpand(${manager.id})" title="Show credentials">
+                                    <i class="fas fa-chevron-down"></i>
+                                </button>
+                            </div>
                         </div>
-                        <div class="settings-card-status" id="manager-status-${manager.id}">
-                            <i class="fas fa-circle"></i> Checking...
-                        </div>
-                        <div class="settings-card-actions">
-                            <button class="settings-btn settings-btn-sm" onclick="openManager(${manager.id})" title="Open">
-                                <i class="fas fa-external-link-alt"></i>
-                            </button>
-                            <button class="settings-btn settings-btn-sm" onclick="editManager(${manager.id})" title="Edit">
-                                <i class="fas fa-edit"></i>
-                            </button>
-                            <button class="settings-btn settings-btn-sm settings-btn-danger" onclick="deleteManager(${manager.id})" title="Delete">
-                                <i class="fas fa-trash"></i>
-                            </button>
+                        <div class="settings-card-credentials" id="manager-creds-${manager.id}">
+                            <div class="request-loading" style="padding: 10px;"><div class="request-loading-spinner" style="width: 20px; height: 20px;"></div></div>
                         </div>
                     </div>
                 `;
@@ -13380,6 +14188,8 @@
                                     <option value="radarr">Radarr (Movies)</option>
                                     <option value="qbittorrent">qBittorrent</option>
                                     <option value="sabnzbd">SABnzbd</option>
+                                    <option value="other_arr">Other *Arr (Prowlarr, Lidarr, etc.)</option>
+                                    <option value="other">Other Tool</option>
                                 </select>
                             </div>
                             <div class="form-group">
@@ -13398,11 +14208,24 @@
                                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
                                     <div>
                                         <label for="manager-username">Username</label>
-                                        <input type="text" id="manager-username" class="form-control" placeholder="Username">
+                                        <div style="position: relative;">
+                                            <input type="text" id="manager-username" class="form-control" placeholder="Username" style="padding-right: 36px;">
+                                            <button type="button" class="copy-field-btn" onclick="copyFieldValue('manager-username')" title="Copy username">
+                                                <i class="fas fa-copy"></i>
+                                            </button>
+                                        </div>
                                     </div>
                                     <div>
                                         <label for="manager-password">Password</label>
-                                        <input type="password" id="manager-password" class="form-control" placeholder="Password">
+                                        <div style="position: relative;">
+                                            <input type="password" id="manager-password" class="form-control" placeholder="Password" style="padding-right: 70px;">
+                                            <button type="button" class="toggle-password-btn" onclick="togglePasswordVisibility('manager-password', this)" title="Show/hide password">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                            <button type="button" class="copy-field-btn" onclick="copyFieldValue('manager-password')" title="Copy password" style="right: 36px;">
+                                                <i class="fas fa-copy"></i>
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -13413,6 +14236,11 @@
                                     <option value="direct">Direct (Iframe)</option>
                                 </select>
                                 <small style="color: #94a3b8; font-size: 12px; margin-top: 4px; display: block;">Proxy mode routes through your server to avoid CORS issues.</small>
+                            </div>
+                            <div class="form-group">
+                                <label for="manager-icon-url">Custom Icon URL (Optional)</label>
+                                <input type="url" id="manager-icon-url" class="form-control" placeholder="https://example.com/logo.png">
+                                <small style="color: #94a3b8; font-size: 12px; margin-top: 4px; display: block;">Leave empty to use the default icon for this tool type.</small>
                             </div>
                             <div class="form-group">
                                 <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
@@ -13440,12 +14268,57 @@
             const apiKeyGroup = document.getElementById('manager-apikey-group');
             const credentialsGroup = document.getElementById('manager-credentials-group');
 
+            // All types now support username/password for web UI auto-login
+            // API key is still used for API calls (Sonarr/Radarr/SABnzbd/other_arr)
             if (type === 'qbittorrent') {
+                // qBittorrent only needs credentials (no API key)
+                apiKeyGroup.style.display = 'none';
+                credentialsGroup.style.display = 'block';
+            } else if (type === 'sonarr' || type === 'radarr' || type === 'sabnzbd' || type === 'other_arr') {
+                // *arr tools need both API key (for API) and credentials (for web UI auto-login)
+                apiKeyGroup.style.display = 'block';
+                credentialsGroup.style.display = 'block';
+            } else if (type === 'other') {
+                // Other tools - show credentials only, no API key
                 apiKeyGroup.style.display = 'none';
                 credentialsGroup.style.display = 'block';
             } else {
                 apiKeyGroup.style.display = 'block';
                 credentialsGroup.style.display = 'none';
+            }
+        }
+
+        function copyFieldValue(fieldId) {
+            const field = document.getElementById(fieldId);
+            if (!field || !field.value) {
+                showRequestToast('Nothing to copy', 'error');
+                return;
+            }
+            navigator.clipboard.writeText(field.value).then(() => {
+                const btn = field.parentElement.querySelector('.copy-field-btn');
+                if (btn) {
+                    btn.classList.add('copied');
+                    btn.innerHTML = '<i class="fas fa-check"></i>';
+                    setTimeout(() => {
+                        btn.classList.remove('copied');
+                        btn.innerHTML = '<i class="fas fa-copy"></i>';
+                    }, 1500);
+                }
+                showRequestToast('Copied to clipboard', 'success');
+            }).catch(() => {
+                showRequestToast('Failed to copy', 'error');
+            });
+        }
+
+        function togglePasswordVisibility(fieldId, btn) {
+            const field = document.getElementById(fieldId);
+            if (!field) return;
+            if (field.type === 'password') {
+                field.type = 'text';
+                btn.innerHTML = '<i class="fas fa-eye-slash"></i>';
+            } else {
+                field.type = 'password';
+                btn.innerHTML = '<i class="fas fa-eye"></i>';
             }
         }
 
@@ -13469,6 +14342,7 @@
                 document.getElementById('manager-username').value = manager.username || '';
                 document.getElementById('manager-password').value = manager.password || '';
                 document.getElementById('manager-connection-mode').value = manager.connection_mode;
+                document.getElementById('manager-icon-url').value = manager.icon_url || '';
                 document.getElementById('manager-enabled').checked = manager.is_enabled;
 
                 onManagerTypeChange();
@@ -13493,6 +14367,7 @@
                 username: document.getElementById('manager-username').value || null,
                 password: document.getElementById('manager-password').value || null,
                 connection_mode: document.getElementById('manager-connection-mode').value,
+                icon_url: document.getElementById('manager-icon-url').value || null,
                 is_enabled: document.getElementById('manager-enabled').checked
             };
 
@@ -13543,6 +14418,138 @@
             } catch (error) {
                 showRequestToast('Failed to remove tool', 'error');
             }
+        }
+
+        // Toggle expand/collapse for manager credentials
+        async function toggleManagerExpand(managerId) {
+            const credsEl = document.getElementById(`manager-creds-${managerId}`);
+            const btn = document.getElementById(`manager-expand-btn-${managerId}`);
+            if (!credsEl) return;
+
+            const isExpanded = credsEl.classList.contains('show');
+
+            if (isExpanded) {
+                // Collapse
+                credsEl.classList.remove('show');
+                if (btn) {
+                    btn.classList.remove('expanded');
+                    btn.title = 'Show credentials';
+                }
+            } else {
+                // Expand and load credentials
+                if (btn) {
+                    btn.classList.add('expanded');
+                    btn.title = 'Hide credentials';
+                }
+                credsEl.classList.add('show');
+
+                // Load credentials from API
+                const token = localStorage.getItem('sessionToken') || sessionStorage.getItem('sessionToken');
+                try {
+                    const response = await fetch(`/api/v2/media-managers/${managerId}`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    const data = await response.json();
+                    const manager = data.manager;
+
+                    // Determine which credentials to show based on type
+                    const showApiKey = ['sonarr', 'radarr', 'sabnzbd', 'other_arr'].includes(manager.type);
+                    const showUsername = !!manager.username;
+                    const showPassword = !!manager.password;
+
+                    if (!showApiKey && !showUsername && !showPassword) {
+                        credsEl.innerHTML = '<div class="no-credentials">No credentials configured for this tool</div>';
+                        return;
+                    }
+
+                    let html = '<div class="credentials-row">';
+
+                    if (showApiKey && manager.api_key) {
+                        html += `
+                            <div class="credential-field">
+                                <div class="credential-label">API Key</div>
+                                <div class="credential-value">
+                                    <input type="password" value="${escapeHtml(manager.api_key)}" readonly id="cred-apikey-${managerId}">
+                                    <button type="button" class="toggle-btn" onclick="toggleCredentialVisibility('cred-apikey-${managerId}', this)" title="Show/Hide">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                    <button type="button" class="copy-btn" onclick="copyCredential('cred-apikey-${managerId}', this)" title="Copy">
+                                        <i class="fas fa-copy"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        `;
+                    }
+
+                    if (showUsername) {
+                        html += `
+                            <div class="credential-field">
+                                <div class="credential-label">Username</div>
+                                <div class="credential-value">
+                                    <input type="text" value="${escapeHtml(manager.username)}" readonly id="cred-username-${managerId}">
+                                    <button type="button" class="copy-btn" onclick="copyCredential('cred-username-${managerId}', this)" title="Copy">
+                                        <i class="fas fa-copy"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        `;
+                    }
+
+                    if (showPassword) {
+                        html += `
+                            <div class="credential-field">
+                                <div class="credential-label">Password</div>
+                                <div class="credential-value">
+                                    <input type="password" value="${escapeHtml(manager.password)}" readonly id="cred-password-${managerId}">
+                                    <button type="button" class="toggle-btn" onclick="toggleCredentialVisibility('cred-password-${managerId}', this)" title="Show/Hide">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                    <button type="button" class="copy-btn" onclick="copyCredential('cred-password-${managerId}', this)" title="Copy">
+                                        <i class="fas fa-copy"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        `;
+                    }
+
+                    html += '</div>';
+                    credsEl.innerHTML = html;
+
+                } catch (error) {
+                    console.error('Failed to load credentials:', error);
+                    credsEl.innerHTML = '<div class="no-credentials" style="color: #ef4444;">Failed to load credentials</div>';
+                }
+            }
+        }
+
+        function toggleCredentialVisibility(inputId, btn) {
+            const input = document.getElementById(inputId);
+            if (!input) return;
+
+            if (input.type === 'password') {
+                input.type = 'text';
+                btn.innerHTML = '<i class="fas fa-eye-slash"></i>';
+            } else {
+                input.type = 'password';
+                btn.innerHTML = '<i class="fas fa-eye"></i>';
+            }
+        }
+
+        function copyCredential(inputId, btn) {
+            const input = document.getElementById(inputId);
+            if (!input || !input.value) return;
+
+            navigator.clipboard.writeText(input.value).then(() => {
+                btn.classList.add('copied');
+                btn.innerHTML = '<i class="fas fa-check"></i>';
+                setTimeout(() => {
+                    btn.classList.remove('copied');
+                    btn.innerHTML = '<i class="fas fa-copy"></i>';
+                }, 1500);
+                showRequestToast('Copied to clipboard', 'success');
+            }).catch(() => {
+                showRequestToast('Failed to copy', 'error');
+            });
         }
 
         async function testManagerConnection() {
@@ -13601,23 +14608,36 @@
         async function openManager(managerId) {
             const token = localStorage.getItem('sessionToken') || sessionStorage.getItem('sessionToken');
             try {
-                const response = await fetch(`/api/v2/media-managers/${managerId}/open-url`, {
+                // Fetch manager info to determine how to open it
+                const response = await fetch(`/api/v2/media-managers/${managerId}`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
                 const data = await response.json();
+                const manager = data.manager;
 
-                if (data.connection_mode === 'proxy') {
-                    window.open(`/admin/tool-proxy.html?id=${managerId}`, '_blank');
-                } else {
-                    window.open(data.url, '_blank');
+                // For any manager with credentials, use auto-login page
+                if (manager.username && manager.password) {
+                    window.open(`/admin/tool-login.html?id=${managerId}`, '_blank');
+                    return;
                 }
+
+                // For proxy mode (without web UI credentials), use proxy viewer
+                if (manager.connection_mode === 'proxy') {
+                    window.open(`/admin/tool-proxy.html?id=${managerId}`, '_blank');
+                    return;
+                }
+
+                // For direct mode with API key only, append API key to URL
+                let openUrl = manager.url;
+                if (manager.api_key) {
+                    if (manager.type === 'sonarr' || manager.type === 'radarr' || manager.type === 'sabnzbd') {
+                        openUrl += `?apikey=${manager.api_key}`;
+                    }
+                }
+                window.open(openUrl, '_blank');
             } catch (error) {
                 showRequestToast('Failed to open tool', 'error');
             }
-        }
-
-        function saveNotificationSettings() {
-            showRequestToast('Notification settings saved', 'success');
         }
 
         // Close modal on escape key
