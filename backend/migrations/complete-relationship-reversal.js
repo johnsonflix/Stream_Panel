@@ -6,7 +6,7 @@
 const Database = require('better-sqlite3');
 const path = require('path');
 
-const dbPath = path.join(__dirname, '../subsapp_v2.db');
+const dbPath = process.env.DB_PATH || '/app/data/subsapp_v2.db';
 const db = new Database(dbPath);
 
 console.log('🔄 Completing playlist-panel relationship reversal...');

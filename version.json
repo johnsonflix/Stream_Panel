@@ -1,6 +1,6 @@
 {
-  "version": "1.5.4",
+  "version": "1.5.5",
   "name": "Stream Panel",
   "releaseDate": "2025-12-29",
-  "description": "Request Site Notification System (Discord, Telegram, Webhook, Email, WebPush), Media Managers with auto-login, Live TV hero banner, expandable credentials cards"
+  "description": "Hotfix - Complete file sync to ensure all features and migrations are included"
 }

@@ -10,7 +10,7 @@
 const Database = require('better-sqlite3');
 const path = require('path');
 
-const DB_PATH = process.env.DB_PATH || path.join(__dirname, '..', 'subsapp_v2.db');
+const DB_PATH = process.env.DB_PATH || process.env.DB_PATH || '/app/data/subsapp_v2.db';
 const db = new Database(DB_PATH);
 
 function migrate() {

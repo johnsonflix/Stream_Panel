@@ -118,6 +118,7 @@ async function up() {
                     iptv_cancellation_reason TEXT DEFAULT NULL,
                     last_iptv_activity DATETIME,
                     plex_sso_required INTEGER DEFAULT 0,
+                    rs_has_access INTEGER DEFAULT NULL,
 
                     FOREIGN KEY (iptv_panel_id) REFERENCES iptv_panels(id) ON DELETE SET NULL
                 )
@@ -147,7 +148,7 @@ async function up() {
                     plex_sso_last_verified, payment_preference, custom_payment_methods,
                     plex_cancelled_at, plex_scheduled_deletion, iptv_cancelled_at,
                     iptv_scheduled_deletion, plex_cancellation_reason, iptv_cancellation_reason,
-                    last_iptv_activity, plex_sso_required
+                    last_iptv_activity, plex_sso_required, rs_has_access
                 FROM users
             `);
             console.log('Copied data to users_new');

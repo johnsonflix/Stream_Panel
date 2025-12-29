@@ -20,7 +20,7 @@ function migrate() {
         CREATE TABLE IF NOT EXISTS media_managers (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
-            type TEXT NOT NULL CHECK(type IN ('sonarr', 'radarr', 'qbittorrent', 'sabnzbd')),
+            type TEXT NOT NULL CHECK(type IN ('sonarr', 'radarr', 'qbittorrent', 'sabnzbd', 'other_arr', 'other')),
             url TEXT NOT NULL,
             api_key TEXT,
             username TEXT,
@@ -28,6 +28,7 @@ function migrate() {
             connection_mode TEXT DEFAULT 'proxy' CHECK(connection_mode IN ('direct', 'proxy')),
             is_enabled INTEGER DEFAULT 1,
             display_order INTEGER DEFAULT 0,
+            icon_url TEXT,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )

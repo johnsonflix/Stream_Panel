@@ -24,6 +24,9 @@ const Settings = {
                     <button class="tab active" data-tab="plex-servers">
                         <i class="fas fa-server"></i> Plex Servers
                     </button>
+                    <button class="tab" data-tab="media-managers">
+                        <i class="fas fa-tools"></i> Media Managers
+                    </button>
                     <button class="tab" data-tab="iptv-panels">
                         <i class="fas fa-network-wired"></i> IPTV Panels
                     </button>
@@ -64,6 +67,13 @@ const Settings = {
 
                 <!-- Tab Contents -->
                 <div id="plex-servers" class="tab-content active">
+                    <div class="text-center mt-4 mb-4">
+                        <div class="spinner" style="margin: 0 auto;"></div>
+                        <p class="mt-2">Loading...</p>
+                    </div>
+                </div>
+
+                <div id="media-managers" class="tab-content">
                     <div class="text-center mt-4 mb-4">
                         <div class="spinner" style="margin: 0 auto;"></div>
                         <p class="mt-2">Loading...</p>
@@ -186,6 +196,9 @@ const Settings = {
         switch (tabName) {
             case 'plex-servers':
                 await this.loadPlexServers();
+                break;
+            case 'media-managers':
+                await this.loadMediaManagers();
                 break;
             case 'iptv-panels':
                 await this.loadIPTVPanels();
@@ -796,6 +809,634 @@ const Settings = {
             Utils.hideLoading();
             Utils.showToast('Success', 'Package deleted successfully', 'success');
             await this.loadPlexPackages();
+        } catch (error) {
+            Utils.hideLoading();
+            Utils.showToast('Error', error.message, 'error');
+        }
+    },
+
+    // ============ Media Managers ============
+    mediaManagers: [],
+
+    /**
+     * Load Media Managers
+     */
+    async loadMediaManagers() {
+        const container = document.getElementById('media-managers');
+
+        try {
+            const response = await fetch('/api/v2/media-managers', {
+                headers: { 'Authorization': `Bearer ${API.getSessionToken()}` }
+            });
+            const data = await response.json();
+            this.mediaManagers = data.managers || [];
+
+            // Check status for all managers in background
+            if (this.mediaManagers.length > 0) {
+                this.mediaManagers.forEach(m => this.checkMediaManagerStatus(m.id));
+            }
+
+            container.innerHTML = `
+                <div style="padding: 1.5rem;">
+                    <div class="flex justify-between items-center mb-3">
+                        <div>
+                            <h3><i class="fas fa-tools"></i> Media Managers (${this.mediaManagers.length})</h3>
+                            <p style="color: var(--text-secondary); font-size: 0.875rem;">
+                                Configure Sonarr, Radarr, qBittorrent, SABnzbd, and other tools for quick access
+                            </p>
+                        </div>
+                        <button class="btn btn-primary" onclick="Settings.showAddMediaManagerModal()">
+                            <i class="fas fa-plus"></i> Add Tool
+                        </button>
+                    </div>
+
+                    <div class="server-list" id="media-managers-list">
+                        ${this.renderMediaManagersList()}
+                    </div>
+                </div>
+            `;
+        } catch (error) {
+            console.error('Failed to load media managers:', error);
+            container.innerHTML = `
+                <div style="padding: 1.5rem;">
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-triangle"></i> Failed to load media managers
+                    </div>
+                </div>
+            `;
+        }
+    },
+
+    renderMediaManagersList() {
+        if (this.mediaManagers.length === 0) {
+            return `
+                <div class="empty-state">
+                    <i class="fas fa-tools"></i>
+                    <p>No media managers configured yet</p>
+                    <button class="btn btn-primary mt-2" onclick="Settings.showAddMediaManagerModal()">
+                        <i class="fas fa-plus"></i> Add Your First Tool
+                    </button>
+                </div>
+            `;
+        }
+
+        const iconMap = {
+            sonarr: { icon: 'fa-tv', color: '#3b82f6' },
+            radarr: { icon: 'fa-film', color: '#f59e0b' },
+            qbittorrent: { icon: 'fa-magnet', color: '#a855f7' },
+            sabnzbd: { icon: 'fa-download', color: '#f97316' },
+            other_arr: { icon: 'fa-server', color: '#10b981' },
+            other: { icon: 'fa-external-link-alt', color: '#6b7280' }
+        };
+
+        return this.mediaManagers.map(manager => {
+            const iconInfo = iconMap[manager.type] || { icon: 'fa-server', color: '#6b7280' };
+            const hasImage = !!manager.effective_icon;
+            const gradientBg = `linear-gradient(135deg, ${iconInfo.color} 0%, ${this.adjustColor(iconInfo.color, -30)} 100%)`;
+
+            // Constrained icon styles - fixed size container
+            const iconContainerStyle = `width: 48px; height: 48px; min-width: 48px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 20px; color: white; overflow: hidden; ${hasImage ? 'background: #1e293b;' : `background: ${gradientBg};`}`;
+
+            // Safe onerror handler using data attributes
+            const imgHtml = hasImage
+                ? `<img src="${Utils.escapeHtml(manager.effective_icon)}" alt="${Utils.escapeHtml(manager.name)}" style="width: 36px; height: 36px; object-fit: contain;" data-fallback-icon="${iconInfo.icon}" data-fallback-bg="${gradientBg}" onload="this.onerror=null;" onerror="Settings.handleIconError(this)">`
+                : `<i class="fas ${iconInfo.icon}"></i>`;
+
+            return `
+                <div class="mm-card-wrapper" style="margin-bottom: 12px; border: 1px solid #334155; border-radius: 12px; overflow: hidden;">
+                    <div class="server-card" data-manager-id="${manager.id}" onclick="Settings.toggleManagerExpand(${manager.id})" style="display: flex; align-items: center; gap: 16px; padding: 16px; background: #1e293b; cursor: pointer;">
+                        <div class="mm-icon-container" style="${iconContainerStyle}">
+                            ${imgHtml}
+                        </div>
+                        <div class="server-info" style="flex: 1; min-width: 0;">
+                            <div class="server-name" style="font-weight: 600; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                                ${Utils.escapeHtml(manager.name)}
+                                <span class="badge badge-secondary" style="font-size: 0.7rem; text-transform: uppercase;">${manager.type.replace('_', ' ')}</span>
+                                <span class="badge badge-secondary" style="font-size: 0.7rem; text-transform: uppercase;">${manager.connection_mode}</span>
+                                ${!manager.is_enabled ? '<span class="badge badge-danger" style="font-size: 0.7rem;">Disabled</span>' : ''}
+                            </div>
+                            <div class="server-url" style="color: var(--text-secondary); font-size: 0.85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${Utils.escapeHtml(manager.url)}</div>
+                        </div>
+                        <div class="server-status" id="media-manager-status-${manager.id}" style="white-space: nowrap; font-size: 0.85rem; color: #94a3b8;">
+                            <i class="fas fa-circle" style="font-size: 8px;"></i> Checking...
+                        </div>
+                        <div class="server-actions" style="display: flex; gap: 6px; align-items: center;" onclick="event.stopPropagation();">
+                            <button class="btn btn-sm btn-secondary" onclick="Settings.openMediaManager(${manager.id})" title="Open">
+                                <i class="fas fa-external-link-alt"></i>
+                            </button>
+                            <button class="btn btn-sm btn-secondary" onclick="Settings.editMediaManager(${manager.id})" title="Edit">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="btn btn-sm btn-danger" onclick="Settings.deleteMediaManager(${manager.id})" title="Delete">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                            <button class="btn btn-sm btn-secondary" id="mm-expand-btn-${manager.id}" onclick="Settings.toggleManagerExpand(${manager.id})" title="Show credentials" style="transition: transform 0.2s;">
+                                <i class="fas fa-chevron-down"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="mm-credentials" id="mm-creds-${manager.id}" style="display: none; padding: 16px; background: #0f172a; border-top: 1px solid #334155;">
+                        <div style="color: #94a3b8; font-size: 0.85rem;">Loading credentials...</div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    },
+
+    handleIconError(img) {
+        if (!img || !img.parentElement) return;
+        const icon = img.dataset.fallbackIcon || 'fa-server';
+        const bg = img.dataset.fallbackBg || '#6b7280';
+        img.style.display = 'none';
+        img.parentElement.innerHTML = `<i class="fas ${icon}"></i>`;
+        img.parentElement.style.background = bg;
+    },
+
+    adjustColor(hex, amount) {
+        const num = parseInt(hex.replace('#', ''), 16);
+        const r = Math.max(0, Math.min(255, (num >> 16) + amount));
+        const g = Math.max(0, Math.min(255, ((num >> 8) & 0x00FF) + amount));
+        const b = Math.max(0, Math.min(255, (num & 0x0000FF) + amount));
+        return '#' + (1 << 24 | r << 16 | g << 8 | b).toString(16).slice(1);
+    },
+
+    async checkMediaManagerStatus(managerId) {
+        const statusEl = document.getElementById(`media-manager-status-${managerId}`);
+        if (!statusEl) return;
+
+        try {
+            const response = await fetch(`/api/v2/media-managers/${managerId}/test`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${API.getSessionToken()}` }
+            });
+            const result = await response.json();
+
+            if (result.success) {
+                statusEl.style.color = '#22c55e';
+                statusEl.innerHTML = `<i class="fas fa-circle" style="font-size: 8px;"></i> ${result.version || 'Online'}`;
+            } else {
+                statusEl.style.color = '#ef4444';
+                statusEl.innerHTML = '<i class="fas fa-circle" style="font-size: 8px;"></i> Offline';
+            }
+        } catch (error) {
+            statusEl.style.color = '#ef4444';
+            statusEl.innerHTML = '<i class="fas fa-circle" style="font-size: 8px;"></i> Error';
+        }
+    },
+
+    openMediaManager(managerId) {
+        window.open(`/admin/tool-login.html?id=${managerId}`, '_blank');
+    },
+
+    async toggleManagerExpand(managerId) {
+        const credsEl = document.getElementById(`mm-creds-${managerId}`);
+        const btn = document.getElementById(`mm-expand-btn-${managerId}`);
+        if (!credsEl) return;
+
+        const isExpanded = credsEl.style.display !== 'none';
+
+        if (isExpanded) {
+            // Collapse
+            credsEl.style.display = 'none';
+            if (btn) btn.style.transform = 'rotate(0deg)';
+        } else {
+            // Expand and load credentials
+            if (btn) btn.style.transform = 'rotate(180deg)';
+            credsEl.style.display = 'block';
+
+            // Load credentials if not already loaded
+            if (credsEl.querySelector('.mm-creds-loaded')) return;
+
+            try {
+                const response = await fetch(`/api/v2/media-managers/${managerId}`, {
+                    headers: { 'Authorization': `Bearer ${API.getSessionToken()}` }
+                });
+                const data = await response.json();
+                const manager = data.manager;
+
+                let credsHtml = '<div class="mm-creds-loaded" style="display: flex; flex-wrap: wrap; gap: 16px;">';
+
+                if (manager.api_key) {
+                    credsHtml += `
+                        <div style="flex: 1; min-width: 200px;">
+                            <label style="display: block; font-size: 0.75rem; color: #64748b; margin-bottom: 4px;">API Key</label>
+                            <div style="display: flex; gap: 8px; align-items: center;">
+                                <input type="password" id="mm-api-${managerId}" value="${Utils.escapeHtml(manager.api_key)}" readonly style="flex: 1; background: #1e293b; border: 1px solid #334155; border-radius: 6px; padding: 8px; color: #e2e8f0; font-size: 0.85rem;">
+                                <button class="btn btn-sm btn-secondary" onclick="Settings.toggleMmCredVisibility('mm-api-${managerId}')" title="Toggle visibility"><i class="fas fa-eye"></i></button>
+                                <button class="btn btn-sm btn-secondary" onclick="Settings.copyMmCred('mm-api-${managerId}')" title="Copy"><i class="fas fa-copy"></i></button>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                if (manager.username) {
+                    credsHtml += `
+                        <div style="flex: 1; min-width: 200px;">
+                            <label style="display: block; font-size: 0.75rem; color: #64748b; margin-bottom: 4px;">Username</label>
+                            <div style="display: flex; gap: 8px; align-items: center;">
+                                <input type="text" id="mm-user-${managerId}" value="${Utils.escapeHtml(manager.username)}" readonly style="flex: 1; background: #1e293b; border: 1px solid #334155; border-radius: 6px; padding: 8px; color: #e2e8f0; font-size: 0.85rem;">
+                                <button class="btn btn-sm btn-secondary" onclick="Settings.copyMmCred('mm-user-${managerId}')" title="Copy"><i class="fas fa-copy"></i></button>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                if (manager.password) {
+                    credsHtml += `
+                        <div style="flex: 1; min-width: 200px;">
+                            <label style="display: block; font-size: 0.75rem; color: #64748b; margin-bottom: 4px;">Password</label>
+                            <div style="display: flex; gap: 8px; align-items: center;">
+                                <input type="password" id="mm-pass-${managerId}" value="${Utils.escapeHtml(manager.password)}" readonly style="flex: 1; background: #1e293b; border: 1px solid #334155; border-radius: 6px; padding: 8px; color: #e2e8f0; font-size: 0.85rem;">
+                                <button class="btn btn-sm btn-secondary" onclick="Settings.toggleMmCredVisibility('mm-pass-${managerId}')" title="Toggle visibility"><i class="fas fa-eye"></i></button>
+                                <button class="btn btn-sm btn-secondary" onclick="Settings.copyMmCred('mm-pass-${managerId}')" title="Copy"><i class="fas fa-copy"></i></button>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                credsHtml += '</div>';
+
+                if (!manager.api_key && !manager.username && !manager.password) {
+                    credsHtml = '<div class="mm-creds-loaded" style="color: #64748b; font-size: 0.85rem;">No credentials configured for this tool.</div>';
+                }
+
+                credsEl.innerHTML = credsHtml;
+            } catch (error) {
+                credsEl.innerHTML = '<div class="mm-creds-loaded" style="color: #ef4444; font-size: 0.85rem;">Failed to load credentials</div>';
+            }
+        }
+    },
+
+    toggleMmCredVisibility(inputId) {
+        const input = document.getElementById(inputId);
+        if (input) {
+            input.type = input.type === 'password' ? 'text' : 'password';
+        }
+    },
+
+    copyMmCred(inputId) {
+        const input = document.getElementById(inputId);
+        if (input) {
+            navigator.clipboard.writeText(input.value);
+            Utils.showToast('Copied', 'Copied to clipboard', 'success');
+        }
+    },
+
+    async showMediaManagerCredentials(managerId) {
+        try {
+            const response = await fetch(`/api/v2/media-managers/${managerId}`, {
+                headers: { 'Authorization': `Bearer ${API.getSessionToken()}` }
+            });
+            const data = await response.json();
+            const manager = data.manager;
+
+            let credsHtml = '';
+            if (manager.api_key) {
+                credsHtml += `
+                    <div class="form-group">
+                        <label>API Key</label>
+                        <div class="input-group">
+                            <input type="password" class="form-control" value="${Utils.escapeHtml(manager.api_key)}" readonly id="mm-creds-api-key">
+                            <button class="btn btn-secondary" onclick="Settings.toggleCredentialVisibility('mm-creds-api-key')">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                            <button class="btn btn-secondary" onclick="Settings.copyCredential('mm-creds-api-key')">
+                                <i class="fas fa-copy"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }
+            if (manager.username) {
+                credsHtml += `
+                    <div class="form-group">
+                        <label>Username</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" value="${Utils.escapeHtml(manager.username)}" readonly id="mm-creds-username">
+                            <button class="btn btn-secondary" onclick="Settings.copyCredential('mm-creds-username')">
+                                <i class="fas fa-copy"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }
+            if (manager.password) {
+                credsHtml += `
+                    <div class="form-group">
+                        <label>Password</label>
+                        <div class="input-group">
+                            <input type="password" class="form-control" value="${Utils.escapeHtml(manager.password)}" readonly id="mm-creds-password">
+                            <button class="btn btn-secondary" onclick="Settings.toggleCredentialVisibility('mm-creds-password')">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                            <button class="btn btn-secondary" onclick="Settings.copyCredential('mm-creds-password')">
+                                <i class="fas fa-copy"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }
+
+            if (!credsHtml) {
+                credsHtml = '<p class="text-muted">No credentials configured for this tool.</p>';
+            }
+
+            Utils.showModal({
+                title: 'Credentials - ' + manager.name,
+                body: credsHtml,
+                buttons: [
+                    {
+                        text: 'Close',
+                        class: 'btn-primary',
+                        onClick: () => Utils.closeModal()
+                    }
+                ]
+            });
+        } catch (error) {
+            Utils.showToast('Error', 'Failed to load credentials', 'error');
+        }
+    },
+
+    toggleCredentialVisibility(inputId) {
+        const input = document.getElementById(inputId);
+        if (input) {
+            input.type = input.type === 'password' ? 'text' : 'password';
+        }
+    },
+
+    copyCredential(inputId) {
+        const input = document.getElementById(inputId);
+        if (input) {
+            navigator.clipboard.writeText(input.value);
+            Utils.showToast('Copied', 'Copied to clipboard', 'success');
+        }
+    },
+
+    showAddMediaManagerModal(editMode = false) {
+        Utils.showModal({
+            title: editMode ? 'Edit Media Manager' : 'Add Media Manager',
+            body: `
+                <form id="media-manager-form">
+                    <input type="hidden" id="mm-id" value="">
+                    <div class="form-group">
+                        <label class="form-label required">Type</label>
+                        <select id="mm-type" class="form-select" required onchange="Settings.onMediaManagerTypeChange()">
+                            <option value="">Select type...</option>
+                            <option value="sonarr">Sonarr (TV Shows)</option>
+                            <option value="radarr">Radarr (Movies)</option>
+                            <option value="qbittorrent">qBittorrent</option>
+                            <option value="sabnzbd">SABnzbd</option>
+                            <option value="other_arr">Other *Arr (Prowlarr, Lidarr, etc.)</option>
+                            <option value="other">Other Tool</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label required">Name</label>
+                        <input type="text" id="mm-name" class="form-input" placeholder="e.g., My Sonarr" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label required">URL</label>
+                        <input type="url" id="mm-url" class="form-input" placeholder="http://192.168.1.100:8989" required>
+                        <small class="form-help" id="mm-url-hint"></small>
+                    </div>
+                    <div class="form-group" id="mm-api-key-group">
+                        <label class="form-label">API Key</label>
+                        <input type="text" id="mm-api-key" class="form-input" placeholder="API key from the app settings">
+                    </div>
+                    <div class="form-group" id="mm-username-group" style="display: none;">
+                        <label class="form-label">Username</label>
+                        <input type="text" id="mm-username" class="form-input" placeholder="Login username">
+                    </div>
+                    <div class="form-group" id="mm-password-group" style="display: none;">
+                        <label class="form-label">Password</label>
+                        <input type="password" id="mm-password" class="form-input" placeholder="Login password">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Custom Icon URL (optional)</label>
+                        <input type="url" id="mm-icon-url" class="form-input" placeholder="https://example.com/icon.png">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Connection Mode</label>
+                        <select id="mm-connection-mode" class="form-select">
+                            <option value="proxy">Proxy (Recommended)</option>
+                            <option value="direct">Direct</option>
+                        </select>
+                        <small class="form-help">Proxy routes through StreamPanel server, Direct opens the URL directly</small>
+                    </div>
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="mm-enabled" checked>
+                            Enabled
+                        </label>
+                    </div>
+                </form>
+            `,
+            buttons: [
+                {
+                    text: 'Test Connection',
+                    class: 'btn-secondary',
+                    onClick: () => this.testMediaManagerConnection()
+                },
+                {
+                    text: 'Cancel',
+                    class: 'btn-outline',
+                    onClick: () => Utils.closeModal()
+                },
+                {
+                    text: 'Save',
+                    class: 'btn-primary',
+                    onClick: () => this.saveMediaManager()
+                }
+            ]
+        });
+
+        // Wait for modal to render then initialize type change handler
+        setTimeout(() => this.onMediaManagerTypeChange(), 50);
+    },
+
+    onMediaManagerTypeChange() {
+        const type = document.getElementById('mm-type')?.value;
+        const apiKeyGroup = document.getElementById('mm-api-key-group');
+        const usernameGroup = document.getElementById('mm-username-group');
+        const passwordGroup = document.getElementById('mm-password-group');
+        const urlHint = document.getElementById('mm-url-hint');
+
+        if (!apiKeyGroup) return;
+
+        // Show/hide fields based on type
+        if (type === 'qbittorrent') {
+            apiKeyGroup.style.display = 'none';
+            usernameGroup.style.display = 'block';
+            passwordGroup.style.display = 'block';
+            if (urlHint) urlHint.textContent = 'e.g., http://192.168.1.100:8080';
+        } else if (type === 'other') {
+            apiKeyGroup.style.display = 'none';
+            usernameGroup.style.display = 'block';
+            passwordGroup.style.display = 'block';
+            if (urlHint) urlHint.textContent = 'Full URL including login path (e.g., https://app.example.com/login)';
+        } else if (type === 'sabnzbd' || type === 'sonarr' || type === 'radarr' || type === 'other_arr') {
+            apiKeyGroup.style.display = 'block';
+            usernameGroup.style.display = 'block';
+            passwordGroup.style.display = 'block';
+            if (urlHint) {
+                if (type === 'sabnzbd') urlHint.textContent = 'e.g., http://192.168.1.100:8080';
+                else if (type === 'sonarr') urlHint.textContent = 'e.g., http://192.168.1.100:8989';
+                else if (type === 'radarr') urlHint.textContent = 'e.g., http://192.168.1.100:7878';
+                else urlHint.textContent = 'e.g., http://192.168.1.100:PORT';
+            }
+        } else {
+            apiKeyGroup.style.display = 'block';
+            usernameGroup.style.display = 'none';
+            passwordGroup.style.display = 'none';
+            if (urlHint) urlHint.textContent = '';
+        }
+    },
+
+    async editMediaManager(managerId) {
+        try {
+            const response = await fetch(`/api/v2/media-managers/${managerId}`, {
+                headers: { 'Authorization': `Bearer ${API.getSessionToken()}` }
+            });
+            const data = await response.json();
+            const manager = data.manager;
+
+            this.showAddMediaManagerModal(true);
+
+            // Wait for modal to render then populate fields
+            setTimeout(() => {
+                const mmId = document.getElementById('mm-id');
+                const mmType = document.getElementById('mm-type');
+                const mmName = document.getElementById('mm-name');
+                const mmUrl = document.getElementById('mm-url');
+                const mmApiKey = document.getElementById('mm-api-key');
+                const mmUsername = document.getElementById('mm-username');
+                const mmPassword = document.getElementById('mm-password');
+                const mmIconUrl = document.getElementById('mm-icon-url');
+                const mmConnMode = document.getElementById('mm-connection-mode');
+                const mmEnabled = document.getElementById('mm-enabled');
+
+                if (mmId) mmId.value = manager.id;
+                if (mmType) mmType.value = manager.type;
+                if (mmName) mmName.value = manager.name;
+                if (mmUrl) mmUrl.value = manager.url;
+                if (mmApiKey) mmApiKey.value = manager.api_key || '';
+                if (mmUsername) mmUsername.value = manager.username || '';
+                if (mmPassword) mmPassword.value = manager.password || '';
+                if (mmIconUrl) mmIconUrl.value = manager.icon_url || '';
+                if (mmConnMode) mmConnMode.value = manager.connection_mode || 'proxy';
+                if (mmEnabled) mmEnabled.checked = manager.is_enabled;
+
+                this.onMediaManagerTypeChange();
+            }, 100);
+        } catch (error) {
+            Utils.showToast('Error', 'Failed to load manager details', 'error');
+        }
+    },
+
+    async saveMediaManager() {
+        const id = document.getElementById('mm-id')?.value;
+        const data = {
+            type: document.getElementById('mm-type')?.value,
+            name: document.getElementById('mm-name')?.value,
+            url: document.getElementById('mm-url')?.value,
+            api_key: document.getElementById('mm-api-key')?.value || null,
+            username: document.getElementById('mm-username')?.value || null,
+            password: document.getElementById('mm-password')?.value || null,
+            icon_url: document.getElementById('mm-icon-url')?.value || null,
+            connection_mode: document.getElementById('mm-connection-mode')?.value || 'proxy',
+            is_enabled: document.getElementById('mm-enabled')?.checked ?? true
+        };
+
+        // Validate required fields
+        if (!data.type || !data.name || !data.url) {
+            Utils.showToast('Error', 'Type, Name, and URL are required', 'error');
+            return;
+        }
+
+        try {
+            Utils.showLoading();
+            const endpoint = id ? `/api/v2/media-managers/${id}` : '/api/v2/media-managers';
+            const method = id ? 'PUT' : 'POST';
+
+            const response = await fetch(endpoint, {
+                method,
+                headers: {
+                    'Authorization': `Bearer ${API.getSessionToken()}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            });
+
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.error || 'Failed to save');
+            }
+
+            Utils.hideLoading();
+            Utils.closeModal();
+            Utils.showToast('Success', `Media manager ${id ? 'updated' : 'added'} successfully`, 'success');
+            await this.loadMediaManagers();
+        } catch (error) {
+            Utils.hideLoading();
+            Utils.showToast('Error', error.message, 'error');
+        }
+    },
+
+    async deleteMediaManager(managerId) {
+        if (!confirm('Are you sure you want to delete this media manager?')) return;
+
+        try {
+            Utils.showLoading();
+            const response = await fetch(`/api/v2/media-managers/${managerId}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${API.getSessionToken()}` }
+            });
+
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.error || 'Failed to delete');
+            }
+
+            Utils.hideLoading();
+            Utils.showToast('Success', 'Media manager deleted successfully', 'success');
+            await this.loadMediaManagers();
+        } catch (error) {
+            Utils.hideLoading();
+            Utils.showToast('Error', error.message, 'error');
+        }
+    },
+
+    async testMediaManagerConnection() {
+        const type = document.getElementById('mm-type')?.value;
+        const url = document.getElementById('mm-url')?.value;
+        const apiKey = document.getElementById('mm-api-key')?.value;
+        const username = document.getElementById('mm-username')?.value;
+        const password = document.getElementById('mm-password')?.value;
+
+        if (!type || !url) {
+            Utils.showToast('Error', 'Please fill in type and URL first', 'error');
+            return;
+        }
+
+        try {
+            Utils.showLoading();
+            const response = await fetch('/api/v2/media-managers/test-connection', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${API.getSessionToken()}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ type, url, api_key: apiKey, username, password })
+            });
+
+            const result = await response.json();
+            Utils.hideLoading();
+
+            if (result.success) {
+                Utils.showToast('Success', `Connected successfully! ${result.version ? 'Version: ' + result.version : ''}`, 'success');
+            } else {
+                Utils.showToast('Error', result.error || 'Connection failed', 'error');
+            }
         } catch (error) {
             Utils.hideLoading();
             Utils.showToast('Error', error.message, 'error');

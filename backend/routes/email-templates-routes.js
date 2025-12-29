@@ -25,13 +25,17 @@ const TEMPLATE_VARIABLES = {
         iptv_panel_name: 'IPTV panel name'
     },
     iptv_editor: {
-        iptv_editor_dns: 'IPTV Editor DNS/Xtream API URL',
+        iptv_editor_dns: 'IPTV Editor DNS/Xtream API URL (global setting)',
         iptv_editor_username: 'IPTV Editor username',
         iptv_editor_password: 'IPTV Editor password',
         iptv_editor_m3u_url: 'IPTV Editor M3U URL',
         iptv_editor_epg_url: 'IPTV Editor EPG URL',
         iptv_editor_expiration_date: 'IPTV Editor expiration date',
-        iptv_provider_base_url: 'Customer streaming URL (from Editor playlist or Panel)'
+        iptv_provider_base_url: 'Customer streaming URL (from Editor playlist or Panel)',
+        iptv_dns: 'Dynamic DNS: Uses Editor DNS if user has Editor, otherwise Panel DNS',
+        iptv_panel_dns: 'IPTV Panel DNS/Provider URL',
+        iptv_creds_username: 'Dynamic username: Editor username if has Editor, else Panel username',
+        iptv_creds_password: 'Dynamic password: Editor password if has Editor, else Panel password'
     },
     plex: {
         plex_email: 'User\'s Plex email',
@@ -280,19 +284,62 @@ router.post('/:id/preview', async (req, res) => {
         const editorDnsResult = await query(`SELECT setting_value FROM iptv_editor_settings WHERE setting_key = 'editor_dns'`);
         const iptvEditorDns = editorDnsResult.length > 0 ? editorDnsResult[0].setting_value : '';
 
-        // Get IPTV provider base URL if user provided
+        // Get IPTV provider base URL, dynamic DNS, and credentials if user provided
         let iptvProviderBaseUrl = '';
+        let iptvDns = ''; // Dynamic DNS: Editor DNS if has Editor, else Panel DNS
+        let iptvPanelDns = ''; // Panel DNS specifically
+        let hasIptvEditor = false;
+
+        // Dynamic credentials - uses Editor credentials if has Editor, else Panel credentials
+        let iptvCredsUsername = '';
+        let iptvCredsPassword = '';
+        let iptvEditorUsername = '';
+        let iptvEditorPassword = '';
+        let iptvPanelUsername = '';
+        let iptvPanelPassword = '';
+
         if (actualUserId) {
-            const editorPlaylistResult = await query(`
-                SELECT iep.provider_base_url
+            // First try IPTV Editor - get playlist info AND credentials
+            const editorResult = await query(`
+                SELECT ieu.iptv_editor_username, ieu.iptv_editor_password, iep.provider_base_url
                 FROM iptv_editor_users ieu
                 JOIN iptv_editor_playlists iep ON ieu.iptv_editor_playlist_id = iep.id
                 WHERE ieu.user_id = ?
                 LIMIT 1
             `, [actualUserId]);
-            if (editorPlaylistResult.length > 0 && editorPlaylistResult[0].provider_base_url) {
-                iptvProviderBaseUrl = editorPlaylistResult[0].provider_base_url;
+            if (editorResult.length > 0) {
+                if (editorResult[0].provider_base_url) {
+                    iptvProviderBaseUrl = editorResult[0].provider_base_url;
+                }
+                iptvEditorUsername = editorResult[0].iptv_editor_username || '';
+                iptvEditorPassword = editorResult[0].iptv_editor_password || '';
+                hasIptvEditor = true;
             }
+
+            // Also get IPTV Panel DNS and credentials
+            const panelResult = await query(`
+                SELECT ip.provider_base_url, uis.iptv_username, uis.iptv_password
+                FROM user_iptv_subscriptions uis
+                JOIN iptv_panels ip ON uis.iptv_panel_id = ip.id
+                WHERE uis.user_id = ?
+                LIMIT 1
+            `, [actualUserId]);
+            if (panelResult.length > 0) {
+                iptvPanelDns = panelResult[0].provider_base_url || '';
+                iptvPanelUsername = panelResult[0].iptv_username || '';
+                iptvPanelPassword = panelResult[0].iptv_password || '';
+                // If no Editor provider URL, use Panel
+                if (!iptvProviderBaseUrl) {
+                    iptvProviderBaseUrl = panelResult[0].provider_base_url || '';
+                }
+            }
+
+            // Dynamic IPTV DNS: Use Editor DNS if user has Editor, otherwise use Panel DNS
+            iptvDns = hasIptvEditor ? iptvEditorDns : iptvPanelDns;
+
+            // Dynamic credentials: Use Editor if has Editor, else Panel
+            iptvCredsUsername = hasIptvEditor ? iptvEditorUsername : iptvPanelUsername;
+            iptvCredsPassword = hasIptvEditor ? iptvEditorPassword : iptvPanelPassword;
         }
 
         // Get IPTV Editor user data if available
@@ -353,6 +400,14 @@ router.post('/:id/preview', async (req, res) => {
             '{{iptv_editor_epg_url}}': userData.iptv_editor_epg_url || '',
             '{{iptv_editor_expiration_date}}': formatDate(editorUserData.expiry_date || userData.iptv_expiration),
             '{{iptv_provider_base_url}}': iptvProviderBaseUrl,
+
+            // Dynamic IPTV DNS (uses Editor DNS if user has Editor, else Panel DNS)
+            '{{iptv_dns}}': iptvDns,
+            '{{iptv_panel_dns}}': iptvPanelDns,
+
+            // Dynamic IPTV credentials (uses Editor if has Editor, else Panel)
+            '{{iptv_creds_username}}': iptvCredsUsername,
+            '{{iptv_creds_password}}': iptvCredsPassword,
 
             // Plex variables
             '{{plex_email}}': userData.plex_email || userData.email || '',

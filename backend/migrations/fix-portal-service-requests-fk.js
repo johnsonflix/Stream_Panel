@@ -9,7 +9,7 @@
 const Database = require('better-sqlite3');
 const path = require('path');
 
-const dbPath = path.join(__dirname, '..', 'subsapp_v2.db');
+const dbPath = process.env.DB_PATH || '/app/data/subsapp_v2.db';
 
 function migrate() {
     const db = new Database(dbPath);
@@ -30,21 +30,31 @@ function migrate() {
         // Drop old table
         db.exec('DROP TABLE IF EXISTS portal_service_requests');
 
-        // Create new table with correct FK (users instead of app_users)
+        // Create new table with correct FK (users instead of app_users) and ALL columns
         db.exec(`
             CREATE TABLE portal_service_requests (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id INTEGER NOT NULL,
-                request_type TEXT NOT NULL CHECK(request_type IN ('add_plex', 'add_iptv', 'cancel_plex', 'cancel_iptv', 'upgrade', 'downgrade')),
-                service_type TEXT NOT NULL CHECK(service_type IN ('plex', 'iptv')),
-                details TEXT,
-                status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'approved', 'rejected', 'completed')),
-                handled_by INTEGER,
-                handled_at DATETIME,
+                service_type TEXT NOT NULL,
+                subscription_plan_id INTEGER,
+                request_type TEXT NOT NULL DEFAULT 'new_service',
+                payment_status TEXT NOT NULL DEFAULT 'pending',
+                transaction_reference TEXT,
+                user_notes TEXT,
                 admin_notes TEXT,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                processed_at DATETIME,
+                processed_by INTEGER,
+                notified_at DATETIME,
+                details TEXT,
+                status TEXT DEFAULT 'pending',
+                handled_by INTEGER,
+                handled_at DATETIME,
+                provisioning_status TEXT,
                 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY (subscription_plan_id) REFERENCES subscription_plans(id),
+                FOREIGN KEY (processed_by) REFERENCES users(id) ON DELETE SET NULL,
                 FOREIGN KEY (handled_by) REFERENCES users(id) ON DELETE SET NULL
             )
         `);
@@ -53,23 +63,33 @@ function migrate() {
         if (existingData.length > 0) {
             const insertStmt = db.prepare(`
                 INSERT INTO portal_service_requests
-                (id, user_id, request_type, service_type, details, status, handled_by, handled_at, admin_notes, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (id, user_id, service_type, subscription_plan_id, request_type, payment_status,
+                 transaction_reference, user_notes, admin_notes, created_at, updated_at,
+                 processed_at, processed_by, notified_at, details, status, handled_by, handled_at, provisioning_status)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `);
 
             for (const row of existingData) {
                 insertStmt.run(
                     row.id,
                     row.user_id,
-                    row.request_type,
                     row.service_type,
-                    row.details,
-                    row.status,
-                    row.handled_by,
-                    row.handled_at,
-                    row.admin_notes,
+                    row.subscription_plan_id || null,
+                    row.request_type || 'new_service',
+                    row.payment_status || 'pending',
+                    row.transaction_reference || null,
+                    row.user_notes || null,
+                    row.admin_notes || null,
                     row.created_at,
-                    row.updated_at
+                    row.updated_at,
+                    row.processed_at || null,
+                    row.processed_by || null,
+                    row.notified_at || null,
+                    row.details || null,
+                    row.status || 'pending',
+                    row.handled_by || null,
+                    row.handled_at || null,
+                    row.provisioning_status || null
                 );
             }
             console.log(`Restored ${existingData.length} records`);

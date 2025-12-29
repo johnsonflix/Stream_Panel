@@ -27,6 +27,11 @@ function migrate() {
     try {
         db.exec('BEGIN TRANSACTION');
 
+        // Check if icon_url column exists in old table
+        const columns = db.prepare("PRAGMA table_info(media_managers)").all();
+        const hasIconUrl = columns.some(col => col.name === 'icon_url');
+        console.log('[Migration] Old table has icon_url column:', hasIconUrl);
+
         // 1. Create new table with updated constraint
         db.exec(`
             CREATE TABLE media_managers_new (
@@ -46,12 +51,20 @@ function migrate() {
             )
         `);
 
-        // 2. Copy data from old table
-        db.exec(`
-            INSERT INTO media_managers_new (id, name, type, url, api_key, username, password, connection_mode, is_enabled, display_order, icon_url, created_at, updated_at)
-            SELECT id, name, type, url, api_key, username, password, connection_mode, is_enabled, display_order, icon_url, created_at, updated_at
-            FROM media_managers
-        `);
+        // 2. Copy data from old table (handle missing icon_url column)
+        if (hasIconUrl) {
+            db.exec(`
+                INSERT INTO media_managers_new (id, name, type, url, api_key, username, password, connection_mode, is_enabled, display_order, icon_url, created_at, updated_at)
+                SELECT id, name, type, url, api_key, username, password, connection_mode, is_enabled, display_order, icon_url, created_at, updated_at
+                FROM media_managers
+            `);
+        } else {
+            db.exec(`
+                INSERT INTO media_managers_new (id, name, type, url, api_key, username, password, connection_mode, is_enabled, display_order, created_at, updated_at)
+                SELECT id, name, type, url, api_key, username, password, connection_mode, is_enabled, display_order, created_at, updated_at
+                FROM media_managers
+            `);
+        }
 
         // 3. Drop old table
         db.exec('DROP TABLE media_managers');
