@@ -23,6 +23,8 @@ class ArrLibrarySyncJob {
         if (!this.db) {
             this.db = new Database(DB_PATH);
             this.db.pragma('journal_mode = WAL');
+            // CRITICAL: Set busy_timeout to wait for locks instead of failing immediately
+            this.db.pragma('busy_timeout = 10000'); // Wait up to 10 seconds for locks
         }
         return this.db;
     }

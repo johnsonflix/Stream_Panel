@@ -15,6 +15,13 @@ const router = express.Router();
 // Portal session duration: 90 days (for home screen app convenience)
 const PORTAL_SESSION_DURATION_DAYS = 90;
 
+// In-memory pin storage for Plex OAuth (popup-based flow)
+const portalPlexPins = new Map();
+
+// Plex API configuration
+const PLEX_API_BASE = 'https://plex.tv/api/v2';
+const PLEX_CLIENT_ID = 'StreamPanel-Portal';
+
 /**
  * Helper: Generate secure session token
  */
@@ -35,6 +42,20 @@ function getSessionExpiration() {
  * Helper: Sanitize user data for response
  */
 function sanitizeUserForPortal(user) {
+    // Compute request site access:
+    // - If rs_has_access is explicitly 1, access granted
+    // - If rs_has_access is explicitly 0, access denied
+    // - If rs_has_access is null, default to plex_enabled value
+    let hasRequestSiteAccess;
+    if (user.rs_has_access === 1) {
+        hasRequestSiteAccess = true;
+    } else if (user.rs_has_access === 0) {
+        hasRequestSiteAccess = false;
+    } else {
+        // null = auto: grant access if user has Plex enabled
+        hasRequestSiteAccess = user.plex_enabled === 1;
+    }
+
     return {
         id: user.id,
         name: user.name,
@@ -42,13 +63,20 @@ function sanitizeUserForPortal(user) {
         plex_email: user.plex_email,
         expiration_date: user.expiration_date,
         subscription_status: user.subscription_status,
+        // Service enabled flags
+        plex_enabled: user.plex_enabled,
+        iptv_enabled: user.iptv_enabled,
+        iptv_editor_enabled: user.iptv_editor_enabled,
+        // IPTV credentials
         iptv_username: user.iptv_username,
         iptv_password: user.iptv_password,
         iptv_editor_username: user.iptv_editor_username,
         iptv_editor_password: user.iptv_editor_password,
         m3u_url: user.m3u_url,
         iptv_subscription_name: user.iptv_subscription_name,
-        plex_package_name: user.plex_package_name
+        plex_package_name: user.plex_package_name,
+        // Request Site Access
+        has_request_site_access: hasRequestSiteAccess
     };
 }
 
@@ -233,7 +261,7 @@ router.post('/email-login', async (req, res) => {
 
 /**
  * POST /api/v2/portal/auth/plex/init
- * Initialize Plex OAuth flow
+ * Initialize Plex OAuth flow using PIN-based popup method
  */
 router.post('/plex/init', async (req, res) => {
     try {
@@ -246,44 +274,46 @@ router.post('/plex/init', async (req, res) => {
             });
         }
 
-        // Get Plex client ID from settings or generate one
-        let clientId;
-        const clientIdSetting = await query(`SELECT setting_value FROM settings WHERE setting_key = 'plex_client_id'`);
+        const fetch = (await import('node-fetch')).default;
 
-        if (clientIdSetting.length === 0) {
-            // Generate and store a new client ID
-            clientId = crypto.randomUUID();
-            await query(`INSERT INTO settings (setting_key, setting_value) VALUES ('plex_client_id', ?)`, [clientId]);
-        } else {
-            clientId = clientIdSetting[0].setting_value;
+        // Generate a unique pin ID for our internal tracking
+        const pinId = crypto.randomBytes(16).toString('hex');
+
+        // Request a PIN from Plex
+        const pinResponse = await fetch(`${PLEX_API_BASE}/pins?strong=true`, {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json',
+                'X-Plex-Client-Identifier': PLEX_CLIENT_ID,
+                'X-Plex-Product': 'StreamPanel Portal',
+                'X-Plex-Version': '2.0.0',
+                'X-Plex-Device': 'Web',
+                'X-Plex-Platform': 'Web'
+            }
+        });
+
+        if (!pinResponse.ok) {
+            throw new Error('Failed to create Plex PIN');
         }
 
-        // Generate a state token to prevent CSRF
-        const stateToken = crypto.randomBytes(16).toString('hex');
+        const pinData = await pinResponse.json();
 
-        // Store state token temporarily (could use a temp table or memory store)
-        // For simplicity, we'll include it in the redirect URL
+        // Store the pin info
+        portalPlexPins.set(pinId, {
+            plexPinId: pinData.id,
+            plexPinCode: pinData.code,
+            authToken: null,
+            createdAt: Date.now(),
+            expiresAt: Date.now() + (5 * 60 * 1000) // 5 minutes
+        });
 
-        // Build Plex OAuth URL
-        const plexAuthUrl = new URL('https://app.plex.tv/auth#!');
-        plexAuthUrl.searchParams.set('clientID', clientId);
-        plexAuthUrl.searchParams.set('code', stateToken);
-        plexAuthUrl.searchParams.set('context[device][product]', 'StreamPanel Portal');
-        plexAuthUrl.searchParams.set('context[device][environment]', 'bundled');
-        plexAuthUrl.searchParams.set('context[device][layout]', 'desktop');
-        plexAuthUrl.searchParams.set('context[device][platform]', 'Web');
-
-        // Get the host from request for callback URL
-        const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
-        const host = req.headers.host || 'localhost:3050';
-        const forwardUrl = `${protocol}://${host}/portal/login?state=${stateToken}`;
-
-        plexAuthUrl.searchParams.set('forwardUrl', forwardUrl);
+        // Build the Plex auth URL (for popup window)
+        const authUrl = `https://app.plex.tv/auth#?clientID=${PLEX_CLIENT_ID}&code=${pinData.code}&context%5Bdevice%5D%5Bproduct%5D=StreamPanel%20Portal&context%5Bdevice%5D%5Bplatform%5D=Web`;
 
         res.json({
             success: true,
-            authUrl: plexAuthUrl.toString(),
-            state: stateToken
+            pinId: pinId,
+            authUrl: authUrl
         });
 
     } catch (error) {
@@ -291,6 +321,209 @@ router.post('/plex/init', async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Failed to initialize Plex authentication'
+        });
+    }
+});
+
+/**
+ * GET /api/v2/portal/auth/plex/status/:pinId
+ * Check if the PIN has been authenticated
+ */
+router.get('/plex/status/:pinId', async (req, res) => {
+    try {
+        const { pinId } = req.params;
+        const pinInfo = portalPlexPins.get(pinId);
+
+        if (!pinInfo) {
+            return res.json({
+                success: false,
+                expired: true,
+                authenticated: false
+            });
+        }
+
+        // Check if expired
+        if (Date.now() > pinInfo.expiresAt) {
+            portalPlexPins.delete(pinId);
+            return res.json({
+                success: false,
+                expired: true,
+                authenticated: false
+            });
+        }
+
+        // If already authenticated, return immediately
+        if (pinInfo.authToken) {
+            return res.json({
+                success: true,
+                authenticated: true,
+                expired: false
+            });
+        }
+
+        // Check with Plex API
+        const fetch = (await import('node-fetch')).default;
+
+        const statusResponse = await fetch(`${PLEX_API_BASE}/pins/${pinInfo.plexPinId}`, {
+            headers: {
+                'Accept': 'application/json',
+                'X-Plex-Client-Identifier': PLEX_CLIENT_ID
+            }
+        });
+
+        if (!statusResponse.ok) {
+            return res.json({
+                success: false,
+                authenticated: false,
+                expired: false
+            });
+        }
+
+        const statusData = await statusResponse.json();
+
+        if (statusData.authToken) {
+            // PIN was authenticated! Store the token
+            pinInfo.authToken = statusData.authToken;
+            portalPlexPins.set(pinId, pinInfo);
+
+            return res.json({
+                success: true,
+                authenticated: true,
+                expired: false
+            });
+        }
+
+        res.json({
+            success: true,
+            authenticated: false,
+            expired: false
+        });
+
+    } catch (error) {
+        console.error('Portal Plex status error:', error);
+        res.json({
+            success: false,
+            authenticated: false,
+            expired: false
+        });
+    }
+});
+
+/**
+ * POST /api/v2/portal/auth/plex/complete
+ * Complete the Plex OAuth login using PIN
+ */
+router.post('/plex/complete', async (req, res) => {
+    try {
+        const { pinId } = req.body;
+        const pinInfo = portalPlexPins.get(pinId);
+
+        if (!pinInfo || !pinInfo.authToken) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid or expired authorization'
+            });
+        }
+
+        // Get user info from Plex
+        const plexUserInfo = await getPlexUserInfo(pinInfo.authToken);
+
+        if (!plexUserInfo || !plexUserInfo.email) {
+            portalPlexPins.delete(pinId);
+            return res.status(400).json({
+                success: false,
+                message: 'Failed to get Plex account information'
+            });
+        }
+
+        // Find user by plex_email
+        const users = await query(`
+            SELECT u.*,
+                   sp_iptv.name as iptv_subscription_name,
+                   sp_plex.name as plex_package_name
+            FROM users u
+            LEFT JOIN subscription_plans sp_iptv ON u.iptv_subscription_plan_id = sp_iptv.id
+            LEFT JOIN subscription_plans sp_plex ON u.plex_package_id = sp_plex.id
+            WHERE LOWER(u.plex_email) = LOWER(?)
+        `, [plexUserInfo.email]);
+
+        if (users.length === 0) {
+            portalPlexPins.delete(pinId);
+            return res.status(401).json({
+                success: false,
+                message: 'No account found linked to this Plex email. Please contact support.'
+            });
+        }
+
+        const user = users[0];
+
+        // Verify user has ACTIVE access to at least one of our Plex servers
+        const plexShares = await query(`
+            SELECT ups.*, ps.name as server_name, ps.server_id, ps.libraries as server_libraries
+            FROM user_plex_shares ups
+            JOIN plex_servers ps ON ups.plex_server_id = ps.id
+            WHERE ups.user_id = ? AND ups.share_status = 'active'
+        `, [user.id]);
+
+        if (plexShares.length === 0) {
+            portalPlexPins.delete(pinId);
+            return res.status(401).json({
+                success: false,
+                message: 'Your account does not have active access to any Plex servers. Please contact support.'
+            });
+        }
+
+        // Generate session token
+        const sessionToken = generateSessionToken();
+        const expiresAt = getSessionExpiration();
+
+        // Create portal session with Plex token
+        await query(`
+            INSERT INTO portal_sessions (user_id, token, login_method, plex_token, ip_address, user_agent, expires_at)
+            VALUES (?, ?, 'plex', ?, ?, ?, ?)
+        `, [
+            user.id,
+            sessionToken,
+            pinInfo.authToken,
+            req.ip || req.connection?.remoteAddress || 'unknown',
+            req.headers['user-agent'] || '',
+            expiresAt
+        ]);
+
+        // Clean up pin
+        portalPlexPins.delete(pinId);
+
+        const sanitizedUser = sanitizeUserForPortal(user);
+        sanitizedUser.plex_email = plexUserInfo.email;
+        sanitizedUser.plex_username = plexUserInfo.username;
+        sanitizedUser.plex_servers = plexShares.map(share => {
+            const userLibraryIds = share.library_ids ? JSON.parse(share.library_ids) : [];
+            const serverLibraries = share.server_libraries ? JSON.parse(share.server_libraries) : [];
+
+            const userLibraries = serverLibraries.filter(lib =>
+                userLibraryIds.includes(lib.key) || userLibraryIds.includes(String(lib.key))
+            );
+
+            return {
+                id: share.plex_server_id,
+                name: share.server_name,
+                libraries: userLibraries
+            };
+        });
+
+        res.json({
+            success: true,
+            message: 'Plex login successful',
+            token: sessionToken,
+            user: sanitizedUser,
+            expiresAt: expiresAt
+        });
+
+    } catch (error) {
+        console.error('Portal Plex complete error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error during Plex authentication'
         });
     }
 });
@@ -601,5 +834,15 @@ router.post('/cleanup', async (req, res) => {
         });
     }
 });
+
+// Clean up expired Plex pins periodically
+setInterval(() => {
+    const now = Date.now();
+    for (const [pinId, pinInfo] of portalPlexPins.entries()) {
+        if (now > pinInfo.expiresAt) {
+            portalPlexPins.delete(pinId);
+        }
+    }
+}, 60000); // Every minute
 
 module.exports = router;

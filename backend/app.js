@@ -103,6 +103,7 @@ const kometaRoutes = require('./routes/kometa-routes');
 const requestSiteRoutes = require('./routes/request-site-routes'); // Old routes (legacy)
 const requestSiteApiRoutes = require('./routes/request-site-api-routes'); // New core API routes
 const requestSiteWebhooksRoutes = require('./routes/request-site-webhooks-routes');
+const mediaManagersRoutes = require('./routes/media-managers-routes');
 
 // Authentication routes (no auth required for these endpoints)
 app.use('/api/v2/auth', authRoutes);
@@ -144,6 +145,7 @@ app.use('/api/v2/kometa', kometaRoutes);
 app.use('/api/v2/request-site', requestSiteRoutes); // Legacy routes (old schema)
 app.use('/api/v2/request-site-api', requestSiteApiRoutes); // New core API routes
 app.use('/api/v2/webhooks', requestSiteWebhooksRoutes); // No auth required - external webhooks
+app.use('/api/v2/media-managers', mediaManagersRoutes); // Admin tools (Sonarr, Radarr, qBittorrent, SABnzbd)
 
 // Health check endpoint
 app.get('/api/v2/health', (req, res) => {

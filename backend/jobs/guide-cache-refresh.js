@@ -19,6 +19,9 @@ const EPG_DAYS_TO_CACHE = 7; // Cache 7 days of EPG data
 class GuideCacheRefreshJob {
     constructor() {
         this.db = new Database(DB_PATH);
+        // CRITICAL: Set busy_timeout to wait for locks instead of failing immediately
+        // This prevents SQLITE_BUSY errors when main app is also writing
+        this.db.pragma('busy_timeout = 10000'); // Wait up to 10 seconds for locks
     }
 
     /**

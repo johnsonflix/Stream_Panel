@@ -61,6 +61,8 @@ class PlexScannerService {
         if (!this.db) {
             this.db = new Database(DB_PATH);
             this.db.pragma('journal_mode = WAL');
+            // CRITICAL: Set busy_timeout to wait for locks instead of failing immediately
+            this.db.pragma('busy_timeout = 10000'); // Wait up to 10 seconds for locks
         }
         return this.db;
     }
@@ -282,6 +284,22 @@ class PlexScannerService {
     }
 
     /**
+     * Get detailed metadata with GUIDs for an item
+     */
+    async getMetadataWithGuids(server, ratingKey) {
+        const response = await axios.get(`${server.url}/library/metadata/${ratingKey}`, {
+            headers: {
+                'X-Plex-Token': server.token,
+                'Accept': 'application/json'
+            },
+            params: { includeGuids: 1 },
+            timeout: 15000
+        });
+
+        return response.data?.MediaContainer?.Metadata?.[0];
+    }
+
+    /**
      * Get children metadata (seasons for shows, episodes for seasons)
      */
     async getChildren(server, ratingKey) {
@@ -329,7 +347,24 @@ class PlexScannerService {
         };
 
         // Check if using new Plex agent (has Guid array)
-        const guids = item.Guid || [];
+        // If item doesn't have Guid array, try to fetch full metadata
+        let guids = item.Guid || [];
+
+        if (guids.length === 0 && item.ratingKey) {
+            // No GUIDs in list response - fetch full metadata
+            try {
+                const fullMetadata = await this.getMetadataWithGuids(server, item.ratingKey);
+                if (fullMetadata && fullMetadata.Guid) {
+                    guids = fullMetadata.Guid;
+                    // Also get the old guid string if present
+                    if (fullMetadata.guid && !item.guid) {
+                        item.guid = fullMetadata.guid;
+                    }
+                }
+            } catch (e) {
+                console.log(`[Plex Scanner] Could not fetch full metadata for: ${item.title}`);
+            }
+        }
 
         for (const guid of guids) {
             const id = guid.id || '';
@@ -431,18 +466,34 @@ class PlexScannerService {
                     }
                 );
 
-                const results = mediaIds.mediaType === 'movie'
-                    ? response.data?.movie_results
-                    : response.data?.tv_results;
+                // Check both movie and TV results - Plex might classify differently than TMDB
+                const movieResults = response.data?.movie_results || [];
+                const tvResults = response.data?.tv_results || [];
 
-                if (results && results.length > 0) {
-                    console.log(`[Plex Scanner] Found TMDB ID ${results[0].id} via IMDB for: ${title}`);
-                    return results[0].id;
+                // Prefer the type Plex thinks it is, but fall back to the other
+                if (mediaIds.mediaType === 'movie') {
+                    if (movieResults.length > 0) {
+                        console.log(`[Plex Scanner] Found TMDB ID ${movieResults[0].id} via IMDB for: ${title}`);
+                        return movieResults[0].id;
+                    }
+                    if (tvResults.length > 0) {
+                        console.log(`[Plex Scanner] Found TMDB ID ${tvResults[0].id} via IMDB (as TV) for: ${title}`);
+                        return tvResults[0].id;
+                    }
+                } else {
+                    if (tvResults.length > 0) {
+                        console.log(`[Plex Scanner] Found TMDB ID ${tvResults[0].id} via IMDB for: ${title}`);
+                        return tvResults[0].id;
+                    }
+                    if (movieResults.length > 0) {
+                        console.log(`[Plex Scanner] Found TMDB ID ${movieResults[0].id} via IMDB (as movie) for: ${title}`);
+                        return movieResults[0].id;
+                    }
                 }
             }
 
-            // Try TVDB lookup
-            if (mediaIds.tvdbId && mediaIds.mediaType === 'tv') {
+            // Try TVDB lookup (also check movies in case of misclassification)
+            if (mediaIds.tvdbId) {
                 const response = await axios.get(
                     `https://api.themoviedb.org/3/find/${mediaIds.tvdbId}`,
                     {
@@ -454,10 +505,16 @@ class PlexScannerService {
                     }
                 );
 
-                const results = response.data?.tv_results;
-                if (results && results.length > 0) {
-                    console.log(`[Plex Scanner] Found TMDB ID ${results[0].id} via TVDB for: ${title}`);
-                    return results[0].id;
+                const tvResults = response.data?.tv_results || [];
+                const movieResults = response.data?.movie_results || [];
+
+                if (tvResults.length > 0) {
+                    console.log(`[Plex Scanner] Found TMDB ID ${tvResults[0].id} via TVDB for: ${title}`);
+                    return tvResults[0].id;
+                }
+                if (movieResults.length > 0) {
+                    console.log(`[Plex Scanner] Found TMDB ID ${movieResults[0].id} via TVDB (as movie) for: ${title}`);
+                    return movieResults[0].id;
                 }
             }
 

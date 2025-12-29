@@ -2,7 +2,8 @@
 set -e
 
 # Check if database exists and has tables
-DB_PATH="${DB_PATH:-/app/data/subsapp_v2.db}"
+# Export DB_PATH so Node.js migrations can access it
+export DB_PATH="${DB_PATH:-/app/data/subsapp_v2.db}"
 RUN_SETUP=false
 
 if [ ! -f "$DB_PATH" ] || [ ! -s "$DB_PATH" ]; then
@@ -25,14 +26,36 @@ else
     fi
 fi
 
-# Always run migrations (they're idempotent - safe to run multiple times)
-echo "🔄 Running migrations..."
+# Run migrations only if not already applied (track in database)
+echo "🔄 Checking migrations..."
+
+# Create migrations_applied table if it doesn't exist
+sqlite3 "$DB_PATH" "CREATE TABLE IF NOT EXISTS migrations_applied (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    filename TEXT UNIQUE NOT NULL,
+    applied_at TEXT DEFAULT (datetime('now'))
+);"
+
 cd /app/backend/migrations
+MIGRATIONS_RUN=0
 for f in *.js; do
-    echo "  Running $f..."
-    node "$f" 2>/dev/null || true
+    # Check if this migration was already applied
+    ALREADY_APPLIED=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM migrations_applied WHERE filename='$f';")
+    if [ "$ALREADY_APPLIED" -eq "0" ]; then
+        echo "  Running $f..."
+        if node "$f" 2>/dev/null; then
+            # Record successful migration
+            sqlite3 "$DB_PATH" "INSERT INTO migrations_applied (filename) VALUES ('$f');"
+            MIGRATIONS_RUN=$((MIGRATIONS_RUN + 1))
+        fi
+    fi
 done
-echo "✅ Migrations completed!"
+
+if [ "$MIGRATIONS_RUN" -eq "0" ]; then
+    echo "✅ No new migrations to run"
+else
+    echo "✅ Ran $MIGRATIONS_RUN new migration(s)"
+fi
 
 # Create default admin only if setup was run
 if [ "$RUN_SETUP" = true ]; then

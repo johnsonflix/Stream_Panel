@@ -247,9 +247,24 @@ router.get('/auth/me', async (req, res) => {
             return res.status(401).json({ success: false, message: 'Not authenticated' });
         }
 
-        // Check if user has Plex access
-        if (!user.plex_enabled) {
-            return res.status(403).json({ success: false, message: 'Plex access required for Request Site' });
+        // Check if user has Request Site access
+        // rs_has_access: 1 = enabled, 0 = disabled, null = auto (based on plex_enabled)
+        let hasRequestSiteAccess;
+        if (user.rs_has_access === 1) {
+            hasRequestSiteAccess = true;
+        } else if (user.rs_has_access === 0) {
+            hasRequestSiteAccess = false;
+        } else {
+            // null = auto: grant access if user has Plex enabled
+            hasRequestSiteAccess = user.plex_enabled === 1;
+        }
+
+        if (!hasRequestSiteAccess) {
+            return res.status(403).json({
+                success: false,
+                message: 'Request Site access is not enabled for your account',
+                has_access: false
+            });
         }
 
         const permissions = await getUserPermissions(user.id);
@@ -260,6 +275,7 @@ router.get('/auth/me', async (req, res) => {
 
         res.json({
             success: true,
+            has_access: true,
             user: {
                 id: user.id,
                 username: user.username,

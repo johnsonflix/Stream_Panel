@@ -30,6 +30,9 @@
                 <button class="tab" data-tab="settings">
                     <i class="fas fa-cog"></i> Settings
                 </button>
+                <button class="tab" data-tab="managers">
+                    <i class="fas fa-tools"></i> Media Managers
+                </button>
             </div>
 
             <!-- Requests Tab -->
@@ -162,6 +165,25 @@
                     </form>
                 </div>
             </div>
+
+            <!-- Media Managers Tab -->
+            <div id="managers-tab" class="tab-content">
+                <div class="content-card">
+                    <div class="card-header">
+                        <h2><i class="fas fa-tools"></i> Media Managers</h2>
+                        <button class="btn btn-primary" onclick="showAddManagerModal()">
+                            <i class="fas fa-plus"></i> Add Manager
+                        </button>
+                    </div>
+                    <p class="section-description">Configure external tools like Sonarr, Radarr, qBittorrent, and SABnzbd for quick access from the Tools menu.</p>
+
+                    <div id="managers-list" class="server-config-list">
+                        <div class="loading-spinner">
+                            <i class="fas fa-spinner fa-spin"></i> Loading media managers...
+                        </div>
+                    </div>
+                </div>
+            </div>
         </main>
     </div>
 
@@ -229,6 +251,75 @@
         </div>
     </div>
 
+    <!-- Add/Edit Media Manager Modal -->
+    <div id="add-manager-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><i class="fas fa-plus"></i> <span id="manager-modal-title">Add Media Manager</span></h2>
+                <button class="modal-close" onclick="closeAddManagerModal()">&times;</button>
+            </div>
+            <form id="add-manager-form">
+                <input type="hidden" id="manager-id">
+                <div class="form-group">
+                    <label for="manager-type">Type</label>
+                    <select id="manager-type" class="form-select" required onchange="onManagerTypeChange()">
+                        <option value="">Select type...</option>
+                        <option value="sonarr">Sonarr (TV Shows)</option>
+                        <option value="radarr">Radarr (Movies)</option>
+                        <option value="qbittorrent">qBittorrent</option>
+                        <option value="sabnzbd">SABnzbd</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="manager-name">Name</label>
+                    <input type="text" id="manager-name" class="form-control" placeholder="e.g., My Sonarr" required>
+                </div>
+                <div class="form-group">
+                    <label for="manager-url">URL</label>
+                    <input type="url" id="manager-url" class="form-control" placeholder="http://192.168.1.100:8989" required>
+                </div>
+                <div id="manager-apikey-group" class="form-group">
+                    <label for="manager-api-key">API Key</label>
+                    <input type="password" id="manager-api-key" class="form-control" placeholder="Enter API key">
+                </div>
+                <div id="manager-credentials-group" class="form-group" style="display: none;">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="manager-username">Username</label>
+                            <input type="text" id="manager-username" class="form-control" placeholder="Username">
+                        </div>
+                        <div class="form-group">
+                            <label for="manager-password">Password</label>
+                            <input type="password" id="manager-password" class="form-control" placeholder="Password">
+                        </div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="manager-connection-mode">Connection Mode</label>
+                    <select id="manager-connection-mode" class="form-select">
+                        <option value="proxy">Proxy (Recommended)</option>
+                        <option value="direct">Direct (Iframe)</option>
+                    </select>
+                    <small class="form-hint">Proxy mode routes through your server to avoid CORS issues. Direct mode opens the app directly (requires public access).</small>
+                </div>
+                <div class="form-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="manager-enabled" checked>
+                        <span>Enabled</span>
+                    </label>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="testManagerConnection()">
+                        <i class="fas fa-plug"></i> Test Connection
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save"></i> Save Manager
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script src="../js/api.js"></script>
     <script src="../js/utils.js"></script>
     <script>
@@ -236,6 +327,7 @@
         let settings = {};
         let servers = [];
         let requests = [];
+        let managers = [];
         let currentPage = 1;
         const itemsPerPage = 10;
 
@@ -251,10 +343,12 @@
             loadSettings();
             loadServers();
             loadRequests();
+            loadManagers();
 
             // Setup form handlers
             document.getElementById('settings-form').addEventListener('submit', saveSettings);
             document.getElementById('add-server-form').addEventListener('submit', addServer);
+            document.getElementById('add-manager-form').addEventListener('submit', saveManager);
 
             // Filter handlers
             document.getElementById('filter-status').addEventListener('change', () => {
@@ -798,6 +892,335 @@
             `;
             document.body.appendChild(toast);
             setTimeout(() => toast.remove(), 3000);
+        }
+
+        // ============ Media Managers ============
+        const managerIcons = {
+            sonarr: { icon: 'fa-tv', color: '#3b82f6' },
+            radarr: { icon: 'fa-film', color: '#f59e0b' },
+            qbittorrent: { icon: 'fa-magnet', color: '#a855f7' },
+            sabnzbd: { icon: 'fa-download', color: '#f97316' }
+        };
+
+        async function loadManagers() {
+            const container = document.getElementById('managers-list');
+            const token = localStorage.getItem('sessionToken') || sessionStorage.getItem('sessionToken');
+
+            try {
+                const response = await fetch('/api/v2/media-managers', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await response.json();
+                managers = data.managers || [];
+
+                if (managers.length === 0) {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <i class="fas fa-tools"></i>
+                            <h3>No Media Managers</h3>
+                            <p>Add Sonarr, Radarr, qBittorrent, or SABnzbd for quick access from the Tools menu</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                container.innerHTML = managers.map(manager => {
+                    const iconInfo = managerIcons[manager.type] || { icon: 'fa-server', color: '#6b7280' };
+                    return `
+                        <div class="server-config-card">
+                            <div class="server-config-icon" style="background: linear-gradient(135deg, ${iconInfo.color} 0%, ${adjustColor(iconInfo.color, -20)} 100%);">
+                                <i class="fas ${iconInfo.icon}"></i>
+                            </div>
+                            <div class="server-config-info">
+                                <div class="server-config-name">
+                                    ${manager.name}
+                                    <span class="server-config-badge">${manager.type}</span>
+                                    <span class="server-config-badge">${manager.connection_mode}</span>
+                                    ${!manager.is_enabled ? '<span class="server-config-badge" style="background: rgba(239, 68, 68, 0.2); color: #ef4444;">Disabled</span>' : ''}
+                                </div>
+                                <div class="server-config-url">${manager.url}</div>
+                            </div>
+                            <div class="server-config-status" id="manager-status-${manager.id}">
+                                <i class="fas fa-circle"></i> Checking...
+                            </div>
+                            <div class="server-actions">
+                                <button class="btn btn-sm btn-primary" onclick="openManager(${manager.id})" title="Open">
+                                    <i class="fas fa-external-link-alt"></i>
+                                </button>
+                                <button class="btn btn-sm btn-secondary" onclick="editManager(${manager.id})" title="Edit">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button class="btn btn-sm btn-danger" onclick="deleteManager(${manager.id})" title="Delete">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+                // Check statuses
+                managers.forEach(m => checkManagerStatus(m.id));
+            } catch (error) {
+                console.error('Failed to load managers:', error);
+                container.innerHTML = '<div class="error-state">Failed to load media managers</div>';
+            }
+        }
+
+        function adjustColor(hex, amount) {
+            // Simple color adjustment for gradient
+            const num = parseInt(hex.replace('#', ''), 16);
+            const r = Math.max(0, Math.min(255, (num >> 16) + amount));
+            const g = Math.max(0, Math.min(255, ((num >> 8) & 0x00FF) + amount));
+            const b = Math.max(0, Math.min(255, (num & 0x0000FF) + amount));
+            return '#' + (1 << 24 | r << 16 | g << 8 | b).toString(16).slice(1);
+        }
+
+        async function checkManagerStatus(managerId) {
+            const statusEl = document.getElementById(`manager-status-${managerId}`);
+            if (!statusEl) return;
+
+            const token = localStorage.getItem('sessionToken') || sessionStorage.getItem('sessionToken');
+
+            try {
+                const response = await fetch(`/api/v2/media-managers/${managerId}/test`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const result = await response.json();
+
+                if (result.success) {
+                    statusEl.className = 'server-config-status online';
+                    statusEl.innerHTML = `<i class="fas fa-circle"></i> ${result.version || 'Online'}`;
+                } else {
+                    statusEl.className = 'server-config-status offline';
+                    statusEl.innerHTML = '<i class="fas fa-circle"></i> Offline';
+                }
+            } catch (error) {
+                statusEl.className = 'server-config-status offline';
+                statusEl.innerHTML = '<i class="fas fa-circle"></i> Error';
+            }
+        }
+
+        function showAddManagerModal() {
+            document.getElementById('manager-modal-title').textContent = 'Add Media Manager';
+            document.getElementById('add-manager-modal').classList.add('show');
+            document.getElementById('add-manager-form').reset();
+            document.getElementById('manager-id').value = '';
+            document.getElementById('manager-enabled').checked = true;
+            onManagerTypeChange();
+        }
+
+        function closeAddManagerModal() {
+            document.getElementById('add-manager-modal').classList.remove('show');
+        }
+
+        function onManagerTypeChange() {
+            const type = document.getElementById('manager-type').value;
+            const apiKeyGroup = document.getElementById('manager-apikey-group');
+            const credentialsGroup = document.getElementById('manager-credentials-group');
+
+            if (type === 'qbittorrent') {
+                apiKeyGroup.style.display = 'none';
+                credentialsGroup.style.display = 'block';
+            } else {
+                apiKeyGroup.style.display = 'block';
+                credentialsGroup.style.display = 'none';
+            }
+        }
+
+        async function editManager(managerId) {
+            const token = localStorage.getItem('sessionToken') || sessionStorage.getItem('sessionToken');
+
+            try {
+                const response = await fetch(`/api/v2/media-managers/${managerId}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await response.json();
+                const manager = data.manager;
+
+                document.getElementById('manager-modal-title').textContent = 'Edit Media Manager';
+                document.getElementById('manager-id').value = manager.id;
+                document.getElementById('manager-type').value = manager.type;
+                document.getElementById('manager-name').value = manager.name;
+                document.getElementById('manager-url').value = manager.url;
+                document.getElementById('manager-api-key').value = manager.api_key || '';
+                document.getElementById('manager-username').value = manager.username || '';
+                document.getElementById('manager-password').value = manager.password || '';
+                document.getElementById('manager-connection-mode').value = manager.connection_mode;
+                document.getElementById('manager-enabled').checked = manager.is_enabled;
+
+                onManagerTypeChange();
+                document.getElementById('add-manager-modal').classList.add('show');
+            } catch (error) {
+                showToast('Failed to load manager details', 'error');
+            }
+        }
+
+        async function saveManager(e) {
+            e.preventDefault();
+
+            const token = localStorage.getItem('sessionToken') || sessionStorage.getItem('sessionToken');
+            const managerId = document.getElementById('manager-id').value;
+            const isEdit = !!managerId;
+
+            const managerData = {
+                name: document.getElementById('manager-name').value,
+                type: document.getElementById('manager-type').value,
+                url: document.getElementById('manager-url').value,
+                api_key: document.getElementById('manager-api-key').value || null,
+                username: document.getElementById('manager-username').value || null,
+                password: document.getElementById('manager-password').value || null,
+                connection_mode: document.getElementById('manager-connection-mode').value,
+                is_enabled: document.getElementById('manager-enabled').checked
+            };
+
+            try {
+                const url = isEdit ? `/api/v2/media-managers/${managerId}` : '/api/v2/media-managers';
+                const method = isEdit ? 'PUT' : 'POST';
+
+                const response = await fetch(url, {
+                    method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify(managerData)
+                });
+
+                if (response.ok) {
+                    showToast(isEdit ? 'Manager updated' : 'Manager added', 'success');
+                    closeAddManagerModal();
+                    loadManagers();
+                } else {
+                    const error = await response.json();
+                    showToast(error.error || 'Failed to save manager', 'error');
+                }
+            } catch (error) {
+                showToast('Failed to save manager', 'error');
+            }
+        }
+
+        async function deleteManager(managerId) {
+            if (!confirm('Are you sure you want to remove this media manager?')) return;
+
+            const token = localStorage.getItem('sessionToken') || sessionStorage.getItem('sessionToken');
+
+            try {
+                const response = await fetch(`/api/v2/media-managers/${managerId}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    showToast('Manager removed', 'success');
+                    loadManagers();
+                } else {
+                    throw new Error('Failed to remove manager');
+                }
+            } catch (error) {
+                showToast('Failed to remove manager', 'error');
+            }
+        }
+
+        async function testManagerConnection() {
+            const type = document.getElementById('manager-type').value;
+            const url = document.getElementById('manager-url').value;
+            const apiKey = document.getElementById('manager-api-key').value;
+            const username = document.getElementById('manager-username').value;
+            const password = document.getElementById('manager-password').value;
+
+            if (!type || !url) {
+                showToast('Please fill in type and URL', 'error');
+                return;
+            }
+
+            if (type === 'qbittorrent' && (!username || !password)) {
+                showToast('Please enter username and password for qBittorrent', 'error');
+                return;
+            }
+
+            if (type !== 'qbittorrent' && !apiKey) {
+                showToast('Please enter API key', 'error');
+                return;
+            }
+
+            const btn = event.target;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Testing...';
+
+            const token = localStorage.getItem('sessionToken') || sessionStorage.getItem('sessionToken');
+
+            try {
+                // Create temp manager to test
+                const createResponse = await fetch('/api/v2/media-managers', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        name: 'Test Connection',
+                        type,
+                        url,
+                        api_key: apiKey,
+                        username,
+                        password,
+                        connection_mode: 'proxy',
+                        is_enabled: false
+                    })
+                });
+
+                const createResult = await createResponse.json();
+
+                if (createResponse.ok) {
+                    // Test the connection
+                    const testResponse = await fetch(`/api/v2/media-managers/${createResult.id}/test`, {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    const testResult = await testResponse.json();
+
+                    // Delete the test manager
+                    await fetch(`/api/v2/media-managers/${createResult.id}`, {
+                        method: 'DELETE',
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+
+                    if (testResult.success) {
+                        showToast(testResult.message || 'Connection successful!', 'success');
+                    } else {
+                        showToast(testResult.error || 'Connection failed', 'error');
+                    }
+                } else {
+                    showToast(createResult.error || 'Failed to test connection', 'error');
+                }
+            } catch (error) {
+                showToast('Connection test failed', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-plug"></i> Test Connection';
+            }
+        }
+
+        async function openManager(managerId) {
+            const token = localStorage.getItem('sessionToken') || sessionStorage.getItem('sessionToken');
+
+            try {
+                const response = await fetch(`/api/v2/media-managers/${managerId}/open-url`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await response.json();
+
+                if (data.connection_mode === 'proxy') {
+                    // Open proxy viewer in new tab
+                    window.open(`/admin/tool-proxy.html?id=${managerId}`, '_blank');
+                } else {
+                    // Open direct URL
+                    window.open(data.url, '_blank');
+                }
+            } catch (error) {
+                showToast('Failed to open manager', 'error');
+            }
         }
     </script>
 </body>

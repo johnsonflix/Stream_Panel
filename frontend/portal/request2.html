@@ -203,6 +203,81 @@
         .usage-progress-bar.medium { background: #f59e0b; }
         .usage-progress-bar.high { background: #ef4444; }
 
+        /* Tools Dropdown (Admin Only) */
+        .tools-nav-dropdown {
+            position: relative;
+            display: inline-block;
+        }
+        .tools-dropdown-toggle {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 14px;
+            background: rgba(99, 102, 241, 0.15);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            border-radius: 8px;
+            color: #a5b4fc;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .tools-dropdown-toggle:hover {
+            background: rgba(99, 102, 241, 0.25);
+            color: #c7d2fe;
+        }
+        .tools-dropdown-menu {
+            display: none;
+            position: absolute;
+            top: calc(100% + 8px);
+            left: 0;
+            min-width: 200px;
+            background: #1e293b;
+            border: 1px solid #374151;
+            border-radius: 10px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+            z-index: 1000;
+            overflow: hidden;
+        }
+        .tools-dropdown-menu.show {
+            display: block;
+        }
+        .tools-dropdown-menu a {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 16px;
+            color: #e2e8f0;
+            text-decoration: none;
+            font-size: 14px;
+            transition: background 0.15s;
+        }
+        .tools-dropdown-menu a:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+        .tools-dropdown-menu .tool-icon {
+            width: 24px;
+            height: 24px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            color: white;
+        }
+        .tools-dropdown-menu .tool-icon.sonarr { background: linear-gradient(135deg, #3b82f6, #2563eb); }
+        .tools-dropdown-menu .tool-icon.radarr { background: linear-gradient(135deg, #f59e0b, #d97706); }
+        .tools-dropdown-menu .tool-icon.qbittorrent { background: linear-gradient(135deg, #a855f7, #9333ea); }
+        .tools-dropdown-menu .tool-icon.sabnzbd { background: linear-gradient(135deg, #f97316, #ea580c); }
+        .tools-dropdown-menu .dropdown-footer {
+            border-top: 1px solid #374151;
+            margin-top: 8px;
+            padding-top: 8px;
+        }
+        .tools-dropdown-menu .dropdown-footer a {
+            color: #94a3b8;
+            font-size: 13px;
+        }
+
         /* Header Search Bar */
         .request-nav-search {
             position: relative;
@@ -3818,6 +3893,149 @@
             text-align: center;
             padding: 32px;
         }
+        /* Media Managers Card Styles */
+        .settings-section {
+            padding: 20px;
+        }
+        .settings-section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+        .settings-section-header h3 {
+            font-size: 18px;
+            font-weight: 600;
+            color: #f8fafc;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .settings-section-header h3 i {
+            color: #6366f1;
+        }
+        .settings-description {
+            color: #94a3b8;
+            font-size: 14px;
+            margin-bottom: 20px;
+        }
+        .settings-card-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .settings-card-list .settings-card {
+            display: flex;
+            align-items: center;
+            padding: 16px;
+            gap: 16px;
+            margin-bottom: 0;
+        }
+        .settings-card-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        .settings-card-icon i {
+            font-size: 20px;
+            color: white;
+        }
+        .settings-card-info {
+            flex: 1;
+            min-width: 0;
+        }
+        .settings-card-title {
+            font-size: 15px;
+            font-weight: 600;
+            color: #f8fafc;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .settings-card-subtitle {
+            font-size: 13px;
+            color: #64748b;
+            margin-top: 4px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .settings-badge {
+            font-size: 11px;
+            padding: 2px 8px;
+            background: rgba(99, 102, 241, 0.2);
+            color: #818cf8;
+            border-radius: 4px;
+            text-transform: uppercase;
+            font-weight: 500;
+        }
+        .settings-badge-disabled {
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+        }
+        .settings-card-status {
+            font-size: 12px;
+            color: #64748b;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            min-width: 80px;
+        }
+        .settings-card-status i {
+            font-size: 8px;
+        }
+        .settings-status-online {
+            color: #22c55e;
+        }
+        .settings-status-online i {
+            color: #22c55e;
+        }
+        .settings-status-offline {
+            color: #ef4444;
+        }
+        .settings-status-offline i {
+            color: #ef4444;
+        }
+        .settings-card-actions {
+            display: flex;
+            gap: 8px;
+        }
+        .settings-btn-sm {
+            padding: 8px 12px;
+            font-size: 13px;
+        }
+        .settings-empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #64748b;
+        }
+        .settings-empty-state i {
+            font-size: 48px;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+        .settings-empty-state h3 {
+            font-size: 18px;
+            color: #94a3b8;
+            margin-bottom: 8px;
+        }
+        .settings-empty-state p {
+            font-size: 14px;
+        }
+        .settings-error {
+            text-align: center;
+            padding: 40px;
+            color: #ef4444;
+        }
+        .settings-error i {
+            margin-right: 8px;
+        }
         .users-permissions-list {
             display: flex;
             flex-direction: column;
@@ -4057,6 +4275,76 @@
             gap: 12px;
             padding: 16px 20px;
             border-top: 1px solid #374151;
+        }
+        .request-modal-header h2 {
+            margin: 0;
+            color: #f1f5f9;
+            font-size: 18px;
+        }
+        /* Form styling for modals */
+        .form-group {
+            margin-bottom: 16px;
+        }
+        .form-group label {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            color: #e2e8f0;
+            margin-bottom: 6px;
+        }
+        .form-control {
+            width: 100%;
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid #374151;
+            border-radius: 8px;
+            padding: 10px 12px;
+            color: #f8fafc;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+        .form-control:focus {
+            outline: none;
+            border-color: #6366f1;
+            background: rgba(99, 102, 241, 0.1);
+        }
+        .form-control::placeholder {
+            color: #64748b;
+        }
+        .form-select {
+            width: 100%;
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid #374151;
+            border-radius: 8px;
+            padding: 10px 12px;
+            color: #f8fafc;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%2394a3b8' viewBox='0 0 16 16'%3E%3Cpath d='M7.247 11.14L2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            padding-right: 36px;
+        }
+        .form-select:focus {
+            outline: none;
+            border-color: #6366f1;
+            background-color: rgba(99, 102, 241, 0.1);
+        }
+        .form-select option {
+            background: #1e293b;
+            color: #f8fafc;
+        }
+        /* Modal show/hide state */
+        .request-modal:not(.show) {
+            display: none;
+        }
+        /* Checkbox styling in forms */
+        .form-group input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            accent-color: #6366f1;
+            cursor: pointer;
         }
         .settings-description {
             font-size: 13px;
@@ -5439,6 +5727,15 @@
             <a class="request-nav-link" data-section="tv">TV Shows</a>
             <a class="request-nav-link" data-section="requests">Requests <span class="request-nav-badge" id="pending-requests-badge" style="display: none;">0</span></a>
             <a class="request-nav-link" id="settings-link" data-section="settings" style="display: none;">Settings</a>
+            <!-- Tools Dropdown (Admin Only) -->
+            <div class="tools-nav-dropdown" id="tools-nav-dropdown" style="display: none;">
+                <button class="tools-dropdown-toggle" onclick="toggleToolsDropdown(event)">
+                    <i class="fas fa-tools"></i> Tools <i class="fas fa-caret-down" style="font-size: 10px;"></i>
+                </button>
+                <div class="tools-dropdown-menu" id="tools-dropdown-menu">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
             <div class="request-nav-search">
                 <input type="text" class="request-search-input" id="search-input"
                        placeholder="Search for movies or TV shows...">
@@ -6886,6 +7183,9 @@
                     if (settingsLink) settingsLink.style.display = 'block';
                     updateMobileSettingsVisibility(true); // Also show on mobile
 
+                    // Load Tools dropdown for admins
+                    loadToolsDropdown();
+
                     // Update "Requests" link text to "Manage Requests" for admins (preserve badge)
                     const requestsLink = document.querySelector('.request-nav-link[data-section="requests"]');
                     if (requestsLink) {
@@ -6969,6 +7269,17 @@
                             const permResponse = await fetch('/api/v2/request-site/auth/me', {
                                 headers: { 'Authorization': `Bearer ${token}` }
                             });
+
+                            // Check if access was denied (403)
+                            if (permResponse.status === 403) {
+                                const errorData = await permResponse.json();
+                                if (errorData.has_access === false) {
+                                    // User doesn't have Request Site access - show access denied message
+                                    showAccessDenied(errorData.message || 'Request Site access is not enabled for your account.');
+                                    return;
+                                }
+                            }
+
                             if (permResponse.ok) {
                                 const permData = await permResponse.json();
                                 userPermissions = permData.permissions || {};
@@ -7019,6 +7330,41 @@
                 backLink.innerHTML = '<i class="fas fa-arrow-left"></i> Admin';
             } else {
                 backLink.href = 'index.html';
+            }
+        }
+
+        /**
+         * Show access denied message and hide page content
+         */
+        function showAccessDenied(message) {
+            // Hide all content sections
+            document.querySelectorAll('.request-container, .request-nav, .request-mobile-nav').forEach(el => {
+                el.style.display = 'none';
+            });
+
+            // Create and show access denied message
+            const accessDeniedHtml = `
+                <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 60vh; text-align: center; padding: 40px;">
+                    <div style="font-size: 64px; margin-bottom: 20px; color: var(--text-secondary);">
+                        <i class="fas fa-lock"></i>
+                    </div>
+                    <h2 style="margin-bottom: 10px; color: var(--text-primary);">Access Restricted</h2>
+                    <p style="color: var(--text-secondary); max-width: 400px; margin-bottom: 30px;">
+                        ${message}
+                    </p>
+                    <a href="index.html" class="btn-primary" style="padding: 12px 24px; border-radius: 8px; text-decoration: none;">
+                        <i class="fas fa-arrow-left" style="margin-right: 8px;"></i>
+                        Return to Portal
+                    </a>
+                </div>
+            `;
+
+            // Insert after the back link
+            const backLink = document.getElementById('back-link');
+            if (backLink && backLink.parentElement) {
+                backLink.parentElement.insertAdjacentHTML('afterend', accessDeniedHtml);
+            } else {
+                document.body.innerHTML = accessDeniedHtml;
             }
         }
 
@@ -7237,6 +7583,114 @@
                 dropdown.classList.remove('show');
                 document.removeEventListener('click', closeUsageDropdownOnClickOutside);
             }
+        }
+
+        // ============ Tools Dropdown (Admin Only) ============
+        const toolIcons = {
+            sonarr: 'fa-tv',
+            radarr: 'fa-film',
+            qbittorrent: 'fa-magnet',
+            sabnzbd: 'fa-download'
+        };
+
+        async function loadToolsDropdown() {
+            const container = document.getElementById('tools-nav-dropdown');
+            const menu = document.getElementById('tools-dropdown-menu');
+            if (!container || !menu) return;
+
+            const adminToken = localStorage.getItem('sessionToken') || sessionStorage.getItem('sessionToken');
+            if (!adminToken) return;
+
+            try {
+                const response = await fetch('/api/v2/media-managers', {
+                    headers: { 'Authorization': `Bearer ${adminToken}` }
+                });
+                const data = await response.json();
+                const managers = (data.managers || []).filter(m => m.is_enabled);
+
+                if (managers.length === 0) {
+                    container.style.display = 'none';
+                    return;
+                }
+
+                container.style.display = 'inline-block';
+
+                let menuHtml = managers.map(m => `
+                    <a href="#" onclick="openTool(${m.id}); return false;">
+                        <span class="tool-icon ${m.type}">
+                            <i class="fas ${toolIcons[m.type] || 'fa-server'}"></i>
+                        </span>
+                        ${escapeHtml(m.name)}
+                    </a>
+                `).join('');
+
+                menuHtml += `
+                    <div class="dropdown-footer">
+                        <a href="#" onclick="navigateToManagersSettings(); return false;">
+                            <i class="fas fa-cog"></i> Manage Tools
+                        </a>
+                    </div>
+                `;
+
+                menu.innerHTML = menuHtml;
+            } catch (error) {
+                console.error('Failed to load tools dropdown:', error);
+                container.style.display = 'none';
+            }
+        }
+
+        function toggleToolsDropdown(event) {
+            event.stopPropagation();
+            const menu = document.getElementById('tools-dropdown-menu');
+            menu.classList.toggle('show');
+
+            if (menu.classList.contains('show')) {
+                document.addEventListener('click', closeToolsDropdownOnClickOutside);
+            }
+        }
+
+        function closeToolsDropdownOnClickOutside(event) {
+            const menu = document.getElementById('tools-dropdown-menu');
+            const container = document.getElementById('tools-nav-dropdown');
+            if (menu && container && !container.contains(event.target)) {
+                menu.classList.remove('show');
+                document.removeEventListener('click', closeToolsDropdownOnClickOutside);
+            }
+        }
+
+        async function openTool(managerId) {
+            document.getElementById('tools-dropdown-menu')?.classList.remove('show');
+
+            const adminToken = localStorage.getItem('sessionToken') || sessionStorage.getItem('sessionToken');
+
+            try {
+                const response = await fetch(`/api/v2/media-managers/${managerId}/open-url`, {
+                    headers: { 'Authorization': `Bearer ${adminToken}` }
+                });
+                const data = await response.json();
+
+                if (data.connection_mode === 'proxy') {
+                    window.open(`/admin/tool-proxy.html?id=${managerId}`, '_blank');
+                } else {
+                    window.open(data.url, '_blank');
+                }
+            } catch (error) {
+                console.error('Failed to open tool:', error);
+            }
+        }
+
+        function navigateToManagersSettings() {
+            // Close the dropdown
+            document.getElementById('tools-dropdown-menu')?.classList.remove('show');
+            // Switch to settings section and managers tab
+            settingsCurrentTab = 'managers';
+            switchSection('settings');
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text || '';
+            return div.innerHTML;
         }
 
         async function loadConstants() {
@@ -11271,7 +11725,9 @@
 
         // ============ Settings Section ============
         let settingsServers = [];
-        let settingsCurrentTab = 'servers';
+        // Check URL for settingsTab parameter (used when linking from admin portal)
+        const urlSettingsTab = new URLSearchParams(window.location.search).get('settingsTab');
+        let settingsCurrentTab = urlSettingsTab || 'servers';
 
         async function loadSettingsSection() {
             const container = document.getElementById('settings-content');
@@ -11288,6 +11744,9 @@
                     </button>
                     <button class="settings-tab ${settingsCurrentTab === 'notifications' ? 'active' : ''}" data-tab="notifications">
                         <i class="fas fa-bell"></i> Notifications
+                    </button>
+                    <button class="settings-tab ${settingsCurrentTab === 'managers' ? 'active' : ''}" data-tab="managers">
+                        <i class="fas fa-tools"></i> Tools
                     </button>
                 </div>
                 <div id="settings-tab-content">
@@ -11319,6 +11778,8 @@
                 await loadUsersSettings(content);
             } else if (settingsCurrentTab === 'notifications') {
                 await loadNotificationSettings(content);
+            } else if (settingsCurrentTab === 'managers') {
+                await loadManagersSettings(content);
             }
         }
 
@@ -12760,6 +13221,398 @@
                 btn.disabled = false;
                 btn.innerHTML = '<i class="fas fa-sync"></i> Scan Plex Libraries';
                 progress.style.display = 'none';
+            }
+        }
+
+        // ============ Media Managers Settings Tab ============
+        let settingsManagers = [];
+        const managerIcons = {
+            sonarr: { icon: 'fa-tv', color: '#3b82f6' },
+            radarr: { icon: 'fa-film', color: '#f59e0b' },
+            qbittorrent: { icon: 'fa-magnet', color: '#a855f7' },
+            sabnzbd: { icon: 'fa-download', color: '#f97316' }
+        };
+
+        async function loadManagersSettings(container) {
+            container.innerHTML = '<div class="request-loading"><div class="request-loading-spinner"></div><div class="request-loading-text">Loading tools...</div></div>';
+
+            try {
+                const token = localStorage.getItem('sessionToken') || sessionStorage.getItem('sessionToken');
+                const response = await fetch('/api/v2/media-managers', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await response.json();
+                settingsManagers = data.managers || [];
+
+                container.innerHTML = `
+                    <div class="settings-section">
+                        <div class="settings-section-header">
+                            <h3><i class="fas fa-tools"></i> Media Managers</h3>
+                            <button class="settings-btn settings-btn-primary" onclick="showAddManagerModal()">
+                                <i class="fas fa-plus"></i> Add Tool
+                            </button>
+                        </div>
+                        <p class="settings-description">Configure external tools like Sonarr, Radarr, qBittorrent, and SABnzbd. These appear in the Tools dropdown menu for quick access.</p>
+                        <div id="managers-list" class="settings-card-list">
+                            ${renderManagersList()}
+                        </div>
+                    </div>
+                `;
+
+                // Check statuses
+                settingsManagers.forEach(m => checkManagerStatus(m.id));
+            } catch (error) {
+                console.error('Failed to load managers:', error);
+                container.innerHTML = '<div class="settings-error"><i class="fas fa-exclamation-triangle"></i> Failed to load tools</div>';
+            }
+        }
+
+        function renderManagersList() {
+            if (settingsManagers.length === 0) {
+                return `
+                    <div class="settings-empty-state">
+                        <i class="fas fa-tools"></i>
+                        <h3>No Tools Configured</h3>
+                        <p>Add Sonarr, Radarr, qBittorrent, or SABnzbd for quick access from the Tools menu</p>
+                    </div>
+                `;
+            }
+
+            return settingsManagers.map(manager => {
+                const iconInfo = managerIcons[manager.type] || { icon: 'fa-server', color: '#6b7280' };
+                return `
+                    <div class="settings-card">
+                        <div class="settings-card-icon" style="background: linear-gradient(135deg, ${iconInfo.color} 0%, ${adjustManagerColor(iconInfo.color, -20)} 100%);">
+                            <i class="fas ${iconInfo.icon}"></i>
+                        </div>
+                        <div class="settings-card-info">
+                            <div class="settings-card-title">
+                                ${escapeHtml(manager.name)}
+                                <span class="settings-badge">${manager.type}</span>
+                                <span class="settings-badge">${manager.connection_mode}</span>
+                                ${!manager.is_enabled ? '<span class="settings-badge settings-badge-disabled">Disabled</span>' : ''}
+                            </div>
+                            <div class="settings-card-subtitle">${escapeHtml(manager.url)}</div>
+                        </div>
+                        <div class="settings-card-status" id="manager-status-${manager.id}">
+                            <i class="fas fa-circle"></i> Checking...
+                        </div>
+                        <div class="settings-card-actions">
+                            <button class="settings-btn settings-btn-sm" onclick="openManager(${manager.id})" title="Open">
+                                <i class="fas fa-external-link-alt"></i>
+                            </button>
+                            <button class="settings-btn settings-btn-sm" onclick="editManager(${manager.id})" title="Edit">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="settings-btn settings-btn-sm settings-btn-danger" onclick="deleteManager(${manager.id})" title="Delete">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function adjustManagerColor(hex, amount) {
+            const num = parseInt(hex.replace('#', ''), 16);
+            const r = Math.max(0, Math.min(255, (num >> 16) + amount));
+            const g = Math.max(0, Math.min(255, ((num >> 8) & 0x00FF) + amount));
+            const b = Math.max(0, Math.min(255, (num & 0x0000FF) + amount));
+            return '#' + (1 << 24 | r << 16 | g << 8 | b).toString(16).slice(1);
+        }
+
+        async function checkManagerStatus(managerId) {
+            const statusEl = document.getElementById(`manager-status-${managerId}`);
+            if (!statusEl) return;
+
+            const token = localStorage.getItem('sessionToken') || sessionStorage.getItem('sessionToken');
+            try {
+                const response = await fetch(`/api/v2/media-managers/${managerId}/test`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const result = await response.json();
+
+                if (result.success) {
+                    statusEl.className = 'settings-card-status settings-status-online';
+                    statusEl.innerHTML = `<i class="fas fa-circle"></i> ${result.version || 'Online'}`;
+                } else {
+                    statusEl.className = 'settings-card-status settings-status-offline';
+                    statusEl.innerHTML = '<i class="fas fa-circle"></i> Offline';
+                }
+            } catch (error) {
+                statusEl.className = 'settings-card-status settings-status-offline';
+                statusEl.innerHTML = '<i class="fas fa-circle"></i> Error';
+            }
+        }
+
+        function showAddManagerModal() {
+            const modal = document.getElementById('manager-modal');
+            if (!modal) createManagerModal();
+
+            document.getElementById('manager-modal-title').textContent = 'Add Tool';
+            document.getElementById('manager-form').reset();
+            document.getElementById('manager-id').value = '';
+            document.getElementById('manager-enabled').checked = true;
+            onManagerTypeChange();
+            document.getElementById('manager-modal').classList.add('show');
+        }
+
+        function closeManagerModal() {
+            document.getElementById('manager-modal').classList.remove('show');
+        }
+
+        function createManagerModal() {
+            const modalHtml = `
+                <div id="manager-modal" class="request-modal">
+                    <div class="request-modal-content" style="max-width: 500px;">
+                        <div class="request-modal-header">
+                            <h2 id="manager-modal-title">Add Tool</h2>
+                            <button class="request-modal-close" onclick="closeManagerModal()">&times;</button>
+                        </div>
+                        <form id="manager-form" onsubmit="saveManager(event)">
+                            <input type="hidden" id="manager-id">
+                            <div class="form-group">
+                                <label for="manager-type">Type</label>
+                                <select id="manager-type" class="form-select" required onchange="onManagerTypeChange()">
+                                    <option value="">Select type...</option>
+                                    <option value="sonarr">Sonarr (TV Shows)</option>
+                                    <option value="radarr">Radarr (Movies)</option>
+                                    <option value="qbittorrent">qBittorrent</option>
+                                    <option value="sabnzbd">SABnzbd</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="manager-name">Name</label>
+                                <input type="text" id="manager-name" class="form-control" placeholder="e.g., My Sonarr" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="manager-url">URL</label>
+                                <input type="url" id="manager-url" class="form-control" placeholder="http://192.168.1.100:8989" required>
+                            </div>
+                            <div id="manager-apikey-group" class="form-group">
+                                <label for="manager-api-key">API Key</label>
+                                <input type="password" id="manager-api-key" class="form-control" placeholder="Enter API key">
+                            </div>
+                            <div id="manager-credentials-group" class="form-group" style="display: none;">
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                                    <div>
+                                        <label for="manager-username">Username</label>
+                                        <input type="text" id="manager-username" class="form-control" placeholder="Username">
+                                    </div>
+                                    <div>
+                                        <label for="manager-password">Password</label>
+                                        <input type="password" id="manager-password" class="form-control" placeholder="Password">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="manager-connection-mode">Connection Mode</label>
+                                <select id="manager-connection-mode" class="form-select">
+                                    <option value="proxy">Proxy (Recommended)</option>
+                                    <option value="direct">Direct (Iframe)</option>
+                                </select>
+                                <small style="color: #94a3b8; font-size: 12px; margin-top: 4px; display: block;">Proxy mode routes through your server to avoid CORS issues.</small>
+                            </div>
+                            <div class="form-group">
+                                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                    <input type="checkbox" id="manager-enabled" checked>
+                                    <span>Enabled</span>
+                                </label>
+                            </div>
+                            <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 20px;">
+                                <button type="button" class="settings-btn" onclick="testManagerConnection()">
+                                    <i class="fas fa-plug"></i> Test Connection
+                                </button>
+                                <button type="submit" class="settings-btn settings-btn-primary">
+                                    <i class="fas fa-save"></i> Save
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            `;
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+        }
+
+        function onManagerTypeChange() {
+            const type = document.getElementById('manager-type').value;
+            const apiKeyGroup = document.getElementById('manager-apikey-group');
+            const credentialsGroup = document.getElementById('manager-credentials-group');
+
+            if (type === 'qbittorrent') {
+                apiKeyGroup.style.display = 'none';
+                credentialsGroup.style.display = 'block';
+            } else {
+                apiKeyGroup.style.display = 'block';
+                credentialsGroup.style.display = 'none';
+            }
+        }
+
+        async function editManager(managerId) {
+            const token = localStorage.getItem('sessionToken') || sessionStorage.getItem('sessionToken');
+            try {
+                const response = await fetch(`/api/v2/media-managers/${managerId}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await response.json();
+                const manager = data.manager;
+
+                if (!document.getElementById('manager-modal')) createManagerModal();
+
+                document.getElementById('manager-modal-title').textContent = 'Edit Tool';
+                document.getElementById('manager-id').value = manager.id;
+                document.getElementById('manager-type').value = manager.type;
+                document.getElementById('manager-name').value = manager.name;
+                document.getElementById('manager-url').value = manager.url;
+                document.getElementById('manager-api-key').value = manager.api_key || '';
+                document.getElementById('manager-username').value = manager.username || '';
+                document.getElementById('manager-password').value = manager.password || '';
+                document.getElementById('manager-connection-mode').value = manager.connection_mode;
+                document.getElementById('manager-enabled').checked = manager.is_enabled;
+
+                onManagerTypeChange();
+                document.getElementById('manager-modal').classList.add('show');
+            } catch (error) {
+                showRequestToast('Failed to load tool details', 'error');
+            }
+        }
+
+        async function saveManager(e) {
+            e.preventDefault();
+
+            const token = localStorage.getItem('sessionToken') || sessionStorage.getItem('sessionToken');
+            const managerId = document.getElementById('manager-id').value;
+            const isEdit = !!managerId;
+
+            const managerData = {
+                name: document.getElementById('manager-name').value,
+                type: document.getElementById('manager-type').value,
+                url: document.getElementById('manager-url').value,
+                api_key: document.getElementById('manager-api-key').value || null,
+                username: document.getElementById('manager-username').value || null,
+                password: document.getElementById('manager-password').value || null,
+                connection_mode: document.getElementById('manager-connection-mode').value,
+                is_enabled: document.getElementById('manager-enabled').checked
+            };
+
+            try {
+                const url = isEdit ? `/api/v2/media-managers/${managerId}` : '/api/v2/media-managers';
+                const method = isEdit ? 'PUT' : 'POST';
+
+                const response = await fetch(url, {
+                    method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify(managerData)
+                });
+
+                if (response.ok) {
+                    showRequestToast(isEdit ? 'Tool updated' : 'Tool added', 'success');
+                    closeManagerModal();
+                    loadSettingsTabContent();
+                    loadToolsDropdown(); // Refresh tools dropdown
+                } else {
+                    const error = await response.json();
+                    showRequestToast(error.error || 'Failed to save tool', 'error');
+                }
+            } catch (error) {
+                showRequestToast('Failed to save tool', 'error');
+            }
+        }
+
+        async function deleteManager(managerId) {
+            if (!confirm('Are you sure you want to remove this tool?')) return;
+
+            const token = localStorage.getItem('sessionToken') || sessionStorage.getItem('sessionToken');
+            try {
+                const response = await fetch(`/api/v2/media-managers/${managerId}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    showRequestToast('Tool removed', 'success');
+                    loadSettingsTabContent();
+                    loadToolsDropdown(); // Refresh tools dropdown
+                } else {
+                    throw new Error('Failed to remove tool');
+                }
+            } catch (error) {
+                showRequestToast('Failed to remove tool', 'error');
+            }
+        }
+
+        async function testManagerConnection() {
+            const type = document.getElementById('manager-type').value;
+            const url = document.getElementById('manager-url').value;
+            const apiKey = document.getElementById('manager-api-key').value;
+            const username = document.getElementById('manager-username').value;
+            const password = document.getElementById('manager-password').value;
+
+            if (!type || !url) {
+                showRequestToast('Please fill in type and URL', 'error');
+                return;
+            }
+
+            if (type === 'qbittorrent' && (!username || !password)) {
+                showRequestToast('Please enter username and password for qBittorrent', 'error');
+                return;
+            }
+
+            if (type !== 'qbittorrent' && !apiKey) {
+                showRequestToast('Please enter API key', 'error');
+                return;
+            }
+
+            const btn = event.target;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Testing...';
+
+            const token = localStorage.getItem('sessionToken') || sessionStorage.getItem('sessionToken');
+
+            try {
+                const response = await fetch('/api/v2/media-managers/test-config', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ type, url, api_key: apiKey, username, password })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    showRequestToast(result.message || 'Connection successful!', 'success');
+                } else {
+                    showRequestToast(result.error || 'Connection failed', 'error');
+                }
+            } catch (error) {
+                showRequestToast('Connection test failed', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-plug"></i> Test Connection';
+            }
+        }
+
+        async function openManager(managerId) {
+            const token = localStorage.getItem('sessionToken') || sessionStorage.getItem('sessionToken');
+            try {
+                const response = await fetch(`/api/v2/media-managers/${managerId}/open-url`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await response.json();
+
+                if (data.connection_mode === 'proxy') {
+                    window.open(`/admin/tool-proxy.html?id=${managerId}`, '_blank');
+                } else {
+                    window.open(data.url, '_blank');
+                }
+            } catch (error) {
+                showRequestToast('Failed to open tool', 'error');
             }
         }
 

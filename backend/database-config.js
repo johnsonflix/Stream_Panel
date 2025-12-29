@@ -73,71 +73,86 @@ async function query(sql, params = []) {
  * Get connection (for transaction support)
  * Note: SQLite doesn't need explicit connections, but we provide this
  * for API compatibility with MySQL code
+ *
+ * All operations go through the write queue to prevent SQLITE_BUSY errors
  */
 async function getConnection() {
     let inTransaction = false;
 
     // Return a connection-like object with transaction support
     return {
-        // Begin transaction
+        // Begin transaction - goes through queue to ensure exclusive access
         beginTransaction: async () => {
-            try {
-                db.prepare('BEGIN TRANSACTION').run();
-                inTransaction = true;
-            } catch (error) {
-                // Transaction may already be active
-                if (!error.message.includes('within a transaction')) {
-                    throw error;
+            return dbQueue.write(() => {
+                try {
+                    db.prepare('BEGIN IMMEDIATE').run();
+                    inTransaction = true;
+                } catch (error) {
+                    // Transaction may already be active
+                    if (!error.message.includes('within a transaction')) {
+                        throw error;
+                    }
+                    inTransaction = true;
                 }
-                inTransaction = true;
-            }
+            });
         },
 
-        // Execute query
+        // Execute query - all operations go through queue
         execute: async (sql, params = []) => {
-            // For execute, return [rows, fields] like mysql2
-            if (sql.trim().toUpperCase().startsWith('SELECT') ||
-                sql.trim().toUpperCase().startsWith('SHOW')) {
+            const trimmedSql = sql.trim().toUpperCase();
+            const isReadQuery = trimmedSql.startsWith('SELECT') ||
+                               trimmedSql.startsWith('SHOW') ||
+                               trimmedSql.startsWith('PRAGMA');
+
+            if (isReadQuery) {
+                // Reads can execute directly (SQLite handles concurrent reads)
                 const stmt = db.prepare(sql);
                 const rows = stmt.all(...params);
                 return [rows, null];
             } else {
-                const stmt = db.prepare(sql);
-                const result = stmt.run(...params);
-                return [{
-                    insertId: result.lastInsertRowid,
-                    affectedRows: result.changes
-                }, null];
+                // Writes go through the queue
+                return dbQueue.write(() => {
+                    const stmt = db.prepare(sql);
+                    const result = stmt.run(...params);
+                    return [{
+                        insertId: result.lastInsertRowid,
+                        affectedRows: result.changes
+                    }, null];
+                });
             }
         },
 
-        // Commit transaction
+        // Commit transaction - goes through queue
         commit: async () => {
             if (inTransaction) {
-                try {
-                    db.prepare('COMMIT').run();
-                } catch (error) {
-                    // Ignore if no transaction is active
-                    if (!error.message.includes('no transaction')) {
-                        throw error;
+                return dbQueue.write(() => {
+                    try {
+                        db.prepare('COMMIT').run();
+                    } catch (error) {
+                        // Ignore if no transaction is active
+                        if (!error.message.includes('no transaction')) {
+                            throw error;
+                        }
                     }
-                }
-                inTransaction = false;
+                    inTransaction = false;
+                });
             }
         },
 
-        // Rollback transaction
+        // Rollback transaction - goes through queue
         rollback: async () => {
             if (inTransaction) {
-                try {
-                    db.prepare('ROLLBACK').run();
-                } catch (error) {
-                    // Ignore if no transaction is active (may have auto-rolled back on error)
-                    if (!error.message.includes('no transaction')) {
-                        throw error;
+                return dbQueue.write(() => {
+                    try {
+                        db.prepare('ROLLBACK').run();
+                    } catch (error) {
+                        // Ignore if no transaction is active (may have auto-rolled back on error)
+                        if (!error.message.includes('no transaction')) {
+                            throw error;
+                        }
                     }
-                }
-                inTransaction = false;
+                    inTransaction = false;
+                });
             }
         },
 
@@ -146,11 +161,14 @@ async function getConnection() {
             // SQLite doesn't need to release connections
             // But ensure we're not leaving a transaction open
             if (inTransaction) {
-                try {
-                    db.prepare('ROLLBACK').run();
-                } catch (e) {
-                    // Ignore
-                }
+                // Queue the rollback to avoid conflicts
+                dbQueue.write(() => {
+                    try {
+                        db.prepare('ROLLBACK').run();
+                    } catch (e) {
+                        // Ignore
+                    }
+                }).catch(() => {});
                 inTransaction = false;
             }
         }

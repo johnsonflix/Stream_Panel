@@ -1,6 +1,6 @@
 {
-  "version": "1.4.1",
+  "version": "1.5.0",
   "name": "Stream Panel",
-  "releaseDate": "2025-12-27",
-  "description": "Migration ordering fix, request status sync for already-downloaded content"
+  "releaseDate": "2025-12-28",
+  "description": "Migration system overhaul, SQLite lock fixes, Plex popup login, Request Site access toggle, portal card collages, Media Managers foundation"
 }

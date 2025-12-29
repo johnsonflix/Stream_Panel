@@ -282,20 +282,7 @@
             min-height: 120px;
         }
 
-        /* Fallback poster collage pattern */
-        .request-media-banner::after {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 200"><defs><linearGradient id="pg1" x1="0%25" y1="0%25" x2="100%25" y2="100%25"><stop offset="0%25" style="stop-color:%237c3aed;stop-opacity:0.3"/><stop offset="100%25" style="stop-color:%234f46e5;stop-opacity:0.2"/></linearGradient><linearGradient id="pg2" x1="0%25" y1="0%25" x2="100%25" y2="100%25"><stop offset="0%25" style="stop-color:%238b5cf6;stop-opacity:0.25"/><stop offset="100%25" style="stop-color:%236366f1;stop-opacity:0.15"/></linearGradient></defs><rect fill="url(%23pg1)" x="10" y="10" width="45" height="70" rx="4"/><rect fill="url(%23pg2)" x="65" y="5" width="45" height="70" rx="4"/><rect fill="url(%23pg1)" x="120" y="15" width="45" height="70" rx="4"/><rect fill="url(%23pg2)" x="175" y="8" width="45" height="70" rx="4"/><rect fill="url(%23pg1)" x="230" y="12" width="45" height="70" rx="4"/><rect fill="url(%23pg2)" x="285" y="5" width="45" height="70" rx="4"/><rect fill="url(%23pg1)" x="340" y="18" width="45" height="70" rx="4"/><rect fill="url(%23pg2)" x="395" y="10" width="45" height="70" rx="4"/><rect fill="url(%23pg1)" x="450" y="6" width="45" height="70" rx="4"/><rect fill="url(%23pg2)" x="505" y="14" width="45" height="70" rx="4"/><rect fill="url(%23pg2)" x="35" y="90" width="45" height="70" rx="4"/><rect fill="url(%23pg1)" x="90" y="95" width="45" height="70" rx="4"/><rect fill="url(%23pg2)" x="145" y="88" width="45" height="70" rx="4"/><rect fill="url(%23pg1)" x="200" y="92" width="45" height="70" rx="4"/><rect fill="url(%23pg2)" x="255" y="85" width="45" height="70" rx="4"/><rect fill="url(%23pg1)" x="310" y="98" width="45" height="70" rx="4"/><rect fill="url(%23pg2)" x="365" y="90" width="45" height="70" rx="4"/><rect fill="url(%23pg1)" x="420" y="86" width="45" height="70" rx="4"/><rect fill="url(%23pg2)" x="475" y="94" width="45" height="70" rx="4"/><rect fill="url(%23pg1)" x="530" y="88" width="45" height="70" rx="4"/></svg>');
-            background-size: 600px 200px;
-            opacity: 1;
-            z-index: 0;
-        }
-
+        /* Gradient overlay for text readability - lighter on right to show more image */
         .request-media-banner::before {
             content: '';
             position: absolute;
@@ -303,7 +290,7 @@
             left: 0;
             right: 0;
             bottom: 0;
-            background: linear-gradient(90deg, rgba(30, 27, 75, 0.92) 0%, rgba(30, 27, 75, 0.6) 50%, rgba(30, 27, 75, 0.3) 100%);
+            background: linear-gradient(90deg, rgba(30, 27, 75, 0.95) 0%, rgba(30, 27, 75, 0.6) 35%, rgba(30, 27, 75, 0.2) 70%, rgba(30, 27, 75, 0.1) 100%);
             z-index: 1;
         }
 
@@ -313,24 +300,21 @@
             left: 0;
             right: 0;
             bottom: 0;
-            display: flex;
-            gap: 6px;
-            padding: 6px;
             overflow: hidden;
             z-index: 0;
         }
 
         .request-media-banner-bg img {
+            width: 100%;
             height: 100%;
-            width: auto;
-            border-radius: 6px;
             object-fit: cover;
+            object-position: center center;
             opacity: 0;
             transition: opacity 0.5s ease;
         }
 
         .request-media-banner-bg img.loaded {
-            opacity: 0.7;
+            opacity: 1;
         }
 
         .request-media-banner-content {
@@ -648,6 +632,7 @@
             overflow: hidden;
         }
 
+        /* Dark background for poster collage */
         .service-card.plex::before {
             content: '';
             position: absolute;
@@ -655,16 +640,84 @@
             left: 0;
             right: 0;
             bottom: 0;
-            background-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300"><rect fill="%23e5a00d" opacity="0.08" x="0" y="0" width="60" height="90" rx="4"/><rect fill="%23e5a00d" opacity="0.06" x="70" y="0" width="60" height="90" rx="4"/><rect fill="%23e5a00d" opacity="0.05" x="140" y="0" width="60" height="90" rx="4"/><rect fill="%23e5a00d" opacity="0.07" x="210" y="0" width="60" height="90" rx="4"/><rect fill="%23e5a00d" opacity="0.04" x="280" y="0" width="60" height="90" rx="4"/><rect fill="%23e5a00d" opacity="0.06" x="350" y="0" width="60" height="90" rx="4"/><rect fill="%23e5a00d" opacity="0.05" x="35" y="100" width="60" height="90" rx="4"/><rect fill="%23e5a00d" opacity="0.08" x="105" y="100" width="60" height="90" rx="4"/><rect fill="%23e5a00d" opacity="0.04" x="175" y="100" width="60" height="90" rx="4"/><rect fill="%23e5a00d" opacity="0.06" x="245" y="100" width="60" height="90" rx="4"/><rect fill="%23e5a00d" opacity="0.07" x="315" y="100" width="60" height="90" rx="4"/><rect fill="%23e5a00d" opacity="0.05" x="0" y="200" width="60" height="90" rx="4"/><rect fill="%23e5a00d" opacity="0.04" x="70" y="200" width="60" height="90" rx="4"/><rect fill="%23e5a00d" opacity="0.08" x="140" y="200" width="60" height="90" rx="4"/><rect fill="%23e5a00d" opacity="0.06" x="210" y="200" width="60" height="90" rx="4"/><rect fill="%23e5a00d" opacity="0.05" x="280" y="200" width="60" height="90" rx="4"/><rect fill="%23e5a00d" opacity="0.07" x="350" y="200" width="60" height="90" rx="4"/></svg>');
-            background-size: 400px 300px;
-            opacity: 1;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
             z-index: 0;
             pointer-events: none;
         }
 
-        .service-card.plex > * {
+        /* TMDB poster collage container - dense overlapping layout */
+        .plex-poster-bg {
+            position: absolute !important;
+            top: -30px;
+            left: -30px;
+            right: -30px;
+            bottom: -30px;
+            z-index: 1 !important;
+            overflow: hidden;
+        }
+
+        .plex-poster-bg img {
+            position: absolute;
+            width: 75px;
+            height: 112px;
+            object-fit: cover;
+            border-radius: 4px;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.6);
+        }
+
+        .plex-poster-bg img.loaded {
+            opacity: 1;
+        }
+
+        /* Gradient overlay for text readability - dark across card with subtle fade at edge */
+        .service-card.plex::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(90deg, rgba(10, 10, 25, 0.92) 0%, rgba(12, 12, 28, 0.85) 50%, rgba(15, 15, 30, 0.65) 85%, rgba(15, 15, 30, 0.45) 100%);
+            z-index: 2;
+            pointer-events: none;
+        }
+
+        .service-card.plex > *:not(.plex-poster-bg) {
             position: relative;
-            z-index: 1;
+            z-index: 3;
+        }
+
+        .service-card.plex .service-card-header,
+        .service-card.plex .service-card-body {
+            text-shadow: 0 2px 4px rgba(0,0,0,0.9), 0 0 8px rgba(0,0,0,0.5);
+        }
+
+        .service-card.plex .service-icon {
+            filter: drop-shadow(0 2px 6px rgba(0,0,0,0.8));
+        }
+
+        .service-card.plex .card-action-btn {
+            background: rgba(15, 15, 25, 0.6);
+            backdrop-filter: blur(2px);
+            text-shadow: none;
+        }
+
+        /* Dark pill backgrounds for text values */
+        .service-card.plex .detail-value {
+            background: linear-gradient(135deg, rgba(15, 15, 35, 0.85) 0%, rgba(10, 10, 25, 0.9) 100%);
+            padding: 6px 14px;
+            border-radius: 20px;
+            backdrop-filter: blur(8px);
+            display: inline-block;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+        }
+
+        .service-card.plex .status-badge {
+            background: rgba(5, 5, 15, 0.6);
+            backdrop-filter: blur(4px);
         }
 
         .service-card.plex:hover {
@@ -678,24 +731,68 @@
             overflow: hidden;
         }
 
-        /* Channel logo pattern - colorful squares representing channels */
+        /* TV screens and sports collage background */
         .service-card.iptv::before {
+            content: '';
+            position: absolute;
+            top: -30px;
+            left: -30px;
+            right: -30px;
+            bottom: -30px;
+            background-image: url('/assets/livetv-sports-collage.svg');
+            background-size: cover;
+            background-position: center;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        /* Gradient overlay for text readability */
+        .service-card.iptv::after {
             content: '';
             position: absolute;
             top: 0;
             left: 0;
             right: 0;
             bottom: 0;
-            background-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300"><rect fill="%23ef4444" opacity="0.12" x="10" y="10" width="35" height="25" rx="3"/><rect fill="%233b82f6" opacity="0.1" x="55" y="8" width="35" height="25" rx="3"/><rect fill="%2322c55e" opacity="0.11" x="100" y="12" width="35" height="25" rx="3"/><rect fill="%23f59e0b" opacity="0.09" x="145" y="6" width="35" height="25" rx="3"/><rect fill="%238b5cf6" opacity="0.12" x="190" y="14" width="35" height="25" rx="3"/><rect fill="%23ec4899" opacity="0.1" x="235" y="10" width="35" height="25" rx="3"/><rect fill="%2306b6d4" opacity="0.11" x="280" y="8" width="35" height="25" rx="3"/><rect fill="%23ef4444" opacity="0.09" x="325" y="12" width="35" height="25" rx="3"/><rect fill="%233b82f6" opacity="0.11" x="30" y="50" width="35" height="25" rx="3"/><rect fill="%2322c55e" opacity="0.1" x="75" y="48" width="35" height="25" rx="3"/><rect fill="%23f59e0b" opacity="0.12" x="120" y="52" width="35" height="25" rx="3"/><rect fill="%238b5cf6" opacity="0.09" x="165" y="46" width="35" height="25" rx="3"/><rect fill="%23ec4899" opacity="0.11" x="210" y="54" width="35" height="25" rx="3"/><rect fill="%2306b6d4" opacity="0.1" x="255" y="50" width="35" height="25" rx="3"/><rect fill="%23ef4444" opacity="0.12" x="300" y="48" width="35" height="25" rx="3"/><rect fill="%233b82f6" opacity="0.09" x="345" y="52" width="35" height="25" rx="3"/><rect fill="%2322c55e" opacity="0.12" x="10" y="90" width="35" height="25" rx="3"/><rect fill="%23f59e0b" opacity="0.1" x="55" y="88" width="35" height="25" rx="3"/><rect fill="%238b5cf6" opacity="0.11" x="100" y="92" width="35" height="25" rx="3"/><rect fill="%23ec4899" opacity="0.09" x="145" y="86" width="35" height="25" rx="3"/><rect fill="%2306b6d4" opacity="0.12" x="190" y="94" width="35" height="25" rx="3"/><rect fill="%23ef4444" opacity="0.1" x="235" y="90" width="35" height="25" rx="3"/><rect fill="%233b82f6" opacity="0.11" x="280" y="88" width="35" height="25" rx="3"/><rect fill="%2322c55e" opacity="0.09" x="325" y="92" width="35" height="25" rx="3"/><rect fill="%23f59e0b" opacity="0.11" x="30" y="130" width="35" height="25" rx="3"/><rect fill="%238b5cf6" opacity="0.1" x="75" y="128" width="35" height="25" rx="3"/><rect fill="%23ec4899" opacity="0.12" x="120" y="132" width="35" height="25" rx="3"/><rect fill="%2306b6d4" opacity="0.09" x="165" y="126" width="35" height="25" rx="3"/><rect fill="%23ef4444" opacity="0.11" x="210" y="134" width="35" height="25" rx="3"/><rect fill="%233b82f6" opacity="0.1" x="255" y="130" width="35" height="25" rx="3"/><rect fill="%2322c55e" opacity="0.12" x="300" y="128" width="35" height="25" rx="3"/><rect fill="%23f59e0b" opacity="0.09" x="345" y="132" width="35" height="25" rx="3"/><rect fill="%238b5cf6" opacity="0.12" x="10" y="170" width="35" height="25" rx="3"/><rect fill="%23ec4899" opacity="0.1" x="55" y="168" width="35" height="25" rx="3"/><rect fill="%2306b6d4" opacity="0.11" x="100" y="172" width="35" height="25" rx="3"/><rect fill="%23ef4444" opacity="0.09" x="145" y="166" width="35" height="25" rx="3"/><rect fill="%233b82f6" opacity="0.12" x="190" y="174" width="35" height="25" rx="3"/><rect fill="%2322c55e" opacity="0.1" x="235" y="170" width="35" height="25" rx="3"/><rect fill="%23f59e0b" opacity="0.11" x="280" y="168" width="35" height="25" rx="3"/><rect fill="%238b5cf6" opacity="0.09" x="325" y="172" width="35" height="25" rx="3"/><rect fill="%23ec4899" opacity="0.11" x="30" y="210" width="35" height="25" rx="3"/><rect fill="%2306b6d4" opacity="0.1" x="75" y="208" width="35" height="25" rx="3"/><rect fill="%23ef4444" opacity="0.12" x="120" y="212" width="35" height="25" rx="3"/><rect fill="%233b82f6" opacity="0.09" x="165" y="206" width="35" height="25" rx="3"/><rect fill="%2322c55e" opacity="0.11" x="210" y="214" width="35" height="25" rx="3"/><rect fill="%23f59e0b" opacity="0.1" x="255" y="210" width="35" height="25" rx="3"/><rect fill="%238b5cf6" opacity="0.12" x="300" y="208" width="35" height="25" rx="3"/><rect fill="%23ec4899" opacity="0.09" x="345" y="212" width="35" height="25" rx="3"/><rect fill="%2306b6d4" opacity="0.12" x="10" y="250" width="35" height="25" rx="3"/><rect fill="%23ef4444" opacity="0.1" x="55" y="248" width="35" height="25" rx="3"/><rect fill="%233b82f6" opacity="0.11" x="100" y="252" width="35" height="25" rx="3"/><rect fill="%2322c55e" opacity="0.09" x="145" y="246" width="35" height="25" rx="3"/><rect fill="%23f59e0b" opacity="0.12" x="190" y="254" width="35" height="25" rx="3"/><rect fill="%238b5cf6" opacity="0.1" x="235" y="250" width="35" height="25" rx="3"/><rect fill="%23ec4899" opacity="0.11" x="280" y="248" width="35" height="25" rx="3"/><rect fill="%2306b6d4" opacity="0.09" x="325" y="252" width="35" height="25" rx="3"/></svg>');
-            background-size: 400px 300px;
-            opacity: 1;
-            z-index: 0;
+            background: linear-gradient(90deg, rgba(10, 10, 25, 0.92) 0%, rgba(12, 12, 28, 0.85) 50%, rgba(15, 15, 30, 0.65) 85%, rgba(15, 15, 30, 0.45) 100%);
+            z-index: 1;
             pointer-events: none;
         }
 
         .service-card.iptv > * {
             position: relative;
-            z-index: 1;
+            z-index: 2;
+        }
+
+        .service-card.iptv .service-card-header,
+        .service-card.iptv .service-card-body {
+            text-shadow: 0 2px 4px rgba(0,0,0,0.9), 0 0 8px rgba(0,0,0,0.5);
+        }
+
+        .service-card.iptv .service-icon {
+            filter: drop-shadow(0 2px 6px rgba(0,0,0,0.8));
+        }
+
+        .service-card.iptv .card-action-btn {
+            background: rgba(15, 15, 25, 0.6);
+            backdrop-filter: blur(2px);
+            text-shadow: none;
+        }
+
+        /* Dark pill backgrounds for text values */
+        .service-card.iptv .detail-value {
+            background: linear-gradient(135deg, rgba(15, 15, 35, 0.85) 0%, rgba(10, 10, 25, 0.9) 100%);
+            padding: 6px 14px;
+            border-radius: 20px;
+            backdrop-filter: blur(8px);
+            display: inline-block;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+        }
+
+        .service-card.iptv .status-badge {
+            background: rgba(5, 5, 15, 0.6);
+            backdrop-filter: blur(4px);
         }
 
         .service-card.iptv:hover {
@@ -754,6 +851,23 @@
         .service-name {
             font-size: 15px;
             font-weight: 600;
+        }
+
+        /* Prominent card titles */
+        .service-card.plex .service-name {
+            font-size: 20px;
+            font-weight: 700;
+            color: #e5a00d;
+            text-shadow: 0 0 20px rgba(229, 160, 13, 0.6), 0 0 40px rgba(229, 160, 13, 0.3);
+            letter-spacing: 0.5px;
+        }
+
+        .service-card.iptv .service-name {
+            font-size: 20px;
+            font-weight: 700;
+            color: #a78bfa;
+            text-shadow: 0 0 20px rgba(139, 92, 246, 0.6), 0 0 40px rgba(139, 92, 246, 0.3);
+            letter-spacing: 0.5px;
         }
 
         .service-type {
@@ -1179,8 +1293,8 @@
                 </div>
             </div>
 
-            <!-- Request Media Hero Banner -->
-            <div class="request-media-banner" id="request-media-banner">
+            <!-- Request Media Hero Banner (hidden until user has_request_site_access is confirmed) -->
+            <div class="request-media-banner" id="request-media-banner" style="display: none;">
                 <div class="request-media-banner-bg" id="request-media-banner-bg">
                     <!-- Dynamic poster images will be loaded here -->
                 </div>
@@ -1762,12 +1876,12 @@
             }
         }
 
-        // Load trending posters for Request Media banner background
+        // Load random trending movie backdrop for Request Media banner background
         async function loadRequestMediaBannerPosters() {
             try {
                 const token = localStorage.getItem('portal_token');
-                // Fetch trending movies from our backend which caches TMDB data
-                const response = await fetch(`${API_BASE}/request-site/trending/movie/week?page=1`, {
+                // Fetch trending movies using the correct discover endpoint
+                const response = await fetch(`${API_BASE}/request-site/discover?type=movie&category=trending&page=1`, {
                     headers: {
                         'Authorization': `Bearer ${token}`
                     }
@@ -1778,23 +1892,96 @@
                 const data = await response.json();
                 if (!data.results || data.results.length === 0) return;
 
-                // Get 8 random posters from the results
-                const shuffled = data.results.filter(m => m.poster_path).sort(() => 0.5 - Math.random());
-                const selectedPosters = shuffled.slice(0, 8);
+                // Get a random movie with a backdrop
+                const moviesWithBackdrop = data.results.filter(m => m.backdrop_path);
+                if (moviesWithBackdrop.length === 0) return;
+
+                const randomMovie = moviesWithBackdrop[Math.floor(Math.random() * moviesWithBackdrop.length)];
 
                 const container = document.getElementById('request-media-banner-bg');
                 if (!container) return;
 
-                container.innerHTML = selectedPosters.map(movie =>
-                    `<img src="https://image.tmdb.org/t/p/w342${movie.poster_path}"
-                          alt="${movie.title}"
-                          onload="this.classList.add('loaded')"
-                          onerror="this.style.display='none'">`
-                ).join('');
+                // Use a single full-width backdrop image
+                container.innerHTML = `<img src="https://image.tmdb.org/t/p/w1280${randomMovie.backdrop_path}"
+                      alt="${randomMovie.title || ''}"
+                      onload="this.classList.add('loaded')"
+                      onerror="this.style.display='none'"
+                      style="width: 100%; height: 100%; object-fit: cover;">`;
 
             } catch (error) {
-                console.log('Could not load banner posters:', error.message);
+                console.log('Could not load banner backdrop:', error.message);
                 // Banner will still work with gradient background
+            }
+        }
+
+        // Load trending posters for Plex card background - dense overlapping collage
+        async function loadPlexCardPosterCollage() {
+            try {
+                const token = localStorage.getItem('portal_token');
+
+                // Fetch from multiple sources and pages for lots of variety
+                const [trending1, trending2, popular1, popular2, tvTrending] = await Promise.all([
+                    fetch(`${API_BASE}/request-site/discover?type=movie&category=trending&page=1`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    }),
+                    fetch(`${API_BASE}/request-site/discover?type=movie&category=trending&page=2`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    }),
+                    fetch(`${API_BASE}/request-site/discover?type=movie&category=popular&page=1`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    }),
+                    fetch(`${API_BASE}/request-site/discover?type=movie&category=popular&page=2`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    }),
+                    fetch(`${API_BASE}/request-site/discover?type=tv&category=trending&page=1`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    })
+                ]);
+
+                let allPosters = [];
+                for (const res of [trending1, trending2, popular1, popular2, tvTrending]) {
+                    if (res.ok) {
+                        const data = await res.json();
+                        if (data.results) {
+                            allPosters = allPosters.concat(data.results.filter(m => m.poster_path));
+                        }
+                    }
+                }
+
+                if (allPosters.length === 0) return;
+
+                // Remove duplicates and shuffle
+                const uniquePosters = [...new Map(allPosters.map(m => [m.id, m])).values()];
+                const shuffled = uniquePosters.sort(() => 0.5 - Math.random());
+                const selectedPosters = shuffled.slice(0, 48); // 48 posters for dense collage (8x6 grid)
+
+                const container = document.getElementById('plex-poster-bg');
+                if (!container) return;
+
+                // Create dense overlapping collage - posters positioned to cover entire card
+                // Use a grid base with random offsets for overlap effect
+                const cols = 8;
+                const rows = 6;
+                container.innerHTML = selectedPosters.map((movie, index) => {
+                    // Grid position with random offset for organic overlap
+                    const col = index % cols;
+                    const row = Math.floor(index / cols);
+                    const baseLeft = (col / cols) * 100;
+                    const baseTop = (row / rows) * 100;
+                    // Add random offset (-15 to +15) for overlap
+                    const left = baseLeft + (Math.random() * 30 - 15);
+                    const top = baseTop + (Math.random() * 30 - 15);
+                    const rotation = Math.random() * 20 - 10; // -10 to +10 degrees
+                    const zIndex = Math.floor(Math.random() * 10); // Random stacking
+                    return `<img src="https://image.tmdb.org/t/p/w185${movie.poster_path}"
+                          alt="${movie.title || movie.name || ''}"
+                          style="left: ${left}%; top: ${top}%; transform: rotate(${rotation}deg); z-index: ${zIndex};"
+                          onload="this.classList.add('loaded')"
+                          onerror="this.style.display='none'">`;
+                }).join('');
+
+            } catch (error) {
+                console.log('[Plex Posters] Error:', error.message);
             }
         }
 
@@ -1838,8 +2025,17 @@
             // Render service cards
             renderServiceCards(user);
 
-            // Load Request Media banner posters (non-blocking)
-            loadRequestMediaBannerPosters();
+            // Load Plex card poster collage if user has Plex (non-blocking)
+            if (user.plex_enabled) {
+                loadPlexCardPosterCollage();
+            }
+
+            // Show Request Media banner if user has access
+            if (user.has_request_site_access) {
+                document.getElementById('request-media-banner').style.display = '';
+                // Load Request Media banner posters (non-blocking)
+                loadRequestMediaBannerPosters();
+            }
 
             // Load pending service requests (skip during optimistic updates)
             // When skipping, we've already cleared the activeServiceRequests array and removed DOM elements
@@ -2489,6 +2685,9 @@
 
                 html += `
                     <div class="service-card plex${fullWidthClass}">
+                        <div class="plex-poster-bg" id="plex-poster-bg">
+                            <!-- Dynamic TMDB poster images will be loaded here -->
+                        </div>
                         <div class="service-card-header">
                             <div class="service-card-title">
                                 <div class="service-icon plex">

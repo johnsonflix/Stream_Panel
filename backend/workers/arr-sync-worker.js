@@ -24,11 +24,14 @@ function sendProgress(type, data) {
 }
 
 /**
- * Get database connection
+ * Get database connection with proper configuration to avoid lock contention
  */
 function getDb() {
     const db = new Database(DB_PATH);
     db.pragma('journal_mode = WAL');
+    // CRITICAL: Set busy_timeout to wait for locks instead of failing immediately
+    // This prevents SQLITE_BUSY errors when main app is also writing
+    db.pragma('busy_timeout = 10000'); // Wait up to 10 seconds for locks
     return db;
 }
 

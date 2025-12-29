@@ -11,8 +11,6 @@
 const { query, getDb } = require('../database-config');
 
 async function run() {
-    console.log('[Migration] fix-media-requests-fk: Checking media_requests foreign key...');
-
     try {
         // Check if table exists
         const tableExists = await query(`
@@ -21,9 +19,26 @@ async function run() {
         `);
 
         if (tableExists.length === 0) {
-            console.log('[Migration] media_requests table does not exist, skipping');
+            // Table doesn't exist, nothing to do
             return;
         }
+
+        // Check if the FK is already correct (references users, not app_users)
+        const tableSchema = await query(`
+            SELECT sql FROM sqlite_master
+            WHERE type='table' AND name='media_requests'
+        `);
+
+        if (tableSchema.length > 0 && tableSchema[0].sql) {
+            const sql = tableSchema[0].sql;
+            // If it references users(id) and NOT app_users, we're done
+            if (sql.includes('REFERENCES users(id)') && !sql.includes('app_users')) {
+                // Already migrated, nothing to do
+                return;
+            }
+        }
+
+        console.log('[Migration] fix-media-requests-fk: Fixing media_requests foreign key...');
 
         // SQLite doesn't allow modifying foreign keys, but we can work around it
         // by disabling foreign key checks and recreating the table

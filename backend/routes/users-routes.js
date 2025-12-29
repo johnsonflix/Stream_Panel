@@ -367,7 +367,9 @@ router.post('/', async (req, res) => {
             // Tags
             tag_ids,
             // Add Service Mode (existing user)
-            existing_user_id
+            existing_user_id,
+            // Request Site Access
+            rs_has_access
         } = req.body;
 
         // Check if this is "Add Service" mode (adding services to existing user)
@@ -587,6 +589,16 @@ router.post('/', async (req, res) => {
             // Generate created_at timestamp in SQLite format
             const createdAt = new Date().toISOString().slice(0, 19).replace('T', ' ');
 
+            // Determine rs_has_access value:
+            // - If explicitly provided, use that value
+            // - Otherwise, default to 1 (enabled) for Plex users, 0 (disabled) for IPTV-only
+            let effectiveRsHasAccess;
+            if (rs_has_access !== undefined && rs_has_access !== null) {
+                effectiveRsHasAccess = rs_has_access ? 1 : 0;
+            } else {
+                effectiveRsHasAccess = plex_enabled ? 1 : 0;
+            }
+
             const [userResult] = await connection.execute(`
                 INSERT INTO users (
                     name, email, account_type, notes, owner_id,
@@ -594,8 +606,8 @@ router.post('/', async (req, res) => {
                     plex_enabled, plex_package_id, plex_email, plex_expiration_date,
                     iptv_enabled, iptv_panel_id, iptv_username, iptv_password, iptv_email,
                     iptv_package_id, iptv_subscription_plan_id, iptv_channel_group_id, iptv_is_trial, iptv_duration_months, iptv_expiration_date, iptv_editor_enabled,
-                    is_active, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
+                    rs_has_access, is_active, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
             `, [
                 name, email, validAccountType, notes || null, owner_id || null,
                 exclude_from_bulk_emails ? 1 : 0, bcc_owner_on_renewal ? 1 : 0, exclude_from_automated_emails ? 1 : 0,
@@ -603,7 +615,7 @@ router.post('/', async (req, res) => {
                 iptv_enabled ? 1 : 0, iptv_panel_id || null, iptv_username || null,
                 iptv_password || null, iptv_email || null,
                 validIPTVPackageId, validIPTVSubscriptionPlanId, iptv_channel_group_id || null, iptv_is_trial ? 1 : 0, iptv_duration_months || null, iptvExpirationDate, create_on_iptv_editor ? 1 : 0,
-                createdAt
+                effectiveRsHasAccess, createdAt
             ]);
 
             userId = userResult.insertId;
@@ -994,7 +1006,9 @@ router.put('/:id', async (req, res) => {
             payment_preference,
             custom_payment_methods,
             // Tags
-            tag_ids
+            tag_ids,
+            // Request Site Access
+            rs_has_access
         } = req.body;
 
         // Check if user exists
@@ -1187,6 +1201,20 @@ router.put('/:id', async (req, res) => {
         if (apple_cash_username !== undefined) {
             updates.push('apple_cash_username = ?');
             values.push(apple_cash_username);
+        }
+        // Request Site Access
+        if (rs_has_access !== undefined) {
+            updates.push('rs_has_access = ?');
+            // Handle 'auto', 'enabled', 'disabled' from frontend or direct 0/1/null
+            if (rs_has_access === 'auto' || rs_has_access === null) {
+                values.push(null);
+            } else if (rs_has_access === 'enabled' || rs_has_access === true || rs_has_access === 1) {
+                values.push(1);
+            } else if (rs_has_access === 'disabled' || rs_has_access === false || rs_has_access === 0) {
+                values.push(0);
+            } else {
+                values.push(rs_has_access ? 1 : 0);
+            }
         }
 
         // Check if there's anything to update (either user fields or tags)

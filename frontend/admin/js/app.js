@@ -43,6 +43,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Initialize admin notifications system
     initAdminNotifications();
+
+    // Load Tools dropdown (Media Managers)
+    loadToolsDropdown();
 });
 
 /**
@@ -577,5 +580,106 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
+// ============ Tools Dropdown ============
+
+const toolIcons = {
+    sonarr: 'fa-tv',
+    radarr: 'fa-film',
+    qbittorrent: 'fa-magnet',
+    sabnzbd: 'fa-download'
+};
+
+/**
+ * Load and populate the Tools dropdown menu with configured media managers
+ */
+async function loadToolsDropdown() {
+    const container = document.getElementById('tools-dropdown-container');
+    const menu = document.getElementById('tools-dropdown-menu');
+    const toggle = document.getElementById('tools-dropdown-toggle');
+
+    if (!container || !menu || !toggle) return;
+
+    try {
+        const response = await API.request('/media-managers');
+        const managers = response.managers || [];
+
+        // Filter to only enabled managers
+        const enabledManagers = managers.filter(m => m.is_enabled);
+
+        if (enabledManagers.length === 0) {
+            container.style.display = 'none';
+            return;
+        }
+
+        // Show the dropdown container
+        container.style.display = '';
+
+        // Build menu items
+        let menuHtml = enabledManagers.map(manager => `
+            <li>
+                <a href="#" onclick="openMediaManager(${manager.id}); return false;">
+                    <span class="tool-icon ${manager.type}">
+                        <i class="fas ${toolIcons[manager.type] || 'fa-server'}"></i>
+                    </span>
+                    ${escapeHtml(manager.name)}
+                </a>
+            </li>
+        `).join('');
+
+        // Add "Manage Tools" link at bottom
+        menuHtml += `
+            <li class="dropdown-footer">
+                <a href="../portal/request2.html?admin=1&settingsTab=managers#settings">
+                    <i class="fas fa-cog"></i> Manage Tools
+                </a>
+            </li>
+        `;
+
+        menu.innerHTML = menuHtml;
+
+        // Setup toggle click handler
+        toggle.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            container.classList.toggle('open');
+        });
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!container.contains(e.target)) {
+                container.classList.remove('open');
+            }
+        });
+
+    } catch (error) {
+        console.error('Failed to load tools dropdown:', error);
+        container.style.display = 'none';
+    }
+}
+
+/**
+ * Open a media manager tool
+ */
+async function openMediaManager(managerId) {
+    // Close the dropdown
+    document.getElementById('tools-dropdown-container')?.classList.remove('open');
+
+    try {
+        const response = await API.request(`/media-managers/${managerId}/open-url`);
+
+        if (response.connection_mode === 'proxy') {
+            // Open proxy viewer in new tab
+            window.open(`/admin/tool-proxy.html?id=${managerId}`, '_blank');
+        } else {
+            // Open direct URL
+            window.open(response.url, '_blank');
+        }
+    } catch (error) {
+        console.error('Failed to open manager:', error);
+        showToast('Failed to open tool', 'error');
+    }
+}
+
 // Make functions globally accessible
 window.loadAdminNotifications = loadAdminNotifications;
+window.openMediaManager = openMediaManager;

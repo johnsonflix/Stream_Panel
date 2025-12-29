@@ -22,7 +22,8 @@ const CreateUserWizard = {
             owner_id: null,
             notes: '',
             account_type: 'standard',
-            tag_ids: []
+            tag_ids: [],
+            rs_has_access: null  // null = auto (Plex=yes, IPTV-only=no), true = enabled, false = disabled
         },
         services: {
             plex: false,
@@ -128,7 +129,8 @@ const CreateUserWizard = {
                 owner_id: null,
                 notes: '',
                 account_type: 'standard',
-                tag_ids: []
+                tag_ids: [],
+                rs_has_access: null  // null = auto (Plex=yes, IPTV-only=no)
             },
             services: {
                 plex: false,
@@ -436,6 +438,24 @@ const CreateUserWizard = {
                         placeholder="Internal notes about this user..."
                     >${Utils.escapeHtml(notes)}</textarea>
                     <small class="form-text">Max 1000 characters</small>
+                </div>
+
+                <!-- Request Site Access Toggle -->
+                <div class="form-group" style="margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border-color);">
+                    <label style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+                        <i class="fas fa-film"></i> Request Site Access
+                    </label>
+                    <label class="checkbox-label" style="display: flex; align-items: center; gap: 10px;">
+                        <input
+                            type="checkbox"
+                            id="wizard-rs-has-access"
+                            ${this.formData.basic.rs_has_access === true || this.formData.basic.rs_has_access === null ? 'checked' : ''}
+                        />
+                        <span>Allow Request Site Access</span>
+                    </label>
+                    <small class="form-text" style="margin-top: 5px; color: var(--text-muted);">
+                        Allows user to browse and request movies/TV shows through the Discover section. Typically enabled for Plex users.
+                    </small>
                 </div>
             </div>
         `;
@@ -1220,6 +1240,12 @@ const CreateUserWizard = {
                 el.addEventListener('input', () => this.saveBasicStepData());
             }
         });
+
+        // Request Site Access checkbox
+        const rsCheckbox = document.getElementById('wizard-rs-has-access');
+        if (rsCheckbox) {
+            rsCheckbox.addEventListener('change', () => this.saveBasicStepData());
+        }
     },
 
     /**
@@ -1827,6 +1853,12 @@ const CreateUserWizard = {
 
         const tagId = document.getElementById('wizard-tags')?.value;
         this.formData.basic.tag_ids = tagId && tagId !== '' ? [parseInt(tagId)] : [];
+
+        // Save Request Site Access
+        const rsCheckbox = document.getElementById('wizard-rs-has-access');
+        if (rsCheckbox) {
+            this.formData.basic.rs_has_access = rsCheckbox.checked;
+        }
     },
 
     /**
@@ -1903,6 +1935,9 @@ const CreateUserWizard = {
                 notes: this.formData.basic.notes,
                 account_type: this.formData.basic.account_type,
                 tag_ids: this.formData.basic.tag_ids,
+
+                // Request Site Access
+                rs_has_access: this.formData.basic.rs_has_access,
 
                 // Plex configuration
                 plex_enabled: this.formData.services.plex,

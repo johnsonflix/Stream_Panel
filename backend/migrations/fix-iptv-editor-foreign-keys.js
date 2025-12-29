@@ -10,11 +10,30 @@
 const db = require('../database-config');
 
 async function migrate() {
-    console.log('🔧 Starting foreign key fix migration...');
-
     try {
-        // Disable foreign key constraints temporarily
-        await db.query('PRAGMA foreign_keys = OFF');
+        // Check if tables have the old foreign key issue
+        const usersTableSchema = await db.query(`
+            SELECT sql FROM sqlite_master
+            WHERE type='table' AND name='iptv_editor_users'
+        `);
+
+        if (usersTableSchema.length === 0) {
+            // Table doesn't exist, nothing to do
+            return;
+        }
+
+        // Check if table references the OLD table name (iptv_editor_playlists_old)
+        const sql = usersTableSchema[0]?.sql || '';
+        if (!sql.includes('iptv_editor_playlists_old')) {
+            // Already has correct FK, nothing to do
+            return;
+        }
+
+        console.log('🔧 Starting foreign key fix migration...');
+
+        // Disable foreign key constraints temporarily using getDb() for PRAGMA
+        const rawDb = db.getDb ? db.getDb() : db.db;
+        rawDb.pragma('foreign_keys = OFF');
 
         // ========== FIX iptv_editor_users TABLE ==========
         console.log('Fixing iptv_editor_users table...');
@@ -101,7 +120,7 @@ async function migrate() {
         console.log('✅ iptv_sync_logs table fixed');
 
         // Re-enable foreign key constraints
-        await db.query('PRAGMA foreign_keys = ON');
+        rawDb.pragma('foreign_keys = ON');
 
         console.log('✅ Migration completed successfully!');
 
