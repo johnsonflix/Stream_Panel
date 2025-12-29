@@ -506,6 +506,33 @@ router.all('/:id/proxy/*', async (req, res, next) => {
             const proxyBase = `/api/v2/media-managers/${manager.id}/proxy`;
             const externalProxy = '/api/v2/media-managers/external-proxy';
 
+            // KEY FIX: Modify window.Radarr or window.Sonarr urlBase to our proxy path
+            // This is the PROPER way to make these apps work behind a reverse proxy.
+            // The apps read urlBase and use it for:
+            // - React Router's basename (so /movie becomes /api/v2/media-managers/1/proxy/movie)
+            // - __webpack_public_path__ for chunk loading
+            // - API calls
+            if (manager.type === 'radarr' || manager.type === 'sonarr') {
+                const appName = manager.type === 'radarr' ? 'Radarr' : 'Sonarr';
+
+                // Replace urlBase: "" or urlBase: "something" with our proxy path
+                // This regex handles: urlBase:"", urlBase: "", urlBase: "/existing"
+                const originalHtml = html;
+                html = html.replace(/(["']urlBase["']\s*:\s*)(["'])([^"']*)(["'])/g, `$1$2${proxyBase}$4`);
+
+                if (html !== originalHtml) {
+                    console.log(`[Media Managers] Modified urlBase to: ${proxyBase}`);
+                } else {
+                    // Try without quotes around property name: urlBase: ""
+                    html = html.replace(/(urlBase\s*:\s*)(["'])([^"']*)(["'])/g, `$1$2${proxyBase}$4`);
+                    if (html !== originalHtml) {
+                        console.log(`[Media Managers] Modified urlBase to: ${proxyBase}`);
+                    } else {
+                        console.log(`[Media Managers] WARNING: Could not find urlBase in HTML for ${appName}`);
+                    }
+                }
+            }
+
             // Rewrite href="/..." and src="/..." for internal paths
             html = html.replace(/((href|src|action)=["'])\//g, `$1${proxyBase}/`);
 
@@ -524,8 +551,9 @@ router.all('/:id/proxy/*', async (req, res, next) => {
                 return match;
             });
 
-            // Inject comprehensive interceptor script BEFORE other scripts
-            // This intercepts fetch/XHR, dynamic script/link loading, AND external image URLs
+            // Inject interceptor script for fetch/XHR/dynamic assets
+            // Note: With urlBase properly set, we don't need to patch browser APIs for routing
+            // We still need this for external image proxying and token injection
             const interceptorScript = `
 <script>
 (function() {
@@ -534,64 +562,7 @@ router.all('/:id/proxy/*', async (req, res, next) => {
     const TOKEN = '${token}';
     const CURRENT_ORIGIN = window.location.origin;
 
-    // FIX FOR REACT ROUTER: Change the URL to the app path using history.replaceState
-    // This runs AFTER __webpack_public_path__ is set (in the script before this one),
-    // so webpack will still load chunks from the proxy path.
-    (function fixRouterPath() {
-        try {
-            // Helper to extract the virtual path from a proxy URL
-            function getVirtualPath(pathname) {
-                const proxyMatch = pathname.match(/\\/api\\/v2\\/media-managers\\/\\d+\\/proxy(\\/.*)?/);
-                if (proxyMatch) {
-                    return proxyMatch[1] || '/';
-                }
-                return null;
-            }
-
-            // Check if we're in a proxy context
-            const initialPath = window.location.pathname;
-            const virtualPath = getVirtualPath(initialPath);
-            if (!virtualPath) {
-                return; // Not a proxy URL, nothing to do
-            }
-
-            // APPROACH: Use history.replaceState to change the URL to the app path
-            // This happens AFTER __webpack_public_path__ is set, so:
-            // - React Router sees location.pathname = "/movie" and routes correctly
-            // - Webpack uses __webpack_public_path__ for chunk loading (already set to proxy path)
-            console.log('[StreamPanel Proxy] Changing URL from', initialPath, 'to', virtualPath);
-            history.replaceState(null, '', virtualPath);
-            console.log('[StreamPanel Proxy] URL changed, location.pathname is now:', window.location.pathname);
-
-            // Patch history.pushState to convert app paths back to proxy paths
-            // This ensures browser history entries point to the proxy URLs
-            const originalPushState = history.pushState.bind(history);
-            const originalReplaceState = history.replaceState.bind(history);
-
-            history.pushState = function(state, title, url) {
-                // Only intercept app paths, not already-proxied paths
-                if (url && typeof url === 'string' && url.startsWith('/') && !url.startsWith('/api/v2/media-managers')) {
-                    // For pushState, we DON'T rewrite to proxy path - we keep the app path visible
-                    // This way React Router continues to see clean URLs
-                    console.log('[StreamPanel Proxy] pushState (keeping app path):', url);
-                    return originalPushState(state, title, url);
-                }
-                return originalPushState(state, title, url);
-            };
-
-            history.replaceState = function(state, title, url) {
-                if (url && typeof url === 'string' && url.startsWith('/') && !url.startsWith('/api/v2/media-managers')) {
-                    console.log('[StreamPanel Proxy] replaceState (keeping app path):', url);
-                    return originalReplaceState(state, title, url);
-                }
-                return originalReplaceState(state, title, url);
-            };
-
-            console.log('[StreamPanel Proxy] Router fix applied - pathname is now:', window.location.pathname);
-        } catch (e) {
-            console.error('[StreamPanel Proxy] Failed to fix router path:', e);
-        }
-    })();
+    console.log('[StreamPanel Proxy] Interceptor loaded, PROXY_BASE:', PROXY_BASE);
 
     // External image domains that should be proxied (for movie posters)
     const EXTERNAL_IMAGE_DOMAINS = [

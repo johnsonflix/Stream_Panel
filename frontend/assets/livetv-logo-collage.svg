@@ -1,0 +1,195 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 400">
+  <defs>
+    <!-- Network color definitions -->
+    <linearGradient id="espnRed" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#d00;stop-opacity:0.5"/>
+      <stop offset="100%" style="stop-color:#900;stop-opacity:0.3"/>
+    </linearGradient>
+    <linearGradient id="nflBlue" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#013369;stop-opacity:0.5"/>
+      <stop offset="100%" style="stop-color:#012244;stop-opacity:0.3"/>
+    </linearGradient>
+    <linearGradient id="nbcMulti" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ff6b00;stop-opacity:0.4"/>
+      <stop offset="50%" style="stop-color:#00b140;stop-opacity:0.3"/>
+      <stop offset="100%" style="stop-color:#0089d0;stop-opacity:0.4"/>
+    </linearGradient>
+    <linearGradient id="foxBlue" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#00a0e0;stop-opacity:0.45"/>
+      <stop offset="100%" style="stop-color:#0066a0;stop-opacity:0.3"/>
+    </linearGradient>
+    <linearGradient id="discoveryBlue" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0056b8;stop-opacity:0.45"/>
+      <stop offset="100%" style="stop-color:#003d7a;stop-opacity:0.3"/>
+    </linearGradient>
+    <linearGradient id="tntRed" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#e10000;stop-opacity:0.45"/>
+      <stop offset="100%" style="stop-color:#b00;stop-opacity:0.3"/>
+    </linearGradient>
+    <linearGradient id="cnnRed" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#cc0000;stop-opacity:0.45"/>
+      <stop offset="100%" style="stop-color:#8b0000;stop-opacity:0.3"/>
+    </linearGradient>
+    <linearGradient id="hboBlack" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#444;stop-opacity:0.5"/>
+      <stop offset="100%" style="stop-color:#222;stop-opacity:0.35"/>
+    </linearGradient>
+    <linearGradient id="nbaOrange" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#e04e39;stop-opacity:0.45"/>
+      <stop offset="100%" style="stop-color:#0033a0;stop-opacity:0.35"/>
+    </linearGradient>
+    <linearGradient id="mlbRed" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#bf0d3e;stop-opacity:0.45"/>
+      <stop offset="100%" style="stop-color:#002d72;stop-opacity:0.35"/>
+    </linearGradient>
+    <linearGradient id="amcYellow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f5a623;stop-opacity:0.45"/>
+      <stop offset="100%" style="stop-color:#c78300;stop-opacity:0.3"/>
+    </linearGradient>
+    <linearGradient id="usaBlue" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0052a0;stop-opacity:0.45"/>
+      <stop offset="100%" style="stop-color:#003366;stop-opacity:0.3"/>
+    </linearGradient>
+    <linearGradient id="cbsBlue" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#2079c7;stop-opacity:0.45"/>
+      <stop offset="100%" style="stop-color:#1a5a8c;stop-opacity:0.3"/>
+    </linearGradient>
+    <linearGradient id="abcBlack" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#555;stop-opacity:0.45"/>
+      <stop offset="100%" style="stop-color:#333;stop-opacity:0.3"/>
+    </linearGradient>
+    <linearGradient id="mtvPurple" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#8b00ff;stop-opacity:0.4"/>
+      <stop offset="100%" style="stop-color:#ff00ff;stop-opacity:0.3"/>
+    </linearGradient>
+    <linearGradient id="nickelOrange" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ff6600;stop-opacity:0.4"/>
+      <stop offset="100%" style="stop-color:#ff9900;stop-opacity:0.3"/>
+    </linearGradient>
+    <linearGradient id="disneyBlue" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1e90ff;stop-opacity:0.4"/>
+      <stop offset="100%" style="stop-color:#0066cc;stop-opacity:0.3"/>
+    </linearGradient>
+    <linearGradient id="fxOrange" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ff4500;stop-opacity:0.4"/>
+      <stop offset="100%" style="stop-color:#cc3700;stop-opacity:0.3"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Row 1 - Network logos as rounded rectangles -->
+  <g>
+    <!-- ESPN style -->
+    <rect x="5" y="5" width="65" height="35" rx="5" fill="url(#espnRed)"/>
+    <!-- NFL Shield style -->
+    <path d="M90 5 L120 5 L130 22 L120 40 L90 40 L80 22 Z" fill="url(#nflBlue)"/>
+    <!-- NBC Peacock style circle -->
+    <circle cx="175" cy="22" r="18" fill="url(#nbcMulti)"/>
+    <!-- FOX style -->
+    <rect x="210" y="5" width="55" height="35" rx="4" fill="url(#foxBlue)"/>
+    <!-- CBS Eye style -->
+    <ellipse cx="310" cy="22" rx="25" ry="18" fill="url(#cbsBlue)"/>
+    <!-- ABC Circle -->
+    <circle cx="385" cy="22" r="18" fill="url(#abcBlack)"/>
+    <!-- TNT style -->
+    <rect x="420" y="5" width="50" height="35" rx="4" fill="url(#tntRed)"/>
+    <!-- Discovery Globe -->
+    <circle cx="515" cy="22" r="18" fill="url(#discoveryBlue)"/>
+    <!-- CNN -->
+    <rect x="550" y="5" width="50" height="35" rx="4" fill="url(#cnnRed)"/>
+  </g>
+
+  <!-- Row 2 - Sports and Entertainment -->
+  <g>
+    <!-- NBA style -->
+    <rect x="25" y="55" width="50" height="35" rx="4" fill="url(#nbaOrange)"/>
+    <!-- MLB style -->
+    <rect x="95" y="55" width="55" height="35" rx="4" fill="url(#mlbRed)"/>
+    <!-- HBO -->
+    <rect x="170" y="55" width="55" height="35" rx="4" fill="url(#hboBlack)"/>
+    <!-- USA Network -->
+    <rect x="245" y="55" width="50" height="35" rx="4" fill="url(#usaBlue)"/>
+    <!-- AMC -->
+    <rect x="315" y="55" width="50" height="35" rx="4" fill="url(#amcYellow)"/>
+    <!-- MTV -->
+    <rect x="385" y="55" width="50" height="35" rx="4" fill="url(#mtvPurple)"/>
+    <!-- Nickelodeon -->
+    <rect x="455" y="55" width="55" height="35" rx="4" fill="url(#nickelOrange)"/>
+    <!-- Disney -->
+    <rect x="530" y="55" width="55" height="35" rx="4" fill="url(#disneyBlue)"/>
+  </g>
+
+  <!-- Row 3 -->
+  <g>
+    <rect x="5" y="105" width="55" height="35" rx="4" fill="url(#foxBlue)"/>
+    <circle cx="100" cy="122" r="18" fill="url(#nbcMulti)"/>
+    <rect x="135" y="105" width="60" height="35" rx="4" fill="url(#espnRed)"/>
+    <path d="M220 105 L250 105 L260 122 L250 140 L220 140 L210 122 Z" fill="url(#nflBlue)"/>
+    <rect x="280" y="105" width="50" height="35" rx="4" fill="url(#tntRed)"/>
+    <circle cx="375" cy="122" r="18" fill="url(#discoveryBlue)"/>
+    <rect x="410" y="105" width="55" height="35" rx="4" fill="url(#hboBlack)"/>
+    <ellipse cx="510" cy="122" rx="25" ry="18" fill="url(#cbsBlue)"/>
+    <rect x="555" y="105" width="50" height="35" rx="4" fill="url(#fxOrange)"/>
+  </g>
+
+  <!-- Row 4 -->
+  <g>
+    <rect x="25" y="155" width="55" height="35" rx="4" fill="url(#cnnRed)"/>
+    <rect x="100" y="155" width="50" height="35" rx="4" fill="url(#usaBlue)"/>
+    <circle cx="195" cy="172" r="18" fill="url(#abcBlack)"/>
+    <rect x="230" y="155" width="55" height="35" rx="4" fill="url(#nbaOrange)"/>
+    <rect x="305" y="155" width="55" height="35" rx="4" fill="url(#mlbRed)"/>
+    <rect x="380" y="155" width="50" height="35" rx="4" fill="url(#amcYellow)"/>
+    <rect x="450" y="155" width="55" height="35" rx="4" fill="url(#mtvPurple)"/>
+    <circle cx="550" cy="172" r="18" fill="url(#nbcMulti)"/>
+  </g>
+
+  <!-- Row 5 -->
+  <g>
+    <rect x="5" y="205" width="60" height="35" rx="4" fill="url(#espnRed)"/>
+    <path d="M90 205 L120 205 L130 222 L120 240 L90 240 L80 222 Z" fill="url(#nflBlue)"/>
+    <rect x="150" y="205" width="55" height="35" rx="4" fill="url(#foxBlue)"/>
+    <rect x="225" y="205" width="50" height="35" rx="4" fill="url(#tntRed)"/>
+    <circle cx="320" cy="222" r="18" fill="url(#discoveryBlue)"/>
+    <ellipse cx="385" cy="222" rx="25" ry="18" fill="url(#cbsBlue)"/>
+    <rect x="430" y="205" width="55" height="35" rx="4" fill="url(#hboBlack)"/>
+    <rect x="505" y="205" width="50" height="35" rx="4" fill="url(#nickelOrange)"/>
+    <rect x="575" y="205" width="50" height="35" rx="4" fill="url(#disneyBlue)"/>
+  </g>
+
+  <!-- Row 6 -->
+  <g>
+    <rect x="25" y="255" width="50" height="35" rx="4" fill="url(#nbaOrange)"/>
+    <rect x="95" y="255" width="55" height="35" rx="4" fill="url(#cnnRed)"/>
+    <circle cx="195" cy="272" r="18" fill="url(#abcBlack)"/>
+    <rect x="230" y="255" width="55" height="35" rx="4" fill="url(#usaBlue)"/>
+    <rect x="305" y="255" width="50" height="35" rx="4" fill="url(#amcYellow)"/>
+    <circle cx="400" cy="272" r="18" fill="url(#nbcMulti)"/>
+    <rect x="435" y="255" width="60" height="35" rx="4" fill="url(#espnRed)"/>
+    <rect x="515" y="255" width="55" height="35" rx="4" fill="url(#mlbRed)"/>
+  </g>
+
+  <!-- Row 7 -->
+  <g>
+    <rect x="5" y="305" width="55" height="35" rx="4" fill="url(#fxOrange)"/>
+    <path d="M85 305 L115 305 L125 322 L115 340 L85 340 L75 322 Z" fill="url(#nflBlue)"/>
+    <rect x="145" y="305" width="50" height="35" rx="4" fill="url(#tntRed)"/>
+    <circle cx="240" cy="322" r="18" fill="url(#discoveryBlue)"/>
+    <rect x="275" y="305" width="55" height="35" rx="4" fill="url(#mtvPurple)"/>
+    <ellipse cx="375" cy="322" rx="25" ry="18" fill="url(#cbsBlue)"/>
+    <rect x="420" y="305" width="55" height="35" rx="4" fill="url(#hboBlack)"/>
+    <rect x="495" y="305" width="55" height="35" rx="4" fill="url(#nickelOrange)"/>
+    <rect x="570" y="305" width="50" height="35" rx="4" fill="url(#disneyBlue)"/>
+  </g>
+
+  <!-- Row 8 (partial) -->
+  <g>
+    <rect x="25" y="355" width="55" height="35" rx="4" fill="url(#foxBlue)"/>
+    <rect x="100" y="355" width="60" height="35" rx="4" fill="url(#espnRed)"/>
+    <rect x="180" y="355" width="50" height="35" rx="4" fill="url(#cnnRed)"/>
+    <circle cx="275" cy="372" r="18" fill="url(#abcBlack)"/>
+    <rect x="310" y="355" width="55" height="35" rx="4" fill="url(#nbaOrange)"/>
+    <rect x="385" y="355" width="50" height="35" rx="4" fill="url(#usaBlue)"/>
+    <circle cx="480" cy="372" r="18" fill="url(#nbcMulti)"/>
+    <rect x="515" y="355" width="55" height="35" rx="4" fill="url(#amcYellow)"/>
+  </g>
+</svg>

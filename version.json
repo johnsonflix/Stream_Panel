@@ -1,6 +1,6 @@
 {
-  "version": "1.5.2",
+  "version": "1.5.3",
   "name": "Stream Panel",
   "releaseDate": "2025-12-29",
-  "description": "Fix Request Site access not showing for IPTV-only users (missing from /user/full endpoint)"
+  "description": "Sync missing files: Plex popup login, media manager proxy fixes, user edit modal fix"
 }
