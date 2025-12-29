@@ -38,21 +38,29 @@ sqlite3 "$DB_PATH" "CREATE TABLE IF NOT EXISTS migrations_applied (
 
 cd /app/backend/migrations
 MIGRATIONS_RUN=0
+MIGRATIONS_FAILED=0
 for f in *.js; do
     # Check if this migration was already applied
     ALREADY_APPLIED=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM migrations_applied WHERE filename='$f';")
     if [ "$ALREADY_APPLIED" -eq "0" ]; then
         echo "  Running $f..."
-        if node "$f" 2>/dev/null; then
+        # Run migration and capture output (show errors!)
+        if node "$f"; then
             # Record successful migration
             sqlite3 "$DB_PATH" "INSERT INTO migrations_applied (filename) VALUES ('$f');"
             MIGRATIONS_RUN=$((MIGRATIONS_RUN + 1))
+            echo "    ✅ $f completed"
+        else
+            echo "    ❌ $f FAILED"
+            MIGRATIONS_FAILED=$((MIGRATIONS_FAILED + 1))
         fi
     fi
 done
 
-if [ "$MIGRATIONS_RUN" -eq "0" ]; then
+if [ "$MIGRATIONS_RUN" -eq "0" ] && [ "$MIGRATIONS_FAILED" -eq "0" ]; then
     echo "✅ No new migrations to run"
+elif [ "$MIGRATIONS_FAILED" -gt "0" ]; then
+    echo "⚠️  Ran $MIGRATIONS_RUN migration(s), $MIGRATIONS_FAILED FAILED"
 else
     echo "✅ Ran $MIGRATIONS_RUN new migration(s)"
 fi

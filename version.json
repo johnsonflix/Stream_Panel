@@ -1,6 +1,6 @@
 {
-  "version": "1.5.0",
+  "version": "1.5.1",
   "name": "Stream Panel",
   "releaseDate": "2025-12-28",
-  "description": "Migration system overhaul, SQLite lock fixes, Plex popup login, Request Site access toggle, portal card collages, Media Managers foundation"
+  "description": "Fix Request Site access toggle type coercion, show migration errors"
 }

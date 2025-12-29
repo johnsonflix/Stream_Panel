@@ -45,15 +45,16 @@ function sanitizeUserForPortal(user) {
     // Compute request site access:
     // - If rs_has_access is explicitly 1, access granted
     // - If rs_has_access is explicitly 0, access denied
-    // - If rs_has_access is null, default to plex_enabled value
+    // - If rs_has_access is null/undefined, default to plex_enabled value
+    // Use Number() to handle string/int type coercion from SQLite
     let hasRequestSiteAccess;
-    if (user.rs_has_access === 1) {
-        hasRequestSiteAccess = true;
-    } else if (user.rs_has_access === 0) {
-        hasRequestSiteAccess = false;
+    const rsAccess = user.rs_has_access;
+    if (rsAccess !== null && rsAccess !== undefined && rsAccess !== '') {
+        // Explicit value set - convert to number and check
+        hasRequestSiteAccess = Number(rsAccess) === 1;
     } else {
-        // null = auto: grant access if user has Plex enabled
-        hasRequestSiteAccess = user.plex_enabled === 1;
+        // null/undefined = auto: grant access if user has Plex enabled
+        hasRequestSiteAccess = Number(user.plex_enabled) === 1;
     }
 
     return {
