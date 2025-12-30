@@ -261,6 +261,73 @@ router.post('/email-login', async (req, res) => {
 });
 
 /**
+ * GET /api/v2/portal/auth/plex/redirect
+ * Direct redirect to Plex auth - for mobile browsers that block JS navigation after async
+ * This endpoint creates the PIN and immediately redirects to Plex (no JS async needed)
+ */
+router.get('/plex/redirect', async (req, res) => {
+    try {
+        // Check if Plex login is enabled
+        const plexEnabled = await query(`SELECT setting_value FROM settings WHERE setting_key = 'portal_plex_enabled'`);
+        if (plexEnabled.length > 0 && (plexEnabled[0].setting_value === 'false' || plexEnabled[0].setting_value === false)) {
+            return res.redirect('/portal/login.html?error=plex_disabled');
+        }
+
+        const fetch = (await import('node-fetch')).default;
+
+        // Generate a unique pin ID for our internal tracking
+        const pinId = crypto.randomBytes(16).toString('hex');
+
+        // Request a PIN from Plex
+        const pinResponse = await fetch(`${PLEX_API_BASE}/pins?strong=true`, {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json',
+                'X-Plex-Client-Identifier': PLEX_CLIENT_ID,
+                'X-Plex-Product': 'StreamPanel Portal',
+                'X-Plex-Version': '2.0.0',
+                'X-Plex-Device': 'Web',
+                'X-Plex-Platform': 'Web'
+            }
+        });
+
+        if (!pinResponse.ok) {
+            console.error('[Plex Redirect] Failed to create PIN:', pinResponse.status);
+            return res.redirect('/portal/login.html?error=plex_init_failed');
+        }
+
+        const pinData = await pinResponse.json();
+
+        // Store the pin info
+        portalPlexPins.set(pinId, {
+            plexPinId: pinData.id,
+            plexPinCode: pinData.code,
+            authToken: null,
+            createdAt: Date.now(),
+            expiresAt: Date.now() + (5 * 60 * 1000) // 5 minutes
+        });
+
+        // Store pinId in a cookie so we can complete auth when user returns
+        res.cookie('plex_pending_pin', pinId, {
+            maxAge: 5 * 60 * 1000, // 5 minutes
+            httpOnly: false, // Allow JS to read it
+            secure: req.secure,
+            sameSite: 'lax'
+        });
+
+        // Build the Plex auth URL and redirect directly
+        const authUrl = `https://app.plex.tv/auth#?clientID=${PLEX_CLIENT_ID}&code=${pinData.code}&context%5Bdevice%5D%5Bproduct%5D=StreamPanel%20Portal&context%5Bdevice%5D%5Bplatform%5D=Web`;
+
+        console.log('[Plex Redirect] Redirecting to Plex auth, pinId:', pinId);
+        res.redirect(authUrl);
+
+    } catch (error) {
+        console.error('[Plex Redirect] Error:', error);
+        res.redirect('/portal/login.html?error=plex_init_failed');
+    }
+});
+
+/**
  * POST /api/v2/portal/auth/plex/init
  * Initialize Plex OAuth flow using PIN-based popup method
  */

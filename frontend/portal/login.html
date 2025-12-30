@@ -432,6 +432,24 @@
         // Load branding on page load
         loadBrandingSettings();
 
+        // Check for error in query params (from server redirect flow)
+        const errorParam = urlParams.get('error');
+        if (errorParam) {
+            // Switch to Plex tab and show error
+            document.querySelectorAll('.login-tab').forEach(t => t.classList.remove('active'));
+            document.querySelector('[data-tab="plex"]').classList.add('active');
+            document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+            document.getElementById('plex-panel').classList.add('active');
+
+            if (errorParam === 'plex_disabled') {
+                showAlert('error', 'Plex login is not enabled.');
+            } else if (errorParam === 'plex_init_failed') {
+                showAlert('error', 'Failed to initialize Plex login. Please try again.');
+            } else {
+                showAlert('error', 'An error occurred. Please try again.');
+            }
+        }
+
         // Check if already logged in - redirect immediately
         checkExistingSession();
 
@@ -517,16 +535,30 @@
                    (window.innerWidth <= 768);
         }
 
-        // Should use redirect flow instead of popup
-        // Mobile browsers are too inconsistent with popups - always use redirect on mobile
-        function shouldUseRedirectFlow() {
+        // Should use server-side redirect flow instead of JS popup
+        // Mobile browsers block JS navigation after async calls - must use direct link
+        function shouldUseServerRedirect() {
             return isStandaloneMode() || isMobileDevice();
         }
 
-        // Plex Login Button Handler - supports both popup and redirect flow
-        document.getElementById('plex-login-btn').addEventListener('click', async () => {
+        // Plex Login Button Handler - supports both popup and server redirect flow
+        document.getElementById('plex-login-btn').addEventListener('click', async (e) => {
             const plexBtn = document.getElementById('plex-login-btn');
 
+            console.log('[Plex Auth] Button clicked. isMobile:', isMobileDevice(), 'isStandalone:', isStandaloneMode());
+
+            // Mobile/PWA: Use server-side redirect (no async JS before navigation)
+            // This MUST happen synchronously on user click to not be blocked by Safari
+            if (shouldUseServerRedirect()) {
+                console.log('[Plex Auth] Using server redirect flow');
+                plexBtn.disabled = true;
+                plexBtn.innerHTML = '<span class="spinner"></span> Redirecting to Plex...';
+                // Direct navigation - no async before this!
+                window.location.href = `${API_BASE}/portal/auth/plex/redirect`;
+                return;
+            }
+
+            // Desktop: Use popup flow with async init
             plexBtn.disabled = true;
             plexBtn.innerHTML = '<span class="spinner"></span> Connecting to Plex...';
 
@@ -539,18 +571,6 @@
                 }
 
                 const pinId = initData.pinId;
-
-                // PWA/Standalone/Mobile: use redirect flow (popups are blocked/unreliable)
-                console.log('[Plex Auth] isMobile:', isMobileDevice(), 'isStandalone:', isStandaloneMode(), 'shouldRedirect:', shouldUseRedirectFlow());
-                if (shouldUseRedirectFlow()) {
-                    console.log('[Plex Auth] Using redirect flow');
-                    // Store pinId and redirect URL for when user returns
-                    sessionStorage.setItem('plex_pending_pin', pinId);
-                    sessionStorage.setItem('plex_redirect_url', redirectUrl);
-                    // Redirect to Plex auth (user will use back button to return)
-                    window.location.href = initData.authUrl;
-                    return;
-                }
                 console.log('[Plex Auth] Using popup flow');
 
                 // Desktop/Browser mode: use popup flow
@@ -623,9 +643,23 @@
             }
         });
 
+        // Helper to get cookie value
+        function getCookie(name) {
+            const value = `; ${document.cookie}`;
+            const parts = value.split(`; ${name}=`);
+            if (parts.length === 2) return parts.pop().split(';').shift();
+            return null;
+        }
+
+        // Helper to delete cookie
+        function deleteCookie(name) {
+            document.cookie = name + '=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+        }
+
         // Check for pending Plex auth on page load (redirect flow)
         async function checkPendingPlexAuth() {
-            const pendingPin = sessionStorage.getItem('plex_pending_pin');
+            // Check both cookie (server redirect flow) and sessionStorage (legacy)
+            const pendingPin = getCookie('plex_pending_pin') || sessionStorage.getItem('plex_pending_pin');
             if (!pendingPin) return;
 
             const plexBtn = document.getElementById('plex-login-btn');
@@ -651,6 +685,8 @@
                     const statusData = await statusResponse.json();
 
                     if (statusData.authenticated) {
+                        // Clear both storage methods
+                        deleteCookie('plex_pending_pin');
                         sessionStorage.removeItem('plex_pending_pin');
                         const savedRedirect = sessionStorage.getItem('plex_redirect_url') || redirectUrl;
                         sessionStorage.removeItem('plex_redirect_url');
@@ -659,6 +695,7 @@
                     }
 
                     if (statusData.expired) {
+                        deleteCookie('plex_pending_pin');
                         sessionStorage.removeItem('plex_pending_pin');
                         sessionStorage.removeItem('plex_redirect_url');
                         plexBtn.disabled = false;
@@ -670,6 +707,7 @@
                     if (attempts < maxAttempts) {
                         setTimeout(pollPending, pollInterval);
                     } else {
+                        deleteCookie('plex_pending_pin');
                         sessionStorage.removeItem('plex_pending_pin');
                         sessionStorage.removeItem('plex_redirect_url');
                         plexBtn.disabled = false;
@@ -677,6 +715,7 @@
                         showAlert('error', 'Plex authorization timed out. Please try again.');
                     }
                 } catch (error) {
+                    deleteCookie('plex_pending_pin');
                     sessionStorage.removeItem('plex_pending_pin');
                     sessionStorage.removeItem('plex_redirect_url');
                     plexBtn.disabled = false;

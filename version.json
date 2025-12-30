@@ -1,6 +1,6 @@
 {
-  "version": "1.5.14",
+  "version": "1.5.15",
   "name": "Stream Panel",
   "releaseDate": "2025-12-30",
-  "description": "Mobile Plex auth - force redirect for all mobile devices"
+  "description": "Mobile Plex auth - server-side redirect (no async JS blocking)"
 }
