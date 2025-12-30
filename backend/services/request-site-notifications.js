@@ -580,9 +580,10 @@ async function sendWebPushNotification(userId, type, data) {
                 console.log('[WebPush Send] SUCCESS sent to subscription', sub.id);
             } catch (error) {
                 console.log('[WebPush Send] FAILED for subscription', sub.id, ':', error.statusCode || error.message);
-                if (error.statusCode === 404 || error.statusCode === 410) {
+                // 403 = VAPID key mismatch (subscription invalid), 404 = not found, 410 = expired/gone
+                if (error.statusCode === 403 || error.statusCode === 404 || error.statusCode === 410) {
                     await query('DELETE FROM request_site_webpush_subscriptions WHERE id = ?', [sub.id]);
-                    console.log('[WebPush Send] Deleted expired subscription', sub.id);
+                    console.log('[WebPush Send] Deleted invalid subscription', sub.id, '(status:', error.statusCode + ')');
                 }
             }
         }

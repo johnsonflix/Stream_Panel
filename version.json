@@ -1,6 +1,6 @@
 {
-  "version": "1.5.9",
+  "version": "1.5.10",
   "name": "Stream Panel",
   "releaseDate": "2025-12-30",
-  "description": "Media Managers reorder/visibility, iOS home screen icon fix"
+  "description": "WebPush 403 fix - auto-delete invalid subscriptions"
 }
