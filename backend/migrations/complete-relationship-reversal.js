@@ -23,6 +23,17 @@ try {
         process.exit(1);
     }
 
+    // Step 1: Check if iptv_panel_id exists in iptv_editor_playlists
+    const playlistCols = db.prepare("PRAGMA table_info(iptv_editor_playlists)").all();
+    const hasOldColumn = playlistCols.some(col => col.name === 'iptv_panel_id');
+
+    if (!hasOldColumn) {
+        console.log('✅ Database already in correct state - iptv_panel_id column does not exist');
+        console.log('   Skipping migration (already completed or not needed)');
+        db.exec('COMMIT');
+        process.exit(0);
+    }
+
     // Step 1: Migrate existing relationships from playlists to panels
     console.log('📝 Step 1: Migrating existing relationships...');
     const existingLinks = db.prepare(`
