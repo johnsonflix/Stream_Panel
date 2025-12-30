@@ -58,8 +58,7 @@ try {
     // Step 2: Remove iptv_panel_id column from iptv_editor_playlists
     console.log('📝 Step 2: Removing iptv_panel_id from iptv_editor_playlists...');
 
-    // Get all columns except iptv_panel_id
-    const playlistCols = db.prepare("PRAGMA table_info(iptv_editor_playlists)").all();
+    // Get all columns except iptv_panel_id (reusing playlistCols from above)
     const columns = playlistCols
         .filter(col => col.name !== 'iptv_panel_id')
         .map(col => col.name)
