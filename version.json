@@ -1,6 +1,6 @@
 {
-  "version": "1.5.13",
+  "version": "1.5.14",
   "name": "Stream Panel",
   "releaseDate": "2025-12-30",
-  "description": "Mobile Safari Plex auth fix - use redirect flow"
+  "description": "Mobile Plex auth - force redirect for all mobile devices"
 }

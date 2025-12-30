@@ -511,20 +511,16 @@
                    document.referrer.includes('android-app://');
         }
 
-        // Check if Safari (mobile Safari blocks popups even from user events)
-        function isSafari() {
-            const ua = navigator.userAgent.toLowerCase();
-            return ua.includes('safari') && !ua.includes('chrome') && !ua.includes('android');
-        }
-
-        // Check if mobile device
+        // Check if mobile device - ALL mobile browsers have popup issues
         function isMobileDevice() {
-            return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+            return /iPhone|iPad|iPod|Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+                   (window.innerWidth <= 768);
         }
 
         // Should use redirect flow instead of popup
+        // Mobile browsers are too inconsistent with popups - always use redirect on mobile
         function shouldUseRedirectFlow() {
-            return isStandaloneMode() || (isSafari() && isMobileDevice());
+            return isStandaloneMode() || isMobileDevice();
         }
 
         // Plex Login Button Handler - supports both popup and redirect flow
@@ -544,8 +540,10 @@
 
                 const pinId = initData.pinId;
 
-                // PWA/Standalone/Mobile Safari: use redirect flow (popups are blocked)
+                // PWA/Standalone/Mobile: use redirect flow (popups are blocked/unreliable)
+                console.log('[Plex Auth] isMobile:', isMobileDevice(), 'isStandalone:', isStandaloneMode(), 'shouldRedirect:', shouldUseRedirectFlow());
                 if (shouldUseRedirectFlow()) {
+                    console.log('[Plex Auth] Using redirect flow');
                     // Store pinId and redirect URL for when user returns
                     sessionStorage.setItem('plex_pending_pin', pinId);
                     sessionStorage.setItem('plex_redirect_url', redirectUrl);
@@ -553,6 +551,7 @@
                     window.location.href = initData.authUrl;
                     return;
                 }
+                console.log('[Plex Auth] Using popup flow');
 
                 // Desktop/Browser mode: use popup flow
                 const authWindow = window.open(
