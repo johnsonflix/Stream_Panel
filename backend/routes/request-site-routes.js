@@ -15,6 +15,12 @@ const RadarrService = require('../services/radarr-service');
 const SonarrService = require('../services/sonarr-service');
 const { PlexScannerService, MediaStatus } = require('../services/plex-scanner-service');
 const dbQueue = require('../utils/db-write-queue');
+const {
+    notifyAdminsNewRequest,
+    notifyUserRequestApproved,
+    notifyUserRequestAutoApproved,
+    notifyUserRequestDeclined
+} = require('../services/request-site-notifications');
 
 // Database connection
 const DB_PATH = process.env.DB_PATH || path.join(__dirname, '..', 'data', 'subsapp_v2.db');
@@ -1448,13 +1454,46 @@ router.post('/requests', async (req, res) => {
                 } else {
                     await processTvRequest(requestId, seasons);
                 }
+                // Notify user of auto-approval
+                console.log('[Request Site] Sending auto-approval notification to user:', userId);
+                await notifyUserRequestAutoApproved(userId, title, mediaType, {
+                    requestId,
+                    tmdbId,
+                    posterPath,
+                    is4k
+                });
             } catch (processError) {
                 console.error('[Request Site] Auto-process failed:', processError);
                 // Update status to pending if auto-process failed
                 await dbQueue.write(() => {
                     db.prepare('UPDATE media_requests SET status = ? WHERE id = ?').run('pending', requestId);
                 });
+                // Since it reverted to pending, notify admins instead
+                console.log('[Request Site] Auto-process failed, notifying admins of pending request');
+                await notifyAdminsNewRequest({
+                    requestId,
+                    mediaTitle: title,
+                    mediaType,
+                    username: requestedBy,
+                    userId,
+                    tmdbId,
+                    posterPath,
+                    is4k
+                });
             }
+        } else {
+            // Notify admins of new pending request
+            console.log('[Request Site] Sending pending request notification to admins');
+            await notifyAdminsNewRequest({
+                requestId,
+                mediaTitle: title,
+                mediaType,
+                username: requestedBy,
+                userId,
+                tmdbId,
+                posterPath,
+                is4k
+            });
         }
 
         const newRequest = db.prepare('SELECT * FROM media_requests WHERE id = ?').get(requestId);
@@ -1533,6 +1572,15 @@ router.put('/requests/:id/approve', async (req, res) => {
             });
         }
 
+        // Notify user of approval
+        console.log('[Request Site] Sending approval notification to user:', request.user_id);
+        await notifyUserRequestApproved(request.user_id, request.title, request.media_type, {
+            requestId,
+            tmdbId: request.tmdb_id,
+            posterPath: request.poster_path,
+            is4k: request.is_4k === 1
+        });
+
         const updatedRequest = db.prepare('SELECT * FROM media_requests WHERE id = ?').get(requestId);
         res.json(updatedRequest);
     } catch (error) {
@@ -1582,6 +1630,15 @@ router.put('/requests/:id/decline', async (req, res) => {
                 UPDATE media_requests SET status = ?, notes = ?, processed_at = CURRENT_TIMESTAMP
                 WHERE id = ?
             `).run('declined', reason || 'Request declined', requestId);
+        });
+
+        // Notify user of decline
+        console.log('[Request Site] Sending decline notification to user:', request.user_id);
+        await notifyUserRequestDeclined(request.user_id, request.title, request.media_type, reason, {
+            requestId,
+            tmdbId: request.tmdb_id,
+            posterPath: request.poster_path,
+            is4k: request.is_4k === 1
         });
 
         const updatedRequest = db.prepare('SELECT * FROM media_requests WHERE id = ?').get(requestId);
@@ -3638,8 +3695,9 @@ router.get('/permissions/users', (req, res) => {
         const db = getDb();
         const { filter } = req.query; // 'all', 'overrides'
 
-        // Get all users who have Plex access OR are admins
-        // users table has plex_enabled and role columns
+        // Get all users who have Request Site access OR are admins
+        // users table has plex_enabled, rs_has_access, and role columns
+        // rs_has_access: NULL = auto (based on plex_enabled), 1 = explicitly enabled, 0 = explicitly disabled
         const users = db.prepare(`
             SELECT
                 u.id,
@@ -3669,7 +3727,9 @@ router.get('/permissions/users', (req, res) => {
                 p.can_approve_4k_tv
             FROM users u
             LEFT JOIN request_user_permissions p ON p.user_id = u.id
-            WHERE u.plex_enabled = 1 OR u.role = 'admin'
+            WHERE u.role = 'admin'
+               OR u.rs_has_access = 1
+               OR (u.rs_has_access IS NULL AND u.plex_enabled = 1)
             ORDER BY u.name COLLATE NOCASE
         `).all();
 

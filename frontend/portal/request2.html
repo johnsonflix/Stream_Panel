@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/png" href="/assets/favicon.png">
     <title>Request Site - Stream Panel</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="../css/request-site.css">
@@ -81,8 +82,8 @@
         .request-nav-user {
             display: flex;
             align-items: center;
-            gap: 12px;
-            flex: 0 0 200px;
+            gap: 16px;
+            flex: 0 0 auto;
             justify-content: flex-end;
         }
         .request-nav-avatar {
@@ -120,6 +121,52 @@
         }
         .usage-indicator-btn i {
             font-size: 14px;
+        }
+        /* Push Notification Button */
+        .push-notif-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 38px;
+            height: 38px;
+            background: rgba(99, 102, 241, 0.15);
+            border: 1px solid rgba(99, 102, 241, 0.2);
+            border-radius: 8px;
+            color: #a5b4fc;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .push-notif-btn:hover {
+            background: rgba(99, 102, 241, 0.25);
+            color: #c7d2fe;
+        }
+        .push-notif-btn.subscribed {
+            background: rgba(34, 197, 94, 0.15);
+            border-color: rgba(34, 197, 94, 0.3);
+            color: #22c55e;
+        }
+        .push-notif-btn.subscribed:hover {
+            background: rgba(34, 197, 94, 0.25);
+        }
+        /* Back Link Button Style */
+        .request-nav-user .request-nav-link {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 14px;
+            background: rgba(99, 102, 241, 0.15);
+            border: 1px solid rgba(99, 102, 241, 0.2);
+            border-radius: 8px;
+            color: #a5b4fc;
+            font-size: 13px;
+            text-decoration: none;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+        .request-nav-user .request-nav-link:hover {
+            background: rgba(99, 102, 241, 0.25);
+            color: #c7d2fe;
         }
         .usage-dropdown {
             display: none;
@@ -5949,6 +5996,10 @@
                     </div>
                 </div>
             </div>
+            <!-- Push Notification Toggle -->
+            <button class="push-notif-btn" id="push-notif-btn" onclick="togglePushNotifications()" title="Enable push notifications" style="display: none;">
+                <i class="fas fa-bell-slash" id="push-notif-icon"></i>
+            </button>
             <a href="#" class="request-nav-link" id="back-link"><i class="fas fa-arrow-left"></i> Back</a>
         </div>
         <!-- Mobile Header Search (always visible on mobile) -->
@@ -5994,6 +6045,13 @@
             </a>
             <a class="mobile-nav-link" id="mobile-settings-link" data-section="settings" onclick="mobileNavTo('settings')" style="display: none;">
                 <i class="fas fa-cog"></i> Settings
+            </a>
+        </div>
+        <!-- Mobile Push Notification Toggle -->
+        <div id="mobile-push-container" style="display: none; padding: 12px 20px; border-top: 1px solid #334155;">
+            <a class="mobile-nav-link" id="mobile-push-toggle" onclick="togglePushNotifications()">
+                <i class="fas fa-bell-slash" id="mobile-push-icon"></i>
+                <span id="mobile-push-label">Enable Notifications</span>
             </a>
         </div>
         <!-- Mobile Usage Indicator -->
@@ -7201,9 +7259,186 @@
             }
         });
 
+        // ============ Push Notification System ============
+        let pushSubscription = null;
+        let vapidPublicKey = null;
+
+        // Helper to get the correct auth token based on mode
+        function getAuthToken() {
+            if (isAdminMode) {
+                return localStorage.getItem('sessionToken') || sessionStorage.getItem('sessionToken');
+            }
+            return localStorage.getItem('portal_token');
+        }
+
+        async function initPushNotifications() {
+            // Check if push notifications are supported
+            if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+                console.log('[Push] Push notifications not supported');
+                return;
+            }
+
+            try {
+                // Get VAPID public key from server
+                const token = getAuthToken();
+                const response = await fetch('/api/v2/request-site/notifications/webpush/vapid-key', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    vapidPublicKey = data.publicKey;
+
+                    if (!vapidPublicKey) {
+                        console.log('[Push] VAPID keys not configured');
+                        return;
+                    }
+
+                    // Register service worker
+                    const registration = await navigator.serviceWorker.register('/portal/sw-push.js');
+                    console.log('[Push] Service worker registered');
+
+                    // Check existing subscription
+                    pushSubscription = await registration.pushManager.getSubscription();
+
+                    // Show the notification button
+                    const btn = document.getElementById('push-notif-btn');
+                    if (btn) {
+                        btn.style.display = 'flex';
+                        updatePushButton();
+                    }
+                }
+            } catch (error) {
+                console.error('[Push] Init error:', error);
+            }
+        }
+
+        function updatePushButton() {
+            const btn = document.getElementById('push-notif-btn');
+            const icon = document.getElementById('push-notif-icon');
+            const mobileContainer = document.getElementById('mobile-push-container');
+            const mobileIcon = document.getElementById('mobile-push-icon');
+            const mobileLabel = document.getElementById('mobile-push-label');
+
+            if (pushSubscription) {
+                // Desktop button
+                if (btn) {
+                    btn.classList.add('subscribed');
+                    btn.title = 'Push notifications enabled - click to disable';
+                }
+                if (icon) icon.className = 'fas fa-bell';
+
+                // Mobile toggle
+                if (mobileIcon) mobileIcon.className = 'fas fa-bell';
+                if (mobileLabel) mobileLabel.textContent = 'Notifications Enabled';
+            } else {
+                // Desktop button
+                if (btn) {
+                    btn.classList.remove('subscribed');
+                    btn.title = 'Enable push notifications';
+                }
+                if (icon) icon.className = 'fas fa-bell-slash';
+
+                // Mobile toggle
+                if (mobileIcon) mobileIcon.className = 'fas fa-bell-slash';
+                if (mobileLabel) mobileLabel.textContent = 'Enable Notifications';
+            }
+
+            // Show mobile container if we have VAPID key
+            if (mobileContainer && vapidPublicKey) {
+                mobileContainer.style.display = 'block';
+            }
+        }
+
+        async function togglePushNotifications() {
+            if (!vapidPublicKey) {
+                showRequestToast('Push notifications not configured by admin', 'error');
+                return;
+            }
+
+            const token = getAuthToken();
+
+            try {
+                if (pushSubscription) {
+                    // Unsubscribe
+                    await fetch('/api/v2/request-site/notifications/webpush/unsubscribe', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ endpoint: pushSubscription.endpoint })
+                    });
+
+                    await pushSubscription.unsubscribe();
+                    pushSubscription = null;
+                    showRequestToast('Push notifications disabled', 'info');
+                } else {
+                    // Request permission
+                    const permission = await Notification.requestPermission();
+                    if (permission !== 'granted') {
+                        showRequestToast('Notification permission denied', 'error');
+                        return;
+                    }
+
+                    // Subscribe
+                    const registration = await navigator.serviceWorker.ready;
+                    pushSubscription = await registration.pushManager.subscribe({
+                        userVisibleOnly: true,
+                        applicationServerKey: urlBase64ToUint8Array(vapidPublicKey)
+                    });
+
+                    // Send subscription to server
+                    await fetch('/api/v2/request-site/notifications/webpush/subscribe', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            endpoint: pushSubscription.endpoint,
+                            keys: {
+                                p256dh: arrayBufferToBase64(pushSubscription.getKey('p256dh')),
+                                auth: arrayBufferToBase64(pushSubscription.getKey('auth'))
+                            }
+                        })
+                    });
+
+                    showRequestToast('Push notifications enabled!', 'success');
+                }
+
+                updatePushButton();
+            } catch (error) {
+                console.error('[Push] Toggle error:', error);
+                showRequestToast('Failed to toggle notifications', 'error');
+            }
+        }
+
+        // Helper: Convert VAPID key to Uint8Array
+        function urlBase64ToUint8Array(base64String) {
+            const padding = '='.repeat((4 - base64String.length % 4) % 4);
+            const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+            const rawData = window.atob(base64);
+            const outputArray = new Uint8Array(rawData.length);
+            for (let i = 0; i < rawData.length; ++i) {
+                outputArray[i] = rawData.charCodeAt(i);
+            }
+            return outputArray;
+        }
+
+        // Helper: Convert ArrayBuffer to Base64
+        function arrayBufferToBase64(buffer) {
+            const bytes = new Uint8Array(buffer);
+            let binary = '';
+            for (let i = 0; i < bytes.byteLength; i++) {
+                binary += String.fromCharCode(bytes[i]);
+            }
+            return window.btoa(binary);
+        }
+
         // ============ Initialization ============
         document.addEventListener('DOMContentLoaded', async () => {
-            console.log('%c🔵 REQUEST SITE VERSION: 2025-12-24-01:00 LOADED', 'color: cyan; font-size: 16px; font-weight: bold');
+            console.log('%c🔵 REQUEST SITE VERSION: 2025-12-29-PUSH LOADED', 'color: cyan; font-size: 16px; font-weight: bold');
 
             // Check authentication first - redirect to login if not authenticated
             const isAuthenticated = await checkAuth();
@@ -7214,6 +7449,9 @@
             await loadUserInfo();
             await loadConstants();
             loadUserUsage(); // Load usage stats for limits indicator
+
+            // Initialize push notifications (non-blocking)
+            initPushNotifications();
 
             // Check hash first to determine what to load
             const hash = window.location.hash.slice(1);
@@ -13083,6 +13321,14 @@
                             </div>
                             <div class="settings-row">
                                 <label class="settings-checkbox">
+                                    <input type="checkbox" id="notify-admin-on-available" ${notificationSettings.notifyAdminOnAvailable ? 'checked' : ''}>
+                                    <span>Notify admins when any requested media becomes available</span>
+                                </label>
+                            </div>
+                            <hr style="border: none; border-top: 1px solid #334155; margin: 16px 0;">
+                            <p style="color: #64748b; font-size: 12px; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px;">User Notifications</p>
+                            <div class="settings-row">
+                                <label class="settings-checkbox">
                                     <input type="checkbox" id="notify-user-on-approved" ${notificationSettings.notifyUserOnApproved ? 'checked' : ''}>
                                     <span>Notify users when their request is approved</span>
                                 </label>
@@ -13306,6 +13552,10 @@
                             <p style="color: #94a3b8; font-size: 13px; margin-bottom: 8px; font-weight: 500;">Send push notifications for:</p>
                             <div class="notif-type-grid">
                                 <label class="settings-checkbox">
+                                    <input type="checkbox" id="webpush-type-pending" ${notificationSettings.webpush?.types?.includes('media_pending') ? 'checked' : ''}>
+                                    <span>New Requests</span>
+                                </label>
+                                <label class="settings-checkbox">
                                     <input type="checkbox" id="webpush-type-approved" ${notificationSettings.webpush?.types?.includes('media_approved') ? 'checked' : ''}>
                                     <span>Approved</span>
                                 </label>
@@ -13473,6 +13723,7 @@
             const settings = {
                 notifyAdminOnRequest: document.getElementById('notify-admin-on-request')?.checked || false,
                 notifyApproversOnRequest: document.getElementById('notify-approvers-on-request')?.checked || false,
+                notifyAdminOnAvailable: document.getElementById('notify-admin-on-available')?.checked || false,
                 notifyUserOnApproved: document.getElementById('notify-user-on-approved')?.checked || false,
                 notifyUserOnDeclined: document.getElementById('notify-user-on-declined')?.checked || false,
                 notifyUserOnAvailable: document.getElementById('notify-user-on-available')?.checked || false,
@@ -13504,7 +13755,7 @@
                 },
                 webpush: {
                     enabled: document.getElementById('webpush-enabled')?.checked || false,
-                    types: getChannelTypes('webpush', ['media_approved', 'media_declined', 'media_available'])
+                    types: getChannelTypes('webpush', ['media_pending', 'media_approved', 'media_declined', 'media_available'])
                 }
             };
 

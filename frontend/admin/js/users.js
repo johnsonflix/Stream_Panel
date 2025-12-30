@@ -2321,7 +2321,7 @@ const Users = {
             // Build contact info section
             const hasContactInfo = user.telegram_username || user.whatsapp_username || user.discord_username ||
                 user.venmo_username || user.paypal_username || user.cashapp_username ||
-                user.google_pay_username || user.apple_cash_username;
+                user.apple_cash_username;
 
             const contactItemsHtml = hasContactInfo ? `
                 ${user.telegram_username ? `<div class="contact-item"><i class="fab fa-telegram"></i><span class="contact-value">${Utils.escapeHtml(user.telegram_username)}</span></div>` : ''}
@@ -2330,7 +2330,6 @@ const Users = {
                 ${user.venmo_username ? `<div class="contact-item"><i class="fas fa-dollar-sign" style="color: #008CFF;"></i><span class="contact-value">${Utils.escapeHtml(user.venmo_username)}</span></div>` : ''}
                 ${user.paypal_username ? `<div class="contact-item"><i class="fab fa-paypal"></i><span class="contact-value">${Utils.escapeHtml(user.paypal_username)}</span></div>` : ''}
                 ${user.cashapp_username ? `<div class="contact-item"><i class="fas fa-money-bill-wave" style="color: #00D632;"></i><span class="contact-value">${Utils.escapeHtml(user.cashapp_username)}</span></div>` : ''}
-                ${user.google_pay_username ? `<div class="contact-item"><i class="fab fa-google" style="color: #4285F4;"></i><span class="contact-value">${Utils.escapeHtml(user.google_pay_username)}</span></div>` : ''}
                 ${user.apple_cash_username ? `<div class="contact-item"><i class="fab fa-apple" style="color: var(--text-primary);"></i><span class="contact-value">${Utils.escapeHtml(user.apple_cash_username)}</span></div>` : ''}
             ` : '';
 

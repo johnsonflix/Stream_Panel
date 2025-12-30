@@ -42,6 +42,7 @@ async function getNotificationSettings() {
         const notificationSettings = {
             notifyAdminOnRequest: true,
             notifyApproversOnRequest: true,
+            notifyAdminOnAvailable: false,
             notifyUserOnApproved: true,
             notifyUserOnDeclined: true,
             notifyUserOnAvailable: true,
@@ -58,6 +59,7 @@ async function getNotificationSettings() {
                 switch (setting.key) {
                     case 'notify_admin_on_request': notificationSettings.notifyAdminOnRequest = value; break;
                     case 'notify_approvers_on_request': notificationSettings.notifyApproversOnRequest = value; break;
+                    case 'notify_admin_on_available': notificationSettings.notifyAdminOnAvailable = value; break;
                     case 'notify_user_on_approved': notificationSettings.notifyUserOnApproved = value; break;
                     case 'notify_user_on_declined': notificationSettings.notifyUserOnDeclined = value; break;
                     case 'notify_user_on_available': notificationSettings.notifyUserOnAvailable = value; break;
@@ -93,18 +95,29 @@ async function getUserNotificationPreferences(userId) {
  */
 async function getNotificationRecipients(mediaType, is4k) {
     try {
-        let whereClause = 'WHERE (rs_can_manage_requests = 1';
+        // Join users with request_user_permissions to find users who can approve requests
+        let approvalCondition;
         if (is4k) {
-            whereClause += ' OR rs_can_auto_approve_4k = 1';
+            approvalCondition = 'p.can_approve_4k_movies = 1 OR p.can_approve_4k_tv = 1';
         } else if (mediaType === 'movie') {
-            whereClause += ' OR rs_can_auto_approve_movie = 1';
+            approvalCondition = 'p.can_approve_movies = 1';
         } else {
-            whereClause += ' OR rs_can_auto_approve_tv = 1';
+            approvalCondition = 'p.can_approve_tv = 1';
         }
-        whereClause += ") AND email IS NOT NULL AND email != ''";
 
-        return await query(`SELECT id, username, name, email FROM users ${whereClause}`);
+        const sql = `
+            SELECT DISTINCT u.id, u.name, u.email
+            FROM users u
+            INNER JOIN request_user_permissions p ON u.id = p.user_id
+            WHERE (${approvalCondition})
+            AND u.email IS NOT NULL AND u.email != ''
+        `;
+
+        const recipients = await query(sql);
+        console.log('[Notifications] getNotificationRecipients found:', recipients.length, 'users with approval permissions');
+        return recipients;
     } catch (error) {
+        console.error('[Notifications] getNotificationRecipients error:', error.message);
         return [];
     }
 }
@@ -520,17 +533,25 @@ function getDefaultWebhookPayload(type, data) {
  * Send WebPush notification
  */
 async function sendWebPushNotification(userId, type, data) {
+    console.log('[WebPush Send] Starting for user:', userId, 'type:', type);
     try {
         const subscriptions = await query('SELECT * FROM request_site_webpush_subscriptions WHERE user_id = ?', [userId]);
+        console.log('[WebPush Send] Found', subscriptions.length, 'subscriptions for user', userId);
         if (subscriptions.length === 0) return false;
 
         const vapidSettings = await query("SELECT key, value FROM request_site_settings WHERE key IN ('vapid_public_key', 'vapid_private_key', 'vapid_email')");
         const vapidConfig = {};
         vapidSettings.forEach(s => { vapidConfig[s.key] = s.value; });
-        if (!vapidConfig.vapid_public_key || !vapidConfig.vapid_private_key) return false;
+        if (!vapidConfig.vapid_public_key || !vapidConfig.vapid_private_key) {
+            console.log('[WebPush Send] Missing VAPID keys');
+            return false;
+        }
 
         let webpush;
-        try { webpush = require('web-push'); } catch (e) { return false; }
+        try { webpush = require('web-push'); } catch (e) {
+            console.log('[WebPush Send] web-push module not available');
+            return false;
+        }
 
         webpush.setVapidDetails(`mailto:${vapidConfig.vapid_email || 'admin@localhost'}`, vapidConfig.vapid_public_key, vapidConfig.vapid_private_key);
 
@@ -549,22 +570,27 @@ async function sendWebPushNotification(userId, type, data) {
         }
 
         const payload = JSON.stringify({ title, body, data: { type, mediaTitle: data.mediaTitle, requestId: data.requestId } });
+        console.log('[WebPush Send] Sending payload:', title, '-', body);
 
         let successCount = 0;
         for (const sub of subscriptions) {
             try {
                 await webpush.sendNotification({ endpoint: sub.endpoint, keys: { auth: sub.auth, p256dh: sub.p256dh } }, payload);
                 successCount++;
+                console.log('[WebPush Send] SUCCESS sent to subscription', sub.id);
             } catch (error) {
+                console.log('[WebPush Send] FAILED for subscription', sub.id, ':', error.statusCode || error.message);
                 if (error.statusCode === 404 || error.statusCode === 410) {
                     await query('DELETE FROM request_site_webpush_subscriptions WHERE id = ?', [sub.id]);
+                    console.log('[WebPush Send] Deleted expired subscription', sub.id);
                 }
             }
         }
         if (successCount > 0) await logNotification({ requestId: data.requestId, userId, notificationType: type, channel: 'webpush', status: 'sent' });
+        console.log('[WebPush Send] Complete. Success:', successCount, '/', subscriptions.length);
         return successCount > 0;
     } catch (error) {
-        console.error('[Notifications] WebPush error:', error);
+        console.error('[WebPush Send] ERROR:', error);
         return false;
     }
 }
@@ -582,9 +608,14 @@ function isTypeEnabled(agentSettings, type) {
  * Send notification to all enabled agents
  */
 async function sendNotification(type, data) {
+    console.log('[Notifications] sendNotification CALLED - type:', type, 'data:', JSON.stringify(data));
     try {
         const settings = await getNotificationSettings();
-        if (!settings) return;
+        console.log('[Notifications] Got settings - email enabled:', settings?.email?.enabled, 'webpush enabled:', settings?.webpush?.enabled);
+        if (!settings) {
+            console.log('[Notifications] No settings found, returning');
+            return;
+        }
 
         let user = null;
         if (data.userId) {
@@ -619,6 +650,11 @@ async function sendNotification(type, data) {
                 // New request - notify admins/approvers
                 const recipients = await getNotificationRecipients(data.mediaType, data.is4k);
                 for (const r of recipients) promises.push(sendEmailNotification(r, type, data));
+            } else if (type === NotificationType.MEDIA_AVAILABLE && settings.notifyAdminOnAvailable) {
+                // Media available - notify admins AND the requesting user
+                const recipients = await getNotificationRecipients(data.mediaType, data.is4k);
+                for (const r of recipients) promises.push(sendEmailNotification(r, type, data));
+                if (user) promises.push(sendEmailNotification(user, type, data));
             } else if (isUserNotification && user) {
                 // User notifications - notify the requesting user
                 promises.push(sendEmailNotification(user, type, data));
@@ -643,9 +679,27 @@ async function sendNotification(type, data) {
             promises.push(sendWebhookNotification(settings.webhook.webhookUrl, type, data, settings.webhook.authHeader, settings.webhook.jsonPayload));
         }
 
-        // WebPush - uses types from settings, sends to requesting user
-        if (isTypeEnabled(settings.webpush, type) && user) {
-            promises.push(sendWebPushNotification(user.id, type, data));
+        // WebPush - uses types from settings
+        console.log('[Notifications] WebPush check - enabled:', settings.webpush?.enabled, 'type:', type, 'typeEnabled:', isTypeEnabled(settings.webpush, type));
+        if (isTypeEnabled(settings.webpush, type)) {
+            if (type === NotificationType.MEDIA_PENDING) {
+                // New request - notify admins/approvers who have webpush subscriptions
+                const recipients = await getNotificationRecipients(data.mediaType, data.is4k);
+                console.log('[Notifications] WebPush MEDIA_PENDING - recipients:', recipients.map(r => r.id));
+                for (const r of recipients) promises.push(sendWebPushNotification(r.id, type, data));
+            } else if (type === NotificationType.MEDIA_AVAILABLE && settings.notifyAdminOnAvailable) {
+                // Media available - notify admins AND the requesting user
+                const recipients = await getNotificationRecipients(data.mediaType, data.is4k);
+                console.log('[Notifications] WebPush MEDIA_AVAILABLE - recipients:', recipients.map(r => r.id));
+                for (const r of recipients) promises.push(sendWebPushNotification(r.id, type, data));
+                if (user) promises.push(sendWebPushNotification(user.id, type, data));
+            } else if (user) {
+                // User notifications - notify the requesting user
+                console.log('[Notifications] WebPush user notification - userId:', user.id);
+                promises.push(sendWebPushNotification(user.id, type, data));
+            }
+        } else {
+            console.log('[Notifications] WebPush NOT enabled for this type');
         }
 
         await Promise.allSettled(promises);
@@ -656,18 +710,22 @@ async function sendNotification(type, data) {
 
 // High-level notification functions
 async function notifyAdminsNewRequest(requestData) {
+    console.log('[Notifications] notifyAdminsNewRequest CALLED with:', JSON.stringify(requestData));
     await sendNotification(NotificationType.MEDIA_PENDING, { requestId: requestData.requestId, mediaTitle: requestData.mediaTitle, mediaType: requestData.mediaType, username: requestData.username, userId: requestData.userId, tmdbId: requestData.tmdbId, posterPath: requestData.posterPath, is4k: requestData.is4k });
 }
 
 async function notifyUserRequestApproved(userId, mediaTitle, mediaType, options = {}) {
+    console.log('[Notifications] notifyUserRequestApproved CALLED - userId:', userId, 'mediaTitle:', mediaTitle);
     await sendNotification(NotificationType.MEDIA_APPROVED, { userId, mediaTitle, mediaType, ...options });
 }
 
 async function notifyUserRequestAutoApproved(userId, mediaTitle, mediaType, options = {}) {
+    console.log('[Notifications] notifyUserRequestAutoApproved CALLED - userId:', userId, 'mediaTitle:', mediaTitle);
     await sendNotification(NotificationType.MEDIA_AUTO_APPROVED, { userId, mediaTitle, mediaType, ...options });
 }
 
 async function notifyUserRequestDeclined(userId, mediaTitle, mediaType, reason, options = {}) {
+    console.log('[Notifications] notifyUserRequestDeclined CALLED - userId:', userId, 'mediaTitle:', mediaTitle, 'reason:', reason);
     await sendNotification(NotificationType.MEDIA_DECLINED, { userId, mediaTitle, mediaType, reason, ...options });
 }
 

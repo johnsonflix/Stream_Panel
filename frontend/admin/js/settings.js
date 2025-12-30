@@ -5093,8 +5093,7 @@ const Settings = {
         { value: 'venmo', label: 'Venmo', placeholder: 'https://venmo.com/u/yourname' },
         { value: 'paypal', label: 'PayPal', placeholder: 'https://paypal.me/yourname' },
         { value: 'cashapp', label: 'CashApp', placeholder: 'https://cash.app/$yourtag' },
-        { value: 'applepay', label: 'Apple Pay', placeholder: 'Your Apple Pay link or instructions' },
-        { value: 'googlepay', label: 'Google Pay', placeholder: 'Your Google Pay link or instructions' }
+        { value: 'applepay', label: 'Apple Pay', placeholder: 'Your Apple Pay link or instructions' }
     ],
 
     showAddPaymentOptionModal() {
@@ -7286,10 +7285,6 @@ const Settings = {
 
                             <div class="form-row">
                                 <div class="form-group">
-                                    <label class="form-label"><i class="fab fa-google"></i> Google Pay</label>
-                                    <input type="text" id="app-user-googlepay" class="form-input" placeholder="Email or phone">
-                                </div>
-                                <div class="form-group">
                                     <label class="form-label"><i class="fab fa-apple"></i> Apple Cash</label>
                                     <input type="text" id="app-user-applecash" class="form-input" placeholder="Phone number">
                                 </div>
@@ -7471,7 +7466,6 @@ const Settings = {
             document.getElementById('app-user-venmo').value = user.venmo_username || '';
             document.getElementById('app-user-paypal').value = user.paypal_username || '';
             document.getElementById('app-user-cashapp').value = user.cashapp_username || '';
-            document.getElementById('app-user-googlepay').value = user.google_pay_username || '';
             document.getElementById('app-user-applecash').value = user.apple_cash_username || '';
 
             // Load Plex SSO settings
@@ -7575,7 +7569,6 @@ const Settings = {
         data.venmo_username = document.getElementById('app-user-venmo').value.trim();
         data.paypal_username = document.getElementById('app-user-paypal').value.trim();
         data.cashapp_username = document.getElementById('app-user-cashapp').value.trim();
-        data.google_pay_username = document.getElementById('app-user-googlepay').value.trim();
         data.apple_cash_username = document.getElementById('app-user-applecash').value.trim();
 
         // Add Plex SSO settings
@@ -8730,7 +8723,6 @@ const Settings = {
         if (owner.venmo_username) methods.push(`<span class="badge" style="background: #008cff;"><i class="fas fa-dollar-sign"></i> Venmo</span>`);
         if (owner.paypal_username) methods.push(`<span class="badge" style="background: #003087;"><i class="fab fa-paypal"></i> PayPal</span>`);
         if (owner.cashapp_username) methods.push(`<span class="badge" style="background: #00d632;"><i class="fas fa-dollar-sign"></i> Cash App</span>`);
-        if (owner.googlepay_username) methods.push(`<span class="badge" style="background: #4285f4;"><i class="fab fa-google"></i> GPay</span>`);
         if (owner.applecash_username) methods.push(`<span class="badge" style="background: #000;"><i class="fab fa-apple"></i> Apple</span>`);
 
         if (methods.length === 0) return '<span style="color: var(--text-secondary);">No payment methods</span>';
@@ -8829,10 +8821,6 @@ const Settings = {
                                 <input type="text" id="owner-cashapp" class="form-input" placeholder="$cashtag" value="${owner?.cashapp_username ? Utils.escapeHtml(owner.cashapp_username) : ''}">
                             </div>
                             <div class="form-group">
-                                <label class="form-label"><i class="fab fa-google" style="color: #4285f4;"></i> Google Pay</label>
-                                <input type="text" id="owner-googlepay" class="form-input" placeholder="email or phone" value="${owner?.googlepay_username ? Utils.escapeHtml(owner.googlepay_username) : ''}">
-                            </div>
-                            <div class="form-group">
                                 <label class="form-label"><i class="fab fa-apple"></i> Apple Cash</label>
                                 <input type="text" id="owner-applecash" class="form-input" placeholder="phone or email" value="${owner?.applecash_username ? Utils.escapeHtml(owner.applecash_username) : ''}">
                             </div>
@@ -8859,7 +8847,6 @@ const Settings = {
             venmo_username: document.getElementById('owner-venmo').value.trim() || null,
             paypal_username: document.getElementById('owner-paypal').value.trim() || null,
             cashapp_username: document.getElementById('owner-cashapp').value.trim() || null,
-            googlepay_username: document.getElementById('owner-googlepay').value.trim() || null,
             applecash_username: document.getElementById('owner-applecash').value.trim() || null
         };
 
@@ -8897,7 +8884,6 @@ const Settings = {
             venmo_username: document.getElementById('owner-venmo').value.trim() || null,
             paypal_username: document.getElementById('owner-paypal').value.trim() || null,
             cashapp_username: document.getElementById('owner-cashapp').value.trim() || null,
-            googlepay_username: document.getElementById('owner-googlepay').value.trim() || null,
             applecash_username: document.getElementById('owner-applecash').value.trim() || null
         };
 

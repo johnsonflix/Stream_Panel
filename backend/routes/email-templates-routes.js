@@ -50,6 +50,13 @@ const TEMPLATE_VARIABLES = {
         portal_url: 'End user portal URL',
         current_date: 'Current date',
         current_year: 'Current year'
+    },
+    payment: {
+        paypal_link: 'PayPal payment link (from global providers or owner)',
+        venmo_link: 'Venmo payment link (from global providers or owner)',
+        cashapp_link: 'CashApp payment link (from global providers or owner)',
+        applepay_link: 'Apple Pay payment link',
+        payment_buttons_html: 'Dynamic payment buttons HTML (renders all available payment options for the user)'
     }
 };
 
@@ -363,6 +370,91 @@ router.post('/:id/preview', async (req, res) => {
             }
         }
 
+        // Get payment options based on user's payment preference
+        let paypalLink = '';
+        let venmoLink = '';
+        let cashappLink = '';
+        let applepayLink = '';
+        let paymentOptions = [];
+
+        const paymentColors = {
+            'paypal': '#0070ba',
+            'venmo': '#3d95ce',
+            'cashapp': '#00d632',
+            'cash app': '#00d632',
+            'apple': '#000000',
+            'zelle': '#6d1ed4',
+            'stripe': '#635bff',
+            'square': '#3e4348'
+        };
+
+        const getPaymentColor = (name) => {
+            const nameLower = name.toLowerCase();
+            for (const [key, color] of Object.entries(paymentColors)) {
+                if (nameLower.includes(key)) return color;
+            }
+            return '#667eea';
+        };
+
+        if (actualUserId && userData.id) {
+            const preference = userData.payment_preference || 'global';
+
+            if (preference === 'owner' && userData.owner_id) {
+                const ownerResult = await query(`
+                    SELECT venmo_username, paypal_username, cashapp_username,
+                           google_pay_username, apple_cash_username
+                    FROM users WHERE id = ? AND is_app_user = 1
+                `, [userData.owner_id]);
+                if (ownerResult.length > 0) {
+                    const owner = ownerResult[0];
+                    if (owner.paypal_username) {
+                        paypalLink = `https://paypal.me/${owner.paypal_username}`;
+                        paymentOptions.push({ name: 'PayPal', url: paypalLink, color: '#0070ba' });
+                    }
+                    if (owner.venmo_username) {
+                        venmoLink = `https://venmo.com/u/${owner.venmo_username}`;
+                        paymentOptions.push({ name: 'Venmo', url: venmoLink, color: '#3d95ce' });
+                    }
+                    if (owner.cashapp_username) {
+                        cashappLink = `https://cash.app/${owner.cashapp_username}`;
+                        paymentOptions.push({ name: 'CashApp', url: cashappLink, color: '#00d632' });
+                    }
+                    if (owner.apple_cash_username) {
+                        // Format as sms: link for Apple Cash (opens iMessage for Apple Pay)
+                        const acVal = owner.apple_cash_username;
+                        // Clean phone number - remove non-digits except +
+                        const cleanPhone = acVal.replace(/[^\d+]/g, '');
+                        applepayLink = cleanPhone ? `sms:${cleanPhone}` : acVal;
+                        paymentOptions.push({ name: 'Apple Cash', url: applepayLink, color: '#000000' });
+                    }
+                }
+            } else {
+                // Get global payment providers
+                const providers = await query(`
+                    SELECT name, payment_url FROM payment_providers
+                    WHERE is_active = 1 ORDER BY display_order
+                `);
+                for (const p of providers) {
+                    const nameLower = p.name.toLowerCase();
+                    paymentOptions.push({
+                        name: p.name,
+                        url: p.payment_url,
+                        color: getPaymentColor(p.name)
+                    });
+                    if (nameLower.includes('paypal') && !paypalLink) paypalLink = p.payment_url;
+                    else if (nameLower.includes('venmo') && !venmoLink) venmoLink = p.payment_url;
+                    else if ((nameLower.includes('cashapp') || nameLower.includes('cash app')) && !cashappLink) cashappLink = p.payment_url;
+                    else if (nameLower.includes('apple') && !applepayLink) applepayLink = p.payment_url;
+                }
+            }
+        }
+
+        // Build dynamic payment buttons HTML
+        let paymentButtonsHtml = '';
+        for (const opt of paymentOptions) {
+            paymentButtonsHtml += `<a href="${opt.url}" style="display: inline-block; background: ${opt.color}; color: white; padding: 8px 16px; text-decoration: none; font-size: 12px; font-weight: 600; border-radius: 6px; margin: 3px;">${opt.name}</a>`;
+        }
+
         // Format dates for display (handles timezone correctly)
         const formatDate = (dateStr) => {
             if (!dateStr || dateStr === 'N/A') return 'N/A';
@@ -430,7 +522,17 @@ router.post('/:id/preview', async (req, res) => {
             '{{current_year}}': new Date().getFullYear().toString(),
 
             // Custom message
-            '{{custom_message}}': customMessage
+            '{{custom_message}}': customMessage,
+
+            // Payment links
+            '{{paypal_link}}': paypalLink,
+            '{{venmo_link}}': venmoLink,
+            '{{cashapp_link}}': cashappLink,
+            '{{applepay_link}}': applepayLink,
+            '{{payment_buttons_html}}': paymentButtonsHtml,
+
+            // Renewal cost (placeholder - can be set via custom_message for now)
+            '{{iptv_renewal_cost}}': ''
         };
 
         // Process conditional blocks in body

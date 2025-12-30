@@ -19,6 +19,89 @@ const {
 } = require('../services/request-site-notifications');
 
 /**
+ * Ensure WebPush subscriptions table exists
+ */
+async function ensureWebPushTable() {
+    try {
+        await query(`
+            CREATE TABLE IF NOT EXISTS request_site_webpush_subscriptions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                endpoint TEXT NOT NULL,
+                p256dh TEXT NOT NULL,
+                auth TEXT NOT NULL,
+                user_agent TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(user_id, endpoint)
+            )
+        `);
+        await query(`
+            CREATE INDEX IF NOT EXISTS idx_webpush_user_id
+            ON request_site_webpush_subscriptions(user_id)
+        `);
+    } catch (error) {
+        console.error('[WebPush] Error ensuring table exists:', error);
+    }
+}
+
+// Create table on module load
+ensureWebPushTable();
+
+/**
+ * Helper: Get user from either admin session or portal session
+ * Supports both authentication methods for webpush routes
+ */
+async function getUserFromAnySession(req) {
+    // Check Authorization header first, then cookie
+    const sessionToken = req.headers.authorization?.replace('Bearer ', '') || req.cookies?.portal_session;
+    if (!sessionToken) {
+        console.log('[WebPush Auth] No session token found in header or cookie');
+        return null;
+    }
+
+    // Try admin sessions first (uses session_token column)
+    let sessions = await query(
+        `SELECT * FROM sessions WHERE session_token = ? AND datetime(expires_at) > datetime('now')`,
+        [sessionToken]
+    );
+    if (sessions.length > 0) {
+        const users = await query('SELECT * FROM users WHERE id = ?', [sessions[0].user_id]);
+        if (users.length > 0) {
+            console.log('[WebPush Auth] Found admin session for user:', users[0].id);
+            return users[0];
+        }
+    }
+
+    // Try portal sessions (uses token column)
+    sessions = await query(
+        `SELECT * FROM portal_sessions WHERE token = ? AND datetime(expires_at) > datetime('now')`,
+        [sessionToken]
+    );
+    if (sessions.length > 0) {
+        const users = await query('SELECT * FROM users WHERE id = ?', [sessions[0].user_id]);
+        if (users.length > 0) {
+            console.log('[WebPush Auth] Found portal session for user:', users[0].id);
+            return users[0];
+        }
+    }
+
+    console.log('[WebPush Auth] No valid session found for token');
+    return null;
+}
+
+/**
+ * Middleware: Require any valid session (admin or portal)
+ */
+async function requireAnyAuth(req, res, next) {
+    const user = await getUserFromAnySession(req);
+    if (!user) {
+        return res.status(401).json({ error: 'Authentication required' });
+    }
+    req.user = user;
+    next();
+}
+
+/**
  * GET /api/v2/request-site/notifications/settings
  * Get all notification settings (admin only)
  */
@@ -56,6 +139,7 @@ router.put('/settings', requireAuth, requireAdmin, async (req, res) => {
         const settingMap = {
             notifyAdminOnRequest: 'notify_admin_on_request',
             notifyApproversOnRequest: 'notify_approvers_on_request',
+            notifyAdminOnAvailable: 'notify_admin_on_available',
             notifyUserOnApproved: 'notify_user_on_approved',
             notifyUserOnDeclined: 'notify_user_on_declined',
             notifyUserOnAvailable: 'notify_user_on_available',
@@ -211,13 +295,15 @@ router.put('/user-preferences', requireAuth, async (req, res) => {
 
 /**
  * POST /api/v2/request-site/notifications/webpush/subscribe
- * Register a WebPush subscription
+ * Register a WebPush subscription (supports admin and portal auth)
  */
-router.post('/webpush/subscribe', requireAuth, async (req, res) => {
+router.post('/webpush/subscribe', requireAnyAuth, async (req, res) => {
     try {
         const { endpoint, keys } = req.body;
+        console.log('[WebPush Subscribe] User:', req.user.id, 'Endpoint:', endpoint?.substring(0, 50));
 
         if (!endpoint || !keys || !keys.p256dh || !keys.auth) {
+            console.log('[WebPush Subscribe] Invalid data - missing fields');
             return res.status(400).json({ error: 'Invalid subscription data' });
         }
 
@@ -226,6 +312,7 @@ router.post('/webpush/subscribe', requireAuth, async (req, res) => {
             'SELECT id FROM request_site_webpush_subscriptions WHERE user_id = ? AND endpoint = ?',
             [req.user.id, endpoint]
         );
+        console.log('[WebPush Subscribe] Existing subscriptions:', existing.length);
 
         if (existing.length > 0) {
             // Update existing
@@ -234,26 +321,28 @@ router.post('/webpush/subscribe', requireAuth, async (req, res) => {
                 SET p256dh = ?, auth = ?, user_agent = ?
                 WHERE id = ?
             `, [keys.p256dh, keys.auth, req.headers['user-agent'], existing[0].id]);
+            console.log('[WebPush Subscribe] Updated existing subscription');
         } else {
             // Insert new
             await query(`
                 INSERT INTO request_site_webpush_subscriptions (user_id, endpoint, p256dh, auth, user_agent)
                 VALUES (?, ?, ?, ?, ?)
             `, [req.user.id, endpoint, keys.p256dh, keys.auth, req.headers['user-agent']]);
+            console.log('[WebPush Subscribe] Inserted new subscription for user', req.user.id);
         }
 
         res.json({ success: true });
     } catch (error) {
-        console.error('[Notifications API] Error subscribing to WebPush:', error);
+        console.error('[WebPush Subscribe] ERROR:', error);
         res.status(500).json({ error: 'Failed to subscribe' });
     }
 });
 
 /**
  * POST /api/v2/request-site/notifications/webpush/unsubscribe
- * Remove a WebPush subscription
+ * Remove a WebPush subscription (supports admin and portal auth)
  */
-router.post('/webpush/unsubscribe', requireAuth, async (req, res) => {
+router.post('/webpush/unsubscribe', requireAnyAuth, async (req, res) => {
     try {
         const { endpoint } = req.body;
 
@@ -275,9 +364,9 @@ router.post('/webpush/unsubscribe', requireAuth, async (req, res) => {
 
 /**
  * GET /api/v2/request-site/notifications/webpush/vapid-key
- * Get VAPID public key for WebPush
+ * Get VAPID public key for WebPush (supports admin and portal auth)
  */
-router.get('/webpush/vapid-key', requireAuth, async (req, res) => {
+router.get('/webpush/vapid-key', requireAnyAuth, async (req, res) => {
     try {
         const result = await query(
             "SELECT value FROM request_site_settings WHERE key = 'vapid_public_key'"

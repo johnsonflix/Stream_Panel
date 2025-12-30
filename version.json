@@ -1,6 +1,6 @@
 {
-  "version": "1.5.7",
+  "version": "1.5.8",
   "name": "Stream Panel",
-  "releaseDate": "2025-12-29",
-  "description": "Email template enhancements, notification templates, media manager fixes"
+  "releaseDate": "2025-12-30",
+  "description": "Web Push notifications for Request Site, Google Pay removal, Request Site user list fix"
 }
