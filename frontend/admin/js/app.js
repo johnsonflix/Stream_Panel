@@ -586,7 +586,9 @@ const toolIcons = {
     sonarr: 'fa-tv',
     radarr: 'fa-film',
     qbittorrent: 'fa-magnet',
-    sabnzbd: 'fa-download'
+    sabnzbd: 'fa-download',
+    other_arr: 'fa-database',
+    other: 'fa-server'
 };
 
 /**
@@ -615,16 +617,23 @@ async function loadToolsDropdown() {
         container.style.display = '';
 
         // Build menu items
-        let menuHtml = enabledManagers.map(manager => `
+        let menuHtml = enabledManagers.map(manager => {
+            // Check for custom icon_url, otherwise use FontAwesome fallback
+            const iconHtml = manager.icon_url
+                ? `<img src="${escapeHtml(manager.icon_url)}" alt="${escapeHtml(manager.name)}">`
+                : `<i class="fas ${toolIcons[manager.type] || 'fa-server'}"></i>`;
+            const noImageClass = manager.icon_url ? '' : 'no-image';
+
+            return `
             <li>
                 <a href="#" onclick="openMediaManager(${manager.id}); return false;">
-                    <span class="tool-icon ${manager.type}">
-                        <i class="fas ${toolIcons[manager.type] || 'fa-server'}"></i>
+                    <span class="tool-icon ${manager.type} ${noImageClass}">
+                        ${iconHtml}
                     </span>
                     ${escapeHtml(manager.name)}
                 </a>
-            </li>
-        `).join('');
+            </li>`;
+        }).join('');
 
         // Add "Manage Tools" link at bottom
         menuHtml += `

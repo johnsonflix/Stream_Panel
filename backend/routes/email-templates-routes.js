@@ -83,12 +83,14 @@ router.get('/meta/helpers', (req, res) => {
 // GET /api/v2/email-templates - List all templates
 router.get('/', async (req, res) => {
     try {
+        // Exclude request site notification templates - those are managed separately
         const templates = await query(`
             SELECT
                 id, name, subject, body, template_type, category,
                 is_system, owner_id, variables_used, custom_message,
                 created_at, updated_at
             FROM email_templates
+            WHERE NOT (category = 'notifications' AND template_type = 'request_site')
             ORDER BY category, name
         `);
 

@@ -13329,6 +13329,40 @@
                         </div>
                     </div>
 
+                    <!-- Message Templates -->
+                    <div class="settings-card">
+                        <div class="settings-card-header" style="cursor: pointer;" onclick="toggleMessageTemplates()">
+                            <h3><i class="fas fa-comment-alt"></i> Message Templates</h3>
+                            <i id="templates-expand-icon" class="fas fa-chevron-down" style="color: #94a3b8; transition: transform 0.2s;"></i>
+                        </div>
+                        <div id="message-templates-section" style="display: none;">
+                            <div class="settings-form">
+                                <p style="color: #94a3b8; font-size: 13px; margin-bottom: 16px;">
+                                    Customize the messages sent for each notification type and platform. Use placeholders like <code style="color: #60a5fa;">{{media_title}}</code> to insert dynamic content.
+                                </p>
+                                <div style="background: #1e293b; border-radius: 8px; padding: 12px; margin-bottom: 16px; border-left: 4px solid #6366f1;">
+                                    <h4 style="margin: 0 0 8px 0; color: #e2e8f0; font-size: 13px;"><i class="fas fa-info-circle" style="margin-right: 6px;"></i>Available Placeholders</h4>
+                                    <div style="color: #94a3b8; font-size: 12px; line-height: 1.6;">
+                                        <code style="color: #60a5fa;">{{media_title}}</code> - Title of the requested media<br>
+                                        <code style="color: #60a5fa;">{{media_type}}</code> - "Movie" or "TV Show"<br>
+                                        <code style="color: #60a5fa;">{{username}}</code> - User who made the request<br>
+                                        <code style="color: #60a5fa;">{{is_4k}}</code> - "4K" if 4K request (empty otherwise)<br>
+                                        <code style="color: #60a5fa;">{{reason}}</code> - Decline reason (for declined notifications)<br>
+                                        <code style="color: #60a5fa;">{{#if is_4k}}...{{/if}}</code> - Conditional block
+                                    </div>
+                                </div>
+                                <div id="templates-container">
+                                    <div class="request-loading"><div class="request-loading-spinner"></div><div class="request-loading-text">Loading templates...</div></div>
+                                </div>
+                                <div class="settings-actions" style="margin-top: 16px; justify-content: flex-start; gap: 12px;">
+                                    <button class="settings-btn" onclick="resetTemplatesToDefaults()">
+                                        <i class="fas fa-undo"></i> Reset to Defaults
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Save Button -->
                     <div class="settings-actions">
                         <button class="settings-btn settings-btn-primary" onclick="saveNotificationSettings(event)">
@@ -13336,6 +13370,9 @@
                         </button>
                     </div>
                 `;
+
+                // Load message templates
+                loadMessageTemplates();
             } catch (error) {
                 console.error('Error loading notification settings:', error);
                 container.innerHTML = `
@@ -13491,6 +13528,182 @@
                 showRequestToast(`Error: ${error.message}`, 'error');
             } finally {
                 setButtonLoading(btn, false);
+            }
+        }
+
+        // Message Templates functionality
+        let messageTemplates = [];
+
+        function toggleMessageTemplates() {
+            const section = document.getElementById('message-templates-section');
+            const icon = document.getElementById('templates-expand-icon');
+            if (section.style.display === 'none') {
+                section.style.display = 'block';
+                icon.style.transform = 'rotate(180deg)';
+            } else {
+                section.style.display = 'none';
+                icon.style.transform = 'rotate(0deg)';
+            }
+        }
+
+        async function loadMessageTemplates() {
+            const container = document.getElementById('templates-container');
+            if (!container) return;
+
+            const token = localStorage.getItem('sessionToken') || sessionStorage.getItem('sessionToken');
+            try {
+                const response = await fetch('/api/v2/request-site/notifications/templates', {
+                    headers: { 'Authorization': 'Bearer ' + token }
+                });
+
+                if (!response.ok) {
+                    container.innerHTML = '<p style="color: #ef4444;">Failed to load templates</p>';
+                    return;
+                }
+
+                const data = await response.json();
+                messageTemplates = data.templates || [];
+
+                // Group by notification type
+                const typeLabels = {
+                    'media_pending': { label: 'New Request', icon: 'fa-clock', color: '#f59e0b' },
+                    'media_approved': { label: 'Approved', icon: 'fa-check-circle', color: '#22c55e' },
+                    'media_auto_approved': { label: 'Auto-Approved', icon: 'fa-bolt', color: '#8b5cf6' },
+                    'media_declined': { label: 'Declined', icon: 'fa-times-circle', color: '#ef4444' },
+                    'media_available': { label: 'Available', icon: 'fa-play-circle', color: '#3b82f6' }
+                };
+
+                const platformLabels = {
+                    'discord': { label: 'Discord', icon: 'fab fa-discord', color: '#5865F2' },
+                    'telegram': { label: 'Telegram', icon: 'fab fa-telegram', color: '#26A5E4' },
+                    'email': { label: 'Email', icon: 'fas fa-envelope', color: '#60a5fa' },
+                    'webpush': { label: 'Web Push', icon: 'fas fa-mobile-alt', color: '#a78bfa' }
+                };
+
+                // Group templates by notification type
+                const grouped = {};
+                for (const t of messageTemplates) {
+                    if (!grouped[t.notification_type]) {
+                        grouped[t.notification_type] = [];
+                    }
+                    grouped[t.notification_type].push(t);
+                }
+
+                let html = '';
+                for (const [notifType, templates] of Object.entries(grouped)) {
+                    const typeInfo = typeLabels[notifType] || { label: notifType, icon: 'fa-bell', color: '#94a3b8' };
+
+                    html += '<div style="margin-bottom: 20px; border: 1px solid #334155; border-radius: 8px; overflow: hidden;">' +
+                        '<div style="background: #1e293b; padding: 12px 16px; border-bottom: 1px solid #334155; cursor: pointer;" onclick="toggleTemplateType(\'' + notifType + '\')">' +
+                            '<div style="display: flex; align-items: center; justify-content: space-between;">' +
+                                '<div style="display: flex; align-items: center; gap: 10px;">' +
+                                    '<i class="fas ' + typeInfo.icon + '" style="color: ' + typeInfo.color + '; width: 20px; text-align: center;"></i>' +
+                                    '<span style="color: #e2e8f0; font-weight: 500;">' + typeInfo.label + '</span>' +
+                                '</div>' +
+                                '<i id="template-expand-' + notifType + '" class="fas fa-chevron-right" style="color: #64748b; transition: transform 0.2s;"></i>' +
+                            '</div>' +
+                        '</div>' +
+                        '<div id="template-content-' + notifType + '" style="display: none; padding: 16px;">';
+
+                    for (const template of templates) {
+                        const platInfo = platformLabels[template.platform] || { label: template.platform, icon: 'fas fa-bell', color: '#94a3b8' };
+                        html += '<div style="margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid #334155;">' +
+                            '<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">' +
+                                '<i class="' + platInfo.icon + '" style="color: ' + platInfo.color + '; width: 18px; text-align: center;"></i>' +
+                                '<span style="color: #94a3b8; font-size: 13px; font-weight: 500;">' + platInfo.label + '</span>' +
+                            '</div>' +
+                            '<div style="margin-bottom: 8px;">' +
+                                '<label style="display: block; color: #64748b; font-size: 12px; margin-bottom: 4px;">Title</label>' +
+                                '<input type="text" id="template-title-' + template.id + '" value="' + escapeHtml(template.title_template || '') + '" onchange="saveTemplateChange(' + template.id + ')" style="width: 100%; background: #0f172a; border: 1px solid #334155; border-radius: 6px; padding: 8px 12px; color: #e2e8f0; font-size: 13px;" placeholder="Message title...">' +
+                            '</div>' +
+                            '<div>' +
+                                '<label style="display: block; color: #64748b; font-size: 12px; margin-bottom: 4px;">Body</label>' +
+                                '<textarea id="template-body-' + template.id + '" onchange="saveTemplateChange(' + template.id + ')" rows="2" style="width: 100%; background: #0f172a; border: 1px solid #334155; border-radius: 6px; padding: 8px 12px; color: #e2e8f0; font-size: 13px; resize: vertical; font-family: inherit;" placeholder="Message body...">' + escapeHtml(template.body_template || '') + '</textarea>' +
+                            '</div>' +
+                        '</div>';
+                    }
+
+                    html += '</div></div>';
+                }
+
+                container.innerHTML = html || '<p style="color: #94a3b8;">No templates configured</p>';
+
+            } catch (error) {
+                console.error('Error loading templates:', error);
+                container.innerHTML = '<p style="color: #ef4444;">Error loading templates</p>';
+            }
+        }
+
+        function toggleTemplateType(notifType) {
+            const content = document.getElementById('template-content-' + notifType);
+            const icon = document.getElementById('template-expand-' + notifType);
+            if (content.style.display === 'none') {
+                content.style.display = 'block';
+                icon.style.transform = 'rotate(90deg)';
+            } else {
+                content.style.display = 'none';
+                icon.style.transform = 'rotate(0deg)';
+            }
+        }
+
+        async function saveTemplateChange(templateId) {
+            const token = localStorage.getItem('sessionToken') || sessionStorage.getItem('sessionToken');
+            const titleEl = document.getElementById('template-title-' + templateId);
+            const bodyEl = document.getElementById('template-body-' + templateId);
+
+            if (!titleEl || !bodyEl) return;
+
+            try {
+                const response = await fetch('/api/v2/request-site/notifications/templates/' + templateId, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': 'Bearer ' + token,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        title_template: titleEl.value,
+                        body_template: bodyEl.value
+                    })
+                });
+
+                if (response.ok) {
+                    // Visual feedback - brief green border
+                    const originalBorder = titleEl.style.borderColor;
+                    titleEl.style.borderColor = '#22c55e';
+                    bodyEl.style.borderColor = '#22c55e';
+                    setTimeout(function() {
+                        titleEl.style.borderColor = originalBorder || '';
+                        bodyEl.style.borderColor = originalBorder || '';
+                    }, 1000);
+                } else {
+                    showRequestToast('Failed to save template', 'error');
+                }
+            } catch (error) {
+                console.error('Error saving template:', error);
+                showRequestToast('Error saving template', 'error');
+            }
+        }
+
+        async function resetTemplatesToDefaults() {
+            if (!confirm('Are you sure you want to reset all message templates to their defaults?')) {
+                return;
+            }
+
+            const token = localStorage.getItem('sessionToken') || sessionStorage.getItem('sessionToken');
+            try {
+                const response = await fetch('/api/v2/request-site/notifications/templates/reset', {
+                    method: 'POST',
+                    headers: { 'Authorization': 'Bearer ' + token }
+                });
+
+                if (response.ok) {
+                    showRequestToast('Templates reset to defaults', 'success');
+                    loadMessageTemplates();
+                } else {
+                    showRequestToast('Failed to reset templates', 'error');
+                }
+            } catch (error) {
+                showRequestToast('Error resetting templates', 'error');
             }
         }
 

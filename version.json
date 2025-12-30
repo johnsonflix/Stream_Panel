@@ -1,6 +1,6 @@
 {
-  "version": "1.5.6",
+  "version": "1.5.7",
   "name": "Stream Panel",
   "releaseDate": "2025-12-29",
-  "description": "Hotfix - Email template preview portal_url and IPTV credentials fix"
+  "description": "Email template enhancements, notification templates, media manager fixes"
 }

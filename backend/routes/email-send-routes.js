@@ -205,14 +205,19 @@ router.post('/users', async (req, res) => {
             });
         }
 
-        // Get user data with owner info
+        // Get user data with owner info and IPTV details
         const placeholders = userIds.map(() => '?').join(',');
         const users = await query(`
             SELECT u.id, u.name, u.email, u.plex_email,
-                   u.plex_expiration_date, u.iptv_expiration_date,
-                   o.name as owner_name
+                   u.plex_expiration, u.plex_expiration_date,
+                   u.iptv_expiration, u.iptv_expiration_date,
+                   u.iptv_username, u.iptv_password, u.iptv_connections,
+                   u.iptv_panel_id,
+                   o.name as owner_name,
+                   ip.name as iptv_panel_name
             FROM users u
             LEFT JOIN owners o ON u.owner_id = o.id
+            LEFT JOIN iptv_panels ip ON u.iptv_panel_id = ip.id
             WHERE u.id IN (${placeholders})
         `, userIds);
 

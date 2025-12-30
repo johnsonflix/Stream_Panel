@@ -136,6 +136,58 @@ async function getEmailTemplate(templateName) {
 }
 
 /**
+ * Get notification message template from database
+ * @param {string} notificationType - e.g., 'media_pending'
+ * @param {string} platform - e.g., 'discord', 'telegram', 'email', 'webpush'
+ */
+async function getMessageTemplate(notificationType, platform) {
+    try {
+        const templates = await query(
+            'SELECT * FROM request_site_notification_templates WHERE notification_type = ? AND platform = ? AND is_enabled = 1',
+            [notificationType, platform]
+        );
+        return templates.length > 0 ? templates[0] : null;
+    } catch (error) {
+        return null;
+    }
+}
+
+/**
+ * Process template with placeholder replacement
+ * Supports {{variable}} and {{#if variable}}...{{/if}} syntax
+ */
+function processTemplate(template, data) {
+    if (!template) return template;
+
+    const replacements = {
+        '{{media_title}}': data.mediaTitle || '',
+        '{{media_type}}': data.mediaType === 'movie' ? 'Movie' : 'TV Show',
+        '{{username}}': data.username || 'User',
+        '{{requester_name}}': data.requesterName || data.username || 'User',
+        '{{is_4k}}': data.is4k ? '4K' : '',
+        '{{reason}}': data.reason || '',
+        '{{poster_url}}': data.posterPath ? `https://image.tmdb.org/t/p/w300${data.posterPath}` : '',
+        '{{tmdb_id}}': data.tmdbId || '',
+        '{{request_id}}': data.requestId || ''
+    };
+
+    let result = template;
+
+    // Handle {{#if variable}}...{{/if}} blocks
+    result = result.replace(/\{\{#if\s+(\w+)\}\}([\s\S]*?)\{\{\/if\}\}/g, (match, variable, content) => {
+        const value = replacements[`{{${variable}}}`];
+        return (value && value !== '' && value !== 'false') ? content : '';
+    });
+
+    // Replace simple placeholders
+    for (const [placeholder, value] of Object.entries(replacements)) {
+        result = result.replace(new RegExp(placeholder.replace(/[{}]/g, '\\$&'), 'g'), value);
+    }
+
+    return result;
+}
+
+/**
  * Replace template placeholders
  */
 function replaceTemplatePlaceholders(text, data) {
@@ -234,39 +286,49 @@ async function sendEmailNotification(recipient, type, data) {
 async function sendDiscordNotification(webhookUrl, type, data, discordSettings = {}) {
     try {
         const colors = { [NotificationType.MEDIA_PENDING]: 0xFFA500, [NotificationType.MEDIA_APPROVED]: 0x22C55E, [NotificationType.MEDIA_AUTO_APPROVED]: 0x22C55E, [NotificationType.MEDIA_DECLINED]: 0xEF4444, [NotificationType.MEDIA_AVAILABLE]: 0x6366F1, [NotificationType.TEST_NOTIFICATION]: 0x6366F1 };
-        const icons = { [NotificationType.MEDIA_PENDING]: '📬', [NotificationType.MEDIA_APPROVED]: '✅', [NotificationType.MEDIA_AUTO_APPROVED]: '⚡', [NotificationType.MEDIA_DECLINED]: '❌', [NotificationType.MEDIA_AVAILABLE]: '🎉', [NotificationType.TEST_NOTIFICATION]: '🔔' };
         const mediaType = data.mediaType === 'movie' ? 'Movie' : 'TV Show';
 
         let embed = { color: colors[type] || 0x6366F1, timestamp: new Date().toISOString(), footer: { text: 'Stream Panel' } };
         if (data.posterPath) embed.thumbnail = { url: `https://image.tmdb.org/t/p/w300${data.posterPath}` };
 
-        switch (type) {
-            case NotificationType.MEDIA_PENDING:
-                embed.title = `${icons[type]} New ${data.is4k ? '4K ' : ''}${mediaType} Request`;
-                embed.description = `**${data.mediaTitle}**`;
-                embed.fields = [{ name: 'Requested By', value: data.username || 'Unknown', inline: true }, { name: 'Type', value: mediaType, inline: true }];
-                if (data.is4k) embed.fields.push({ name: 'Quality', value: '4K', inline: true });
-                break;
-            case NotificationType.MEDIA_APPROVED:
-            case NotificationType.MEDIA_AUTO_APPROVED:
-                embed.title = `${icons[type]} ${type === NotificationType.MEDIA_AUTO_APPROVED ? 'Auto-Approved' : 'Request Approved'}`;
-                embed.description = `**${data.mediaTitle}** has been approved!`;
-                embed.fields = [{ name: 'Type', value: mediaType, inline: true }];
-                break;
-            case NotificationType.MEDIA_DECLINED:
-                embed.title = `${icons[type]} Request Declined`;
-                embed.description = `**${data.mediaTitle}** has been declined.`;
-                if (data.reason) embed.fields = [{ name: 'Reason', value: data.reason }];
-                break;
-            case NotificationType.MEDIA_AVAILABLE:
-                embed.title = `${icons[type]} Now Available!`;
-                embed.description = `**${data.mediaTitle}** is now available on Plex!`;
-                break;
-            case NotificationType.TEST_NOTIFICATION:
-                embed.title = `${icons[type]} Test Notification`;
-                embed.description = 'Discord notifications are working!';
-                break;
-            default: return false;
+        // Try to get custom template from database
+        const template = type !== NotificationType.TEST_NOTIFICATION ? await getMessageTemplate(type, 'discord') : null;
+
+        if (template) {
+            // Use custom template
+            embed.title = processTemplate(template.title_template, data);
+            embed.description = processTemplate(template.body_template, data);
+        } else {
+            // Fallback to defaults
+            const icons = { [NotificationType.MEDIA_PENDING]: '📬', [NotificationType.MEDIA_APPROVED]: '✅', [NotificationType.MEDIA_AUTO_APPROVED]: '⚡', [NotificationType.MEDIA_DECLINED]: '❌', [NotificationType.MEDIA_AVAILABLE]: '🎉', [NotificationType.TEST_NOTIFICATION]: '🔔' };
+            switch (type) {
+                case NotificationType.MEDIA_PENDING:
+                    embed.title = `${icons[type]} New ${data.is4k ? '4K ' : ''}${mediaType} Request`;
+                    embed.description = `**${data.mediaTitle}**`;
+                    embed.fields = [{ name: 'Requested By', value: data.username || 'Unknown', inline: true }, { name: 'Type', value: mediaType, inline: true }];
+                    if (data.is4k) embed.fields.push({ name: 'Quality', value: '4K', inline: true });
+                    break;
+                case NotificationType.MEDIA_APPROVED:
+                case NotificationType.MEDIA_AUTO_APPROVED:
+                    embed.title = `${icons[type]} ${type === NotificationType.MEDIA_AUTO_APPROVED ? 'Auto-Approved' : 'Request Approved'}`;
+                    embed.description = `**${data.mediaTitle}** has been approved!`;
+                    embed.fields = [{ name: 'Type', value: mediaType, inline: true }];
+                    break;
+                case NotificationType.MEDIA_DECLINED:
+                    embed.title = `${icons[type]} Request Declined`;
+                    embed.description = `**${data.mediaTitle}** has been declined.`;
+                    if (data.reason) embed.fields = [{ name: 'Reason', value: data.reason }];
+                    break;
+                case NotificationType.MEDIA_AVAILABLE:
+                    embed.title = `${icons[type]} Now Available!`;
+                    embed.description = `**${data.mediaTitle}** is now available on Plex!`;
+                    break;
+                case NotificationType.TEST_NOTIFICATION:
+                    embed.title = `${icons[type]} Test Notification`;
+                    embed.description = 'Discord notifications are working!';
+                    break;
+                default: return false;
+            }
         }
 
         // Build Discord payload with optional bot username and avatar
@@ -291,33 +353,46 @@ async function sendDiscordNotification(webhookUrl, type, data, discordSettings =
  */
 async function sendTelegramNotification(botToken, chatId, type, data, sendSilently = false) {
     try {
-        const icons = { [NotificationType.MEDIA_PENDING]: '📬', [NotificationType.MEDIA_APPROVED]: '✅', [NotificationType.MEDIA_AUTO_APPROVED]: '⚡', [NotificationType.MEDIA_DECLINED]: '❌', [NotificationType.MEDIA_AVAILABLE]: '🎉', [NotificationType.TEST_NOTIFICATION]: '🔔' };
         const mediaType = data.mediaType === 'movie' ? 'Movie' : 'TV Show';
         let message = '';
 
-        switch (type) {
-            case NotificationType.MEDIA_PENDING:
-                message = `${icons[type]} *New ${data.is4k ? '4K ' : ''}${mediaType} Request*\n\n*${data.mediaTitle}*\nRequested by: ${data.username || 'Unknown'}`;
-                break;
-            case NotificationType.MEDIA_APPROVED:
-                message = `${icons[type]} *Request Approved*\n\n*${data.mediaTitle}*\nYour request has been approved!`;
-                break;
-            case NotificationType.MEDIA_AUTO_APPROVED:
-                message = `${icons[type]} *Auto-Approved*\n\n*${data.mediaTitle}*\nYour request was automatically approved.`;
-                break;
-            case NotificationType.MEDIA_DECLINED:
-                message = `${icons[type]} *Request Declined*\n\n*${data.mediaTitle}*\n${data.reason ? `Reason: ${data.reason}` : 'Your request has been declined.'}`;
-                break;
-            case NotificationType.MEDIA_AVAILABLE:
-                message = `${icons[type]} *Now Available!*\n\n*${data.mediaTitle}*\nNow available on Plex!`;
-                break;
-            case NotificationType.TEST_NOTIFICATION:
-                message = `${icons[type]} *Test Notification*\n\nTelegram notifications are working!`;
-                break;
-            default: return false;
+        // Try to get custom template from database
+        const template = type !== NotificationType.TEST_NOTIFICATION ? await getMessageTemplate(type, 'telegram') : null;
+
+        if (template) {
+            // Use custom template - combine title and body
+            const title = processTemplate(template.title_template, data);
+            const body = processTemplate(template.body_template, data);
+            message = `${title}\n\n${body}`;
+        } else {
+            // Fallback to defaults
+            const icons = { [NotificationType.MEDIA_PENDING]: '📬', [NotificationType.MEDIA_APPROVED]: '✅', [NotificationType.MEDIA_AUTO_APPROVED]: '⚡', [NotificationType.MEDIA_DECLINED]: '❌', [NotificationType.MEDIA_AVAILABLE]: '🎉', [NotificationType.TEST_NOTIFICATION]: '🔔' };
+            switch (type) {
+                case NotificationType.MEDIA_PENDING:
+                    message = `${icons[type]} *New ${data.is4k ? '4K ' : ''}${mediaType} Request*\n\n*${data.mediaTitle}*\nRequested by: ${data.username || 'Unknown'}`;
+                    break;
+                case NotificationType.MEDIA_APPROVED:
+                    message = `${icons[type]} *Request Approved*\n\n*${data.mediaTitle}*\nYour request has been approved!`;
+                    break;
+                case NotificationType.MEDIA_AUTO_APPROVED:
+                    message = `${icons[type]} *Auto-Approved*\n\n*${data.mediaTitle}*\nYour request was automatically approved.`;
+                    break;
+                case NotificationType.MEDIA_DECLINED:
+                    message = `${icons[type]} *Request Declined*\n\n*${data.mediaTitle}*\n${data.reason ? `Reason: ${data.reason}` : 'Your request has been declined.'}`;
+                    break;
+                case NotificationType.MEDIA_AVAILABLE:
+                    message = `${icons[type]} *Now Available!*\n\n*${data.mediaTitle}*\nNow available on Plex!`;
+                    break;
+                case NotificationType.TEST_NOTIFICATION:
+                    message = `${icons[type]} *Test Notification*\n\nTelegram notifications are working!`;
+                    break;
+                default: return false;
+            }
         }
 
-        await axios.post(`https://api.telegram.org/bot${botToken}/sendMessage`, { chat_id: chatId, text: message, parse_mode: 'Markdown', disable_notification: sendSilently }, { timeout: 10000 });
+        // Telegram supports HTML parse_mode for custom templates
+        const parseMode = template ? 'HTML' : 'Markdown';
+        await axios.post(`https://api.telegram.org/bot${botToken}/sendMessage`, { chat_id: chatId, text: message, parse_mode: parseMode, disable_notification: sendSilently }, { timeout: 10000 });
         await logNotification({ requestId: data.requestId, notificationType: type, channel: 'telegram', recipient: chatId, status: 'sent' });
         console.log(`[Notifications] Telegram message sent for ${type}`);
         return true;
@@ -459,8 +534,21 @@ async function sendWebPushNotification(userId, type, data) {
 
         webpush.setVapidDetails(`mailto:${vapidConfig.vapid_email || 'admin@localhost'}`, vapidConfig.vapid_public_key, vapidConfig.vapid_private_key);
 
-        const titles = { [NotificationType.MEDIA_PENDING]: '📬 New Request', [NotificationType.MEDIA_APPROVED]: '✅ Request Approved', [NotificationType.MEDIA_AUTO_APPROVED]: '⚡ Auto-Approved', [NotificationType.MEDIA_DECLINED]: '❌ Request Declined', [NotificationType.MEDIA_AVAILABLE]: '🎉 Now Available!', [NotificationType.TEST_NOTIFICATION]: '🔔 Test' };
-        const payload = JSON.stringify({ title: titles[type] || 'Notification', body: data.mediaTitle || 'Stream Panel', data: { type, mediaTitle: data.mediaTitle, requestId: data.requestId } });
+        // Try to get custom template from database
+        let title, body;
+        const template = type !== NotificationType.TEST_NOTIFICATION ? await getMessageTemplate(type, 'webpush') : null;
+
+        if (template) {
+            title = processTemplate(template.title_template, data);
+            body = processTemplate(template.body_template, data);
+        } else {
+            // Fallback to defaults
+            const titles = { [NotificationType.MEDIA_PENDING]: '📬 New Request', [NotificationType.MEDIA_APPROVED]: '✅ Request Approved', [NotificationType.MEDIA_AUTO_APPROVED]: '⚡ Auto-Approved', [NotificationType.MEDIA_DECLINED]: '❌ Request Declined', [NotificationType.MEDIA_AVAILABLE]: '🎉 Now Available!', [NotificationType.TEST_NOTIFICATION]: '🔔 Test' };
+            title = titles[type] || 'Notification';
+            body = data.mediaTitle || 'Stream Panel';
+        }
+
+        const payload = JSON.stringify({ title, body, data: { type, mediaTitle: data.mediaTitle, requestId: data.requestId } });
 
         let successCount = 0;
         for (const sub of subscriptions) {

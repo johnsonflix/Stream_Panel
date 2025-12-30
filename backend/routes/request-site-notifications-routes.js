@@ -510,4 +510,133 @@ router.delete('/user/:userId/preferences', requireAuth, requireAdmin, async (req
     }
 });
 
+// ============ Message Templates ============
+
+/**
+ * GET /api/v2/request-site/notifications/templates
+ * Get all notification message templates (admin only)
+ */
+router.get('/templates', requireAuth, requireAdmin, async (req, res) => {
+    try {
+        const templates = await query(`
+            SELECT * FROM request_site_notification_templates
+            ORDER BY notification_type, platform
+        `);
+
+        // Group by notification_type for easier UI consumption
+        const grouped = {};
+        for (const t of templates) {
+            if (!grouped[t.notification_type]) {
+                grouped[t.notification_type] = {};
+            }
+            grouped[t.notification_type][t.platform] = t;
+        }
+
+        res.json({ templates, grouped });
+    } catch (error) {
+        console.error('[Notifications API] Error getting templates:', error);
+        res.status(500).json({ error: 'Failed to load notification templates' });
+    }
+});
+
+/**
+ * PUT /api/v2/request-site/notifications/templates/:id
+ * Update a notification message template (admin only)
+ */
+router.put('/templates/:id', requireAuth, requireAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { title_template, body_template, is_enabled } = req.body;
+
+        await query(`
+            UPDATE request_site_notification_templates
+            SET title_template = ?,
+                body_template = ?,
+                is_enabled = ?,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        `, [title_template, body_template, is_enabled ? 1 : 0, id]);
+
+        const updated = await query('SELECT * FROM request_site_notification_templates WHERE id = ?', [id]);
+        res.json({ success: true, template: updated[0] });
+    } catch (error) {
+        console.error('[Notifications API] Error updating template:', error);
+        res.status(500).json({ error: 'Failed to update template' });
+    }
+});
+
+/**
+ * POST /api/v2/request-site/notifications/templates/reset
+ * Reset all templates to defaults (admin only)
+ */
+router.post('/templates/reset', requireAuth, requireAdmin, async (req, res) => {
+    try {
+        const defaultTemplates = [
+            // Discord templates
+            { type: 'media_pending', platform: 'discord', title: '📬 New {{media_type}} Request', body: '**{{username}}** requested **{{media_title}}**{{#if is_4k}} (4K){{/if}}' },
+            { type: 'media_approved', platform: 'discord', title: '✅ Request Approved', body: '**{{media_title}}** has been approved and is being processed.' },
+            { type: 'media_auto_approved', platform: 'discord', title: '⚡ Request Auto-Approved', body: '**{{media_title}}** was automatically approved and is being processed.' },
+            { type: 'media_declined', platform: 'discord', title: '❌ Request Declined', body: '**{{media_title}}** has been declined.{{#if reason}}\n\nReason: {{reason}}{{/if}}' },
+            { type: 'media_available', platform: 'discord', title: '🎉 Now Available', body: '**{{media_title}}** is now available on Plex!' },
+
+            // Telegram templates
+            { type: 'media_pending', platform: 'telegram', title: '📬 New Request', body: '<b>{{username}}</b> requested <b>{{media_title}}</b>{{#if is_4k}} (4K){{/if}}\n\nType: {{media_type}}' },
+            { type: 'media_approved', platform: 'telegram', title: '✅ Approved', body: '<b>{{media_title}}</b> has been approved!' },
+            { type: 'media_auto_approved', platform: 'telegram', title: '⚡ Auto-Approved', body: '<b>{{media_title}}</b> was automatically approved!' },
+            { type: 'media_declined', platform: 'telegram', title: '❌ Declined', body: '<b>{{media_title}}</b> was declined.{{#if reason}}\n\nReason: {{reason}}{{/if}}' },
+            { type: 'media_available', platform: 'telegram', title: '🎉 Available', body: '<b>{{media_title}}</b> is now available on Plex!' },
+
+            // Email templates
+            { type: 'media_pending', platform: 'email', title: 'New Media Request: {{media_title}}', body: '{{username}} has requested {{media_title}}{{#if is_4k}} (4K){{/if}}.' },
+            { type: 'media_approved', platform: 'email', title: 'Request Approved: {{media_title}}', body: 'Your request for {{media_title}} has been approved and is being processed.' },
+            { type: 'media_auto_approved', platform: 'email', title: 'Request Auto-Approved: {{media_title}}', body: 'Your request for {{media_title}} was automatically approved and is being processed.' },
+            { type: 'media_declined', platform: 'email', title: 'Request Declined: {{media_title}}', body: 'Your request for {{media_title}} has been declined.{{#if reason}} Reason: {{reason}}{{/if}}' },
+            { type: 'media_available', platform: 'email', title: 'Now Available: {{media_title}}', body: '{{media_title}} is now available on Plex! Log in to start watching.' },
+
+            // WebPush templates
+            { type: 'media_pending', platform: 'webpush', title: 'New Request', body: '{{username}} requested {{media_title}}' },
+            { type: 'media_approved', platform: 'webpush', title: 'Request Approved', body: '{{media_title}} has been approved!' },
+            { type: 'media_auto_approved', platform: 'webpush', title: 'Auto-Approved', body: '{{media_title}} was auto-approved!' },
+            { type: 'media_declined', platform: 'webpush', title: 'Request Declined', body: '{{media_title}} was declined' },
+            { type: 'media_available', platform: 'webpush', title: 'Now Available!', body: '{{media_title}} is ready to watch!' }
+        ];
+
+        for (const t of defaultTemplates) {
+            await query(`
+                UPDATE request_site_notification_templates
+                SET title_template = ?, body_template = ?, is_enabled = 1, updated_at = CURRENT_TIMESTAMP
+                WHERE notification_type = ? AND platform = ?
+            `, [t.title, t.body, t.type, t.platform]);
+        }
+
+        const templates = await query('SELECT * FROM request_site_notification_templates ORDER BY notification_type, platform');
+        res.json({ success: true, templates });
+    } catch (error) {
+        console.error('[Notifications API] Error resetting templates:', error);
+        res.status(500).json({ error: 'Failed to reset templates' });
+    }
+});
+
+/**
+ * GET /api/v2/request-site/notifications/templates/variables
+ * Get available template variables (for documentation)
+ */
+router.get('/templates/variables', requireAuth, requireAdmin, async (req, res) => {
+    res.json({
+        variables: [
+            { name: '{{media_title}}', description: 'Title of the movie/show' },
+            { name: '{{media_type}}', description: '"Movie" or "TV Show"' },
+            { name: '{{username}}', description: 'Username of the requester' },
+            { name: '{{is_4k}}', description: 'Whether this is a 4K request (use with {{#if is_4k}})' },
+            { name: '{{reason}}', description: 'Decline reason (use with {{#if reason}})' },
+            { name: '{{poster_url}}', description: 'Full URL to movie/show poster' },
+            { name: '{{tmdb_id}}', description: 'TMDB ID of the media' },
+            { name: '{{request_id}}', description: 'Internal request ID' }
+        ],
+        conditionals: [
+            { syntax: '{{#if variable}}...{{/if}}', description: 'Show content only if variable exists' }
+        ]
+    });
+});
+
 module.exports = router;
