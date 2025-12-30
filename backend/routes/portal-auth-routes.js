@@ -264,6 +264,7 @@ router.post('/email-login', async (req, res) => {
  * GET /api/v2/portal/auth/plex/redirect
  * Direct redirect to Plex auth - for mobile browsers that block JS navigation after async
  * This endpoint creates the PIN and immediately redirects to Plex (no JS async needed)
+ * Uses Plex's forwardUrl to redirect back with pinId in URL (no cookies needed - Safari safe)
  */
 router.get('/plex/redirect', async (req, res) => {
     try {
@@ -307,18 +308,16 @@ router.get('/plex/redirect', async (req, res) => {
             expiresAt: Date.now() + (5 * 60 * 1000) // 5 minutes
         });
 
-        // Store pinId in a cookie so we can complete auth when user returns
-        res.cookie('plex_pending_pin', pinId, {
-            maxAge: 5 * 60 * 1000, // 5 minutes
-            httpOnly: false, // Allow JS to read it
-            secure: req.secure,
-            sameSite: 'lax'
-        });
+        // Build return URL with pinId in query params (no cookies needed!)
+        const protocol = req.secure || req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http';
+        const host = req.headers.host;
+        const returnUrl = `${protocol}://${host}/portal/login.html?plex_pin=${pinId}`;
+        const encodedReturnUrl = encodeURIComponent(returnUrl);
 
-        // Build the Plex auth URL and redirect directly
-        const authUrl = `https://app.plex.tv/auth#?clientID=${PLEX_CLIENT_ID}&code=${pinData.code}&context%5Bdevice%5D%5Bproduct%5D=StreamPanel%20Portal&context%5Bdevice%5D%5Bplatform%5D=Web`;
+        // Build the Plex auth URL with forwardUrl for automatic redirect back
+        const authUrl = `https://app.plex.tv/auth#?clientID=${PLEX_CLIENT_ID}&code=${pinData.code}&forwardUrl=${encodedReturnUrl}&context%5Bdevice%5D%5Bproduct%5D=StreamPanel%20Portal&context%5Bdevice%5D%5Bplatform%5D=Web`;
 
-        console.log('[Plex Redirect] Redirecting to Plex auth, pinId:', pinId);
+        console.log('[Plex Redirect] Redirecting to Plex auth, pinId:', pinId, 'returnUrl:', returnUrl);
         res.redirect(authUrl);
 
     } catch (error) {

@@ -658,9 +658,17 @@
 
         // Check for pending Plex auth on page load (redirect flow)
         async function checkPendingPlexAuth() {
-            // Check both cookie (server redirect flow) and sessionStorage (legacy)
-            const pendingPin = getCookie('plex_pending_pin') || sessionStorage.getItem('plex_pending_pin');
+            // Check URL params first (Plex forwardUrl redirect), then cookie, then sessionStorage
+            const plexPinFromUrl = urlParams.get('plex_pin');
+            const pendingPin = plexPinFromUrl || getCookie('plex_pending_pin') || sessionStorage.getItem('plex_pending_pin');
             if (!pendingPin) return;
+
+            // If pin came from URL, clean up the URL (remove plex_pin param)
+            if (plexPinFromUrl) {
+                const cleanUrl = new URL(window.location.href);
+                cleanUrl.searchParams.delete('plex_pin');
+                window.history.replaceState({}, '', cleanUrl.toString());
+            }
 
             const plexBtn = document.getElementById('plex-login-btn');
 
