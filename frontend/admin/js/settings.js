@@ -889,7 +889,7 @@ const Settings = {
             other: { icon: 'fa-external-link-alt', color: '#6b7280' }
         };
 
-        return this.mediaManagers.map(manager => {
+        return this.mediaManagers.map((manager, index) => {
             const iconInfo = iconMap[manager.type] || { icon: 'fa-server', color: '#6b7280' };
             const hasImage = !!manager.effective_icon;
             const gradientBg = `linear-gradient(135deg, ${iconInfo.color} 0%, ${this.adjustColor(iconInfo.color, -30)} 100%)`;
@@ -902,9 +902,27 @@ const Settings = {
                 ? `<img src="${Utils.escapeHtml(manager.effective_icon)}" alt="${Utils.escapeHtml(manager.name)}" style="width: 36px; height: 36px; object-fit: contain;" data-fallback-icon="${iconInfo.icon}" data-fallback-bg="${gradientBg}" onload="this.onerror=null;" onerror="Settings.handleIconError(this)">`
                 : `<i class="fas ${iconInfo.icon}"></i>`;
 
+            // Dropdown visibility indicator
+            const showInDropdown = manager.show_in_dropdown !== false;
+            const dropdownBadge = showInDropdown
+                ? ''
+                : '<span class="badge" style="font-size: 0.7rem; background: #374151; color: #9ca3af;" title="Hidden from Tools dropdown"><i class="fas fa-eye-slash" style="font-size: 9px; margin-right: 3px;"></i>Hidden</span>';
+
+            // Reorder buttons (disabled at edges)
+            const isFirst = index === 0;
+            const isLast = index === this.mediaManagers.length - 1;
+
             return `
-                <div class="mm-card-wrapper" style="margin-bottom: 12px; border: 1px solid #334155; border-radius: 12px; overflow: hidden;">
+                <div class="mm-card-wrapper" style="margin-bottom: 12px; border: 1px solid #334155; border-radius: 12px; overflow: hidden;" data-manager-id="${manager.id}">
                     <div class="server-card" data-manager-id="${manager.id}" onclick="Settings.toggleManagerExpand(${manager.id})" style="display: flex; align-items: center; gap: 16px; padding: 16px; background: #1e293b; cursor: pointer;">
+                        <div style="display: flex; flex-direction: column; align-items: center;" onclick="event.stopPropagation();">
+                            <button onclick="Settings.moveManagerUp(${manager.id})" ${isFirst ? 'disabled' : ''} title="Move up" style="background: none; border: none; color: ${isFirst ? '#475569' : '#94a3b8'}; cursor: ${isFirst ? 'default' : 'pointer'}; padding: 2px 6px; font-size: 14px; line-height: 1; transition: color 0.15s;">
+                                <i class="fas fa-caret-up"></i>
+                            </button>
+                            <button onclick="Settings.moveManagerDown(${manager.id})" ${isLast ? 'disabled' : ''} title="Move down" style="background: none; border: none; color: ${isLast ? '#475569' : '#94a3b8'}; cursor: ${isLast ? 'default' : 'pointer'}; padding: 2px 6px; font-size: 14px; line-height: 1; transition: color 0.15s;">
+                                <i class="fas fa-caret-down"></i>
+                            </button>
+                        </div>
                         <div class="mm-icon-container" style="${iconContainerStyle}">
                             ${imgHtml}
                         </div>
@@ -914,6 +932,7 @@ const Settings = {
                                 <span class="badge badge-secondary" style="font-size: 0.7rem; text-transform: uppercase;">${manager.type.replace('_', ' ')}</span>
                                 <span class="badge badge-secondary" style="font-size: 0.7rem; text-transform: uppercase;">${manager.connection_mode}</span>
                                 ${!manager.is_enabled ? '<span class="badge badge-danger" style="font-size: 0.7rem;">Disabled</span>' : ''}
+                                ${dropdownBadge}
                             </div>
                             <div class="server-url" style="color: var(--text-secondary); font-size: 0.85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${Utils.escapeHtml(manager.url)}</div>
                         </div>
@@ -986,6 +1005,58 @@ const Settings = {
 
     openMediaManager(managerId) {
         window.open(`/admin/tool-login.html?id=${managerId}`, '_blank');
+    },
+
+    async moveManagerUp(managerId) {
+        const index = this.mediaManagers.findIndex(m => m.id === managerId);
+        if (index <= 0) return; // Already at top
+
+        // Swap positions
+        [this.mediaManagers[index - 1], this.mediaManagers[index]] = [this.mediaManagers[index], this.mediaManagers[index - 1]];
+        await this.saveManagerOrder();
+    },
+
+    async moveManagerDown(managerId) {
+        const index = this.mediaManagers.findIndex(m => m.id === managerId);
+        if (index < 0 || index >= this.mediaManagers.length - 1) return; // Already at bottom
+
+        // Swap positions
+        [this.mediaManagers[index], this.mediaManagers[index + 1]] = [this.mediaManagers[index + 1], this.mediaManagers[index]];
+        await this.saveManagerOrder();
+    },
+
+    async saveManagerOrder() {
+        const order = this.mediaManagers.map(m => m.id);
+
+        try {
+            const response = await fetch('/api/v2/media-managers/reorder', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${API.getSessionToken()}`
+                },
+                body: JSON.stringify({ order })
+            });
+
+            if (response.ok) {
+                // Re-render the list with new order
+                const listEl = document.getElementById('media-managers-list');
+                if (listEl) {
+                    listEl.innerHTML = this.renderMediaManagersList();
+                    // Re-check statuses
+                    this.mediaManagers.forEach(m => this.checkMediaManagerStatus(m.id));
+                }
+                // Also refresh the tools dropdown (if loadToolsDropdown is available)
+                if (typeof loadToolsDropdown === 'function') {
+                    loadToolsDropdown();
+                }
+            } else {
+                Utils.showToast('Failed to save order', 'error');
+            }
+        } catch (error) {
+            console.error('Failed to save manager order:', error);
+            Utils.showToast('Failed to save order', 'error');
+        }
     },
 
     async toggleManagerExpand(managerId) {
@@ -1229,6 +1300,13 @@ const Settings = {
                             Enabled
                         </label>
                     </div>
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="mm-show-in-dropdown" checked>
+                            Show in Tools Dropdown
+                        </label>
+                        <small class="form-help">When disabled, tool only appears in settings, not the header menu</small>
+                    </div>
                 </form>
             `,
             buttons: [
@@ -1314,6 +1392,7 @@ const Settings = {
                 const mmIconUrl = document.getElementById('mm-icon-url');
                 const mmConnMode = document.getElementById('mm-connection-mode');
                 const mmEnabled = document.getElementById('mm-enabled');
+                const mmShowInDropdown = document.getElementById('mm-show-in-dropdown');
 
                 if (mmId) mmId.value = manager.id;
                 if (mmType) mmType.value = manager.type;
@@ -1325,6 +1404,7 @@ const Settings = {
                 if (mmIconUrl) mmIconUrl.value = manager.icon_url || '';
                 if (mmConnMode) mmConnMode.value = manager.connection_mode || 'proxy';
                 if (mmEnabled) mmEnabled.checked = manager.is_enabled;
+                if (mmShowInDropdown) mmShowInDropdown.checked = manager.show_in_dropdown !== false;
 
                 this.onMediaManagerTypeChange();
             }, 100);
@@ -1344,7 +1424,8 @@ const Settings = {
             password: document.getElementById('mm-password')?.value || null,
             icon_url: document.getElementById('mm-icon-url')?.value || null,
             connection_mode: document.getElementById('mm-connection-mode')?.value || 'proxy',
-            is_enabled: document.getElementById('mm-enabled')?.checked ?? true
+            is_enabled: document.getElementById('mm-enabled')?.checked ?? true,
+            show_in_dropdown: document.getElementById('mm-show-in-dropdown')?.checked ?? true
         };
 
         // Validate required fields

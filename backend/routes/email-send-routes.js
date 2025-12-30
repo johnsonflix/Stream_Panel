@@ -212,7 +212,7 @@ router.post('/users', async (req, res) => {
                    u.plex_expiration, u.plex_expiration_date,
                    u.iptv_expiration, u.iptv_expiration_date,
                    u.iptv_username, u.iptv_password, u.iptv_connections,
-                   u.iptv_panel_id,
+                   u.iptv_panel_id, u.owner_id, u.payment_preference,
                    o.name as owner_name,
                    ip.name as iptv_panel_name
             FROM users u

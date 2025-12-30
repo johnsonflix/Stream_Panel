@@ -553,7 +553,9 @@ router.post('/requests', async (req, res) => {
                 console.log(`[Request Site] Auto-approved request ${requestId} sent to ${mediaType === 'movie' ? 'Radarr' : 'Sonarr'}`);
 
                 // Notify user of auto-approval
+                console.log('[Request Site] About to call notifyUserRequestAutoApproved');
                 await notifyUserRequestAutoApproved(user.id, mediaTitle, mediaType);
+                console.log('[Request Site] notifyUserRequestAutoApproved completed');
             } else {
                 console.error(`[Request Site] Failed to send auto-approved request to ${mediaType === 'movie' ? 'Radarr' : 'Sonarr'}:`, submitResult.error);
                 // Revert to pending if submission failed
@@ -561,12 +563,18 @@ router.post('/requests', async (req, res) => {
             }
         } else {
             // Notify admins of new pending request
+            console.log('[Request Site] About to call notifyAdminsNewRequest for pending request');
             await notifyAdminsNewRequest({
+                requestId,
                 mediaTitle,
                 mediaType,
+                tmdbId,
+                posterPath: mediaInfo?.posterPath || null,
                 username: user.username,
-                userId: user.id
+                userId: user.id,
+                is4k
             });
+            console.log('[Request Site] notifyAdminsNewRequest completed');
         }
 
         res.json({
@@ -799,7 +807,9 @@ router.put('/requests/:id/approve', async (req, res) => {
             console.log(`[Request Site] Request ${requestId} approved: ${message}`);
 
             // Notify user of approval
+            console.log('[Request Site] About to call notifyUserRequestApproved for user:', request.user_id);
             await notifyUserRequestApproved(request.user_id, mediaTitle, request.media_type);
+            console.log('[Request Site] notifyUserRequestApproved completed');
 
             res.json({
                 success: true,
@@ -872,11 +882,16 @@ router.put('/requests/:id/decline', async (req, res) => {
         }
 
         // Send notification if requested
+        console.log('[Request Site] Decline - notifyUser checkbox is:', notifyUser);
         if (notifyUser) {
             const mediaInfo = await getMediaInfoFromTmdb(media[0].tmdb_id, media[0].media_type);
             const mediaTitle = mediaInfo ? mediaInfo.title : `${media[0].media_type.toUpperCase()} ${media[0].tmdb_id}`;
 
+            console.log('[Request Site] About to call notifyUserRequestDeclined for user:', request.user_id);
             await notifyUserRequestDeclined(request.user_id, mediaTitle, media[0].media_type, reason);
+            console.log('[Request Site] notifyUserRequestDeclined completed');
+        } else {
+            console.log('[Request Site] Decline - NOT notifying user (checkbox unchecked)');
         }
 
         res.json({ success: true, message: 'Request declined' });

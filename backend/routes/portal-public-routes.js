@@ -208,8 +208,8 @@ router.get('/manifest.json', async (req, res) => {
         );
 
         const appName = nameResult.length > 0 ? nameResult[0].setting_value : 'Stream Panel';
-        // Always use the public logo endpoint - it handles custom logos and defaults
-        const appLogo = '/api/v2/public/logo.png';
+        // Use the static favicon as the default app icon
+        const appLogo = '/assets/favicon.png';
         const themeColor = colorResult.length > 0 ? colorResult[0].setting_value : '#8b5cf6';
 
         const manifest = {

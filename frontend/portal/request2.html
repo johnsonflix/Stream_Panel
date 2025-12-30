@@ -3,7 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Requests">
     <link rel="icon" type="image/png" href="/assets/favicon.png">
+    <link rel="apple-touch-icon" href="/assets/favicon.png">
+    <link rel="manifest" href="/api/v2/portal/manifest.json">
     <title>Request Site - Stream Panel</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="../css/request-site.css">
@@ -8037,7 +8042,8 @@
                     headers: { 'Authorization': `Bearer ${adminToken}` }
                 });
                 const data = await response.json();
-                const managers = (data.managers || []).filter(m => m.is_enabled);
+                // Filter to only enabled managers that are set to show in dropdown
+                const managers = (data.managers || []).filter(m => m.is_enabled && m.show_in_dropdown !== false);
 
                 if (managers.length === 0) {
                     container.style.display = 'none';
@@ -14530,7 +14536,7 @@
                 `;
             }
 
-            return settingsManagers.map(manager => {
+            return settingsManagers.map((manager, index) => {
                 const iconInfo = managerIcons[manager.type] || { icon: 'fa-server', color: '#6b7280' };
                 // Use effective_icon image if available, otherwise fallback to Font Awesome icon with colored background
                 const hasImage = !!manager.effective_icon;
@@ -14544,9 +14550,27 @@
                 // Build credentials section - stored in data attribute for lazy loading
                 const hasCredentials = manager.type === 'qbittorrent' || manager.type === 'sabnzbd' || manager.type === 'other_arr' || manager.type === 'other' || manager.type === 'sonarr' || manager.type === 'radarr';
 
+                // Dropdown visibility indicator
+                const showInDropdown = manager.show_in_dropdown !== false;
+                const dropdownBadge = showInDropdown
+                    ? ''
+                    : '<span class="settings-badge" style="background: #374151; color: #9ca3af;" title="Hidden from Tools dropdown"><i class="fas fa-eye-slash" style="font-size: 10px; margin-right: 3px;"></i>Hidden</span>';
+
+                // Reorder buttons (disabled at edges)
+                const isFirst = index === 0;
+                const isLast = index === settingsManagers.length - 1;
+
                 return `
-                    <div class="settings-card-wrapper">
+                    <div class="settings-card-wrapper" data-manager-id="${manager.id}">
                         <div class="settings-card" onclick="toggleManagerExpand(${manager.id})" style="cursor: pointer;">
+                            <div class="manager-reorder-btns" onclick="event.stopPropagation();" style="display: flex; flex-direction: column; align-items: center; margin-right: 6px;">
+                                <button onclick="moveManagerUp(${manager.id})" ${isFirst ? 'disabled' : ''} title="Move up" style="background: none; border: none; color: ${isFirst ? '#475569' : '#94a3b8'}; cursor: ${isFirst ? 'default' : 'pointer'}; padding: 2px 6px; font-size: 14px; line-height: 1; transition: color 0.15s;">
+                                    <i class="fas fa-caret-up"></i>
+                                </button>
+                                <button onclick="moveManagerDown(${manager.id})" ${isLast ? 'disabled' : ''} title="Move down" style="background: none; border: none; color: ${isLast ? '#475569' : '#94a3b8'}; cursor: ${isLast ? 'default' : 'pointer'}; padding: 2px 6px; font-size: 14px; line-height: 1; transition: color 0.15s;">
+                                    <i class="fas fa-caret-down"></i>
+                                </button>
+                            </div>
                             <div class="settings-card-icon" style="${bgStyle}">
                                 ${iconContent}
                             </div>
@@ -14556,6 +14580,7 @@
                                     <span class="settings-badge">${manager.type}</span>
                                     <span class="settings-badge">${manager.connection_mode}</span>
                                     ${!manager.is_enabled ? '<span class="settings-badge settings-badge-disabled">Disabled</span>' : ''}
+                                    ${dropdownBadge}
                                 </div>
                                 <div class="settings-card-subtitle">${escapeHtml(manager.url)}</div>
                             </div>
@@ -14618,6 +14643,57 @@
             }
         }
 
+        async function moveManagerUp(managerId) {
+            const index = settingsManagers.findIndex(m => m.id === managerId);
+            if (index <= 0) return; // Already at top
+
+            // Swap positions
+            [settingsManagers[index - 1], settingsManagers[index]] = [settingsManagers[index], settingsManagers[index - 1]];
+            await saveManagerOrder();
+        }
+
+        async function moveManagerDown(managerId) {
+            const index = settingsManagers.findIndex(m => m.id === managerId);
+            if (index < 0 || index >= settingsManagers.length - 1) return; // Already at bottom
+
+            // Swap positions
+            [settingsManagers[index], settingsManagers[index + 1]] = [settingsManagers[index + 1], settingsManagers[index]];
+            await saveManagerOrder();
+        }
+
+        async function saveManagerOrder() {
+            const token = localStorage.getItem('sessionToken') || sessionStorage.getItem('sessionToken');
+            const order = settingsManagers.map(m => m.id);
+
+            try {
+                const response = await fetch('/api/v2/media-managers/reorder', {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ order })
+                });
+
+                if (response.ok) {
+                    // Re-render the list with new order
+                    const listEl = document.getElementById('managers-list');
+                    if (listEl) {
+                        listEl.innerHTML = renderManagersList();
+                        // Re-check statuses
+                        settingsManagers.forEach(m => checkManagerStatus(m.id));
+                    }
+                    // Also refresh the tools dropdown
+                    loadToolsDropdown();
+                } else {
+                    showRequestToast('Failed to save order', 'error');
+                }
+            } catch (error) {
+                console.error('Failed to save manager order:', error);
+                showRequestToast('Failed to save order', 'error');
+            }
+        }
+
         function showAddManagerModal() {
             const modal = document.getElementById('manager-modal');
             if (!modal) createManagerModal();
@@ -14626,6 +14702,7 @@
             document.getElementById('manager-form').reset();
             document.getElementById('manager-id').value = '';
             document.getElementById('manager-enabled').checked = true;
+            document.getElementById('manager-show-in-dropdown').checked = true;
             onManagerTypeChange();
             document.getElementById('manager-modal').classList.add('show');
         }
@@ -14706,11 +14783,16 @@
                                 <input type="url" id="manager-icon-url" class="form-control" placeholder="https://example.com/logo.png">
                                 <small style="color: #94a3b8; font-size: 12px; margin-top: 4px; display: block;">Leave empty to use the default icon for this tool type.</small>
                             </div>
-                            <div class="form-group">
+                            <div class="form-group" style="display: flex; flex-direction: column; gap: 10px;">
                                 <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
                                     <input type="checkbox" id="manager-enabled" checked>
                                     <span>Enabled</span>
                                 </label>
+                                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                    <input type="checkbox" id="manager-show-in-dropdown" checked>
+                                    <span>Show in Tools Dropdown</span>
+                                </label>
+                                <small style="color: #94a3b8; font-size: 12px; margin-top: -4px; padding-left: 24px;">When disabled, tool will only appear in the settings list, not the header menu.</small>
                             </div>
                             <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 20px;">
                                 <button type="button" class="settings-btn" onclick="testManagerConnection()">
@@ -14808,6 +14890,7 @@
                 document.getElementById('manager-connection-mode').value = manager.connection_mode;
                 document.getElementById('manager-icon-url').value = manager.icon_url || '';
                 document.getElementById('manager-enabled').checked = manager.is_enabled;
+                document.getElementById('manager-show-in-dropdown').checked = manager.show_in_dropdown !== false;
 
                 onManagerTypeChange();
                 document.getElementById('manager-modal').classList.add('show');
@@ -14832,7 +14915,8 @@
                 password: document.getElementById('manager-password').value || null,
                 connection_mode: document.getElementById('manager-connection-mode').value,
                 icon_url: document.getElementById('manager-icon-url').value || null,
-                is_enabled: document.getElementById('manager-enabled').checked
+                is_enabled: document.getElementById('manager-enabled').checked,
+                show_in_dropdown: document.getElementById('manager-show-in-dropdown').checked
             };
 
             try {

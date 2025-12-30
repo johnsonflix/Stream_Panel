@@ -605,8 +605,8 @@ async function loadToolsDropdown() {
         const response = await API.request('/media-managers');
         const managers = response.managers || [];
 
-        // Filter to only enabled managers
-        const enabledManagers = managers.filter(m => m.is_enabled);
+        // Filter to only enabled managers that are set to show in dropdown
+        const enabledManagers = managers.filter(m => m.is_enabled && m.show_in_dropdown !== false);
 
         if (enabledManagers.length === 0) {
             container.style.display = 'none';

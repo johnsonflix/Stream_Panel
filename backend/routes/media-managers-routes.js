@@ -69,17 +69,42 @@ async function requireAdmin(req, res, next) {
 router.get('/', requireAdmin, async (req, res) => {
     try {
         const managers = await query(
-            'SELECT id, name, type, url, icon_url, connection_mode, is_enabled, display_order, created_at FROM media_managers ORDER BY display_order ASC, name ASC'
+            'SELECT id, name, type, url, icon_url, connection_mode, is_enabled, display_order, show_in_dropdown, created_at FROM media_managers ORDER BY display_order ASC, name ASC'
         );
         // Add effective_icon (custom or default) to each manager
         const managersWithIcons = managers.map(m => ({
             ...m,
+            show_in_dropdown: m.show_in_dropdown !== 0, // Convert to boolean
             effective_icon: m.icon_url || DEFAULT_ICONS[m.type] || null
         }));
         res.json({ managers: managersWithIcons });
     } catch (error) {
         console.error('[Media Managers] Error listing managers:', error);
         res.status(500).json({ error: 'Failed to list media managers' });
+    }
+});
+
+// PUT /api/v2/media-managers/reorder - Reorder media managers (MUST be before /:id routes)
+router.put('/reorder', requireAdmin, async (req, res) => {
+    try {
+        const { order } = req.body;
+
+        if (!Array.isArray(order) || order.length === 0) {
+            return res.status(400).json({ error: 'Order array is required' });
+        }
+
+        // Update display_order for each manager
+        for (let i = 0; i < order.length; i++) {
+            await query(
+                'UPDATE media_managers SET display_order = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+                [i, order[i]]
+            );
+        }
+
+        res.json({ success: true });
+    } catch (error) {
+        console.error('[Media Managers] Error reordering managers:', error);
+        res.status(500).json({ error: 'Failed to reorder media managers' });
     }
 });
 
@@ -105,7 +130,7 @@ router.get('/:id', requireAdmin, async (req, res) => {
 // POST /api/v2/media-managers - Create new media manager
 router.post('/', requireAdmin, async (req, res) => {
     try {
-        const { name, type, url, api_key, username, password, connection_mode, is_enabled, display_order, icon_url } = req.body;
+        const { name, type, url, api_key, username, password, connection_mode, is_enabled, display_order, icon_url, show_in_dropdown } = req.body;
 
         if (!name || !type || !url) {
             return res.status(400).json({ error: 'Name, type, and URL are required' });
@@ -117,8 +142,8 @@ router.post('/', requireAdmin, async (req, res) => {
         }
 
         const result = await query(
-            `INSERT INTO media_managers (name, type, url, api_key, username, password, connection_mode, is_enabled, display_order, icon_url)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            `INSERT INTO media_managers (name, type, url, api_key, username, password, connection_mode, is_enabled, display_order, icon_url, show_in_dropdown)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 name,
                 type,
@@ -129,7 +154,8 @@ router.post('/', requireAdmin, async (req, res) => {
                 connection_mode || 'proxy',
                 is_enabled !== undefined ? (is_enabled ? 1 : 0) : 1,
                 display_order || 0,
-                icon_url || null
+                icon_url || null,
+                show_in_dropdown !== undefined ? (show_in_dropdown ? 1 : 0) : 1
             ]
         );
 
@@ -143,7 +169,7 @@ router.post('/', requireAdmin, async (req, res) => {
 // PUT /api/v2/media-managers/:id - Update media manager
 router.put('/:id', requireAdmin, async (req, res) => {
     try {
-        const { name, type, url, api_key, username, password, connection_mode, is_enabled, display_order, icon_url } = req.body;
+        const { name, type, url, api_key, username, password, connection_mode, is_enabled, display_order, icon_url, show_in_dropdown } = req.body;
 
         const existing = await query('SELECT * FROM media_managers WHERE id = ?', [req.params.id]);
         if (existing.length === 0) {
@@ -162,6 +188,7 @@ router.put('/:id', requireAdmin, async (req, res) => {
                 is_enabled = ?,
                 display_order = ?,
                 icon_url = ?,
+                show_in_dropdown = ?,
                 updated_at = CURRENT_TIMESTAMP
              WHERE id = ?`,
             [
@@ -175,6 +202,7 @@ router.put('/:id', requireAdmin, async (req, res) => {
                 is_enabled !== undefined ? (is_enabled ? 1 : 0) : existing[0].is_enabled,
                 display_order !== undefined ? display_order : existing[0].display_order,
                 icon_url !== undefined ? icon_url : existing[0].icon_url,
+                show_in_dropdown !== undefined ? (show_in_dropdown ? 1 : 0) : existing[0].show_in_dropdown,
                 req.params.id
             ]
         );
