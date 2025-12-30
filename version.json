@@ -1,6 +1,6 @@
 {
-  "version": "1.5.12",
+  "version": "1.5.13",
   "name": "Stream Panel",
   "releaseDate": "2025-12-30",
-  "description": "Hotfix - F-015 admin media management routes missing"
+  "description": "Mobile Safari Plex auth fix - use redirect flow"
 }

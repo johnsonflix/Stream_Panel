@@ -511,6 +511,22 @@
                    document.referrer.includes('android-app://');
         }
 
+        // Check if Safari (mobile Safari blocks popups even from user events)
+        function isSafari() {
+            const ua = navigator.userAgent.toLowerCase();
+            return ua.includes('safari') && !ua.includes('chrome') && !ua.includes('android');
+        }
+
+        // Check if mobile device
+        function isMobileDevice() {
+            return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        }
+
+        // Should use redirect flow instead of popup
+        function shouldUseRedirectFlow() {
+            return isStandaloneMode() || (isSafari() && isMobileDevice());
+        }
+
         // Plex Login Button Handler - supports both popup and redirect flow
         document.getElementById('plex-login-btn').addEventListener('click', async () => {
             const plexBtn = document.getElementById('plex-login-btn');
@@ -528,8 +544,8 @@
 
                 const pinId = initData.pinId;
 
-                // PWA/Standalone mode: use redirect flow (popups are blocked)
-                if (isStandaloneMode()) {
+                // PWA/Standalone/Mobile Safari: use redirect flow (popups are blocked)
+                if (shouldUseRedirectFlow()) {
                     // Store pinId and redirect URL for when user returns
                     sessionStorage.setItem('plex_pending_pin', pinId);
                     sessionStorage.setItem('plex_redirect_url', redirectUrl);
