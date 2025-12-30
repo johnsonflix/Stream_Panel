@@ -1,6 +1,6 @@
 {
-  "version": "1.5.10",
+  "version": "1.5.11",
   "name": "Stream Panel",
   "releaseDate": "2025-12-30",
-  "description": "WebPush 403 fix - auto-delete invalid subscriptions"
+  "description": "Mobile PWA improvements - back button, hamburger menu, Plex auth fix"
 }

@@ -398,9 +398,9 @@ router.post('/webpush/generate-vapid', requireAuth, requireAdmin, async (req, re
 
         const vapidKeys = webpush.generateVAPIDKeys();
 
-        // Get admin email for VAPID
+        // Get admin email for VAPID (use sender_email setting)
         const adminResult = await query(
-            "SELECT setting_value FROM settings WHERE setting_key = 'smtp_from'"
+            "SELECT setting_value FROM settings WHERE setting_key = 'sender_email'"
         );
         const vapidEmail = adminResult.length > 0 ? adminResult[0].setting_value : 'admin@localhost';
 

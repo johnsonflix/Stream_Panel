@@ -1791,6 +1791,23 @@
         .movie-details-attributes { display: flex; align-items: center; gap: 12px; color: #cbd5e1; font-size: 13px; margin-bottom: 15px; flex-wrap: nowrap; }
         .movie-details-actions { display: flex; gap: 12px; margin-top: 15px; flex-wrap: wrap; }
         .movie-details-actions .request-btn { min-width: 140px; max-width: 200px; justify-content: center; flex-shrink: 0; }
+
+        /* Admin Gear Menu */
+        .admin-media-menu { position: relative; display: inline-block; }
+        .admin-media-menu-btn { background: rgba(51, 65, 85, 0.8); border: 1px solid #475569; border-radius: 6px; padding: 8px 12px; cursor: pointer; color: #f8fafc; font-size: 14px; display: flex; align-items: center; gap: 6px; transition: all 0.2s; }
+        .admin-media-menu-btn:hover { background: rgba(71, 85, 105, 0.9); border-color: #64748b; }
+        .admin-media-menu-dropdown { position: absolute; top: 100%; right: 0; margin-top: 8px; background: #1e293b; border: 1px solid #334155; border-radius: 8px; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4); min-width: 200px; z-index: 100; display: none; overflow: hidden; }
+        .admin-media-menu-dropdown.show { display: block; }
+        .admin-media-menu-item { padding: 12px 16px; color: #f8fafc; cursor: pointer; display: flex; align-items: center; gap: 10px; font-size: 14px; transition: background 0.15s; border: none; background: none; width: 100%; text-align: left; }
+        .admin-media-menu-item:hover { background: rgba(99, 102, 241, 0.2); }
+        .admin-media-menu-item i { width: 16px; color: #94a3b8; }
+        .admin-media-menu-item.danger { color: #f87171; }
+        .admin-media-menu-item.danger:hover { background: rgba(248, 113, 113, 0.2); }
+        .admin-media-menu-item.danger i { color: #f87171; }
+        .admin-media-menu-divider { height: 1px; background: #334155; margin: 4px 0; }
+        .blocked-badge { background: #dc2626; color: white; padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+        .blocked-badge i { font-size: 11px; }
+
         /* Main content area with sidebar */
         .movie-details-content { max-width: 1600px; margin: 30px auto; padding: 0 40px; display: grid; grid-template-columns: 1fr 350px; gap: 30px; }
         .movie-details-main { min-width: 0; }
@@ -3207,6 +3224,7 @@
             background-position: center;
             opacity: 0.3;
             z-index: 0;
+            pointer-events: none;
         }
         .admin-request-poster {
             width: 60px;
@@ -5203,6 +5221,31 @@
             color: #f8fafc;
         }
 
+        /* Mobile PWA Back Button */
+        .mobile-pwa-back-btn {
+            display: none;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
+            background: rgba(99, 102, 241, 0.15);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            border-radius: 8px;
+            color: #a5b4fc;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-right: 10px;
+            flex-shrink: 0;
+        }
+        .mobile-pwa-back-btn:hover {
+            background: rgba(99, 102, 241, 0.25);
+            color: #c7d2fe;
+        }
+        .mobile-pwa-back-btn:active {
+            transform: scale(0.95);
+        }
+
         /* Mobile Navigation Overlay */
         .mobile-nav-overlay {
             display: none;
@@ -6007,6 +6050,10 @@
             </button>
             <a href="#" class="request-nav-link" id="back-link"><i class="fas fa-arrow-left"></i> Back</a>
         </div>
+        <!-- Mobile PWA Back Button (only visible in PWA standalone mode) -->
+        <button class="mobile-pwa-back-btn" id="mobile-pwa-back-btn" onclick="handleMobileBackNavigation()" title="Go back">
+            <i class="fas fa-arrow-left"></i>
+        </button>
         <!-- Mobile Header Search (always visible on mobile) -->
         <div class="mobile-header-search">
             <input type="text" id="mobile-header-search-input" placeholder="Search...">
@@ -6636,7 +6683,28 @@
                 <img id="details-poster" src="" alt="">
             </div>
             <div class="movie-details-title-section">
-                <div class="movie-details-status-badges" id="details-status-badges"></div>
+                <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                    <div class="movie-details-status-badges" id="details-status-badges"></div>
+                    <div id="admin-blocked-badge" style="display: none;"></div>
+                    <!-- Admin Gear Menu (hidden for non-admins) -->
+                    <div class="admin-media-menu" id="admin-media-menu" style="display: none;">
+                        <button class="admin-media-menu-btn" onclick="toggleAdminMediaMenu(event)">
+                            <i class="fas fa-cog"></i>
+                            <span>Manage</span>
+                        </button>
+                        <div class="admin-media-menu-dropdown" id="admin-media-menu-dropdown">
+                            <button class="admin-media-menu-item" id="admin-block-btn" onclick="toggleBlockMedia(event)">
+                                <i class="fas fa-ban"></i>
+                                <span id="admin-block-text">Block Requests</span>
+                            </button>
+                            <div class="admin-media-menu-divider"></div>
+                            <button class="admin-media-menu-item danger" onclick="clearMediaData(event)">
+                                <i class="fas fa-trash-alt"></i>
+                                <span>Clear All Data</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
                 <h1 class="movie-details-title">
                     <span id="details-title"></span>
                     <span class="movie-details-year" id="details-year"></span>
@@ -7260,6 +7328,26 @@
                     } else if (browseType === 'collection') {
                         exploreCollection(id, name, true);
                     }
+                } else if (state.view === 'requests') {
+                    // Show requests section
+                    document.getElementById('discover-section').style.display = 'none';
+                    document.getElementById('browse-section').style.display = 'none';
+                    document.getElementById('movie-details-page').classList.remove('show');
+                    document.getElementById('requests-section').style.display = 'block';
+                    loadAdminRequestsSection();
+                } else if (state.view === 'settings') {
+                    // Show settings section
+                    switchSection('settings');
+                }
+            } else {
+                // No state - check URL hash
+                const hash = window.location.hash.slice(1);
+                if (hash === 'requests') {
+                    switchSection('requests');
+                } else if (hash === 'settings') {
+                    switchSection('settings');
+                } else {
+                    goBackToDiscover(true);
                 }
             }
         });
@@ -7441,9 +7529,78 @@
             return window.btoa(binary);
         }
 
+        // ============ Mobile PWA Back Button ============
+
+        // Check if running in PWA standalone mode
+        function isPWAMode() {
+            // Check for iOS Safari standalone mode
+            if (window.navigator.standalone === true) {
+                return true;
+            }
+            // Check for PWA display mode (Android Chrome, desktop browsers)
+            if (window.matchMedia('(display-mode: standalone)').matches) {
+                return true;
+            }
+            // Check for fullscreen mode (some PWAs use this)
+            if (window.matchMedia('(display-mode: fullscreen)').matches) {
+                return true;
+            }
+            return false;
+        }
+
+        // Check if on mobile device
+        function isMobileDevice() {
+            return window.innerWidth <= 768 ||
+                   /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        }
+
+        // Initialize PWA back button visibility
+        function initPWABackButton() {
+            const backBtn = document.getElementById('mobile-pwa-back-btn');
+            if (!backBtn) return;
+
+            // Show back button on mobile when in PWA mode
+            const showBackButton = () => {
+                if (isPWAMode() && isMobileDevice()) {
+                    backBtn.style.display = 'flex';
+                } else {
+                    backBtn.style.display = 'none';
+                }
+            };
+
+            // Initial check
+            showBackButton();
+
+            // Re-check on resize (in case of orientation change)
+            window.addEventListener('resize', showBackButton);
+
+            // Listen for display mode changes
+            window.matchMedia('(display-mode: standalone)').addEventListener('change', showBackButton);
+        }
+
+        // Handle back navigation for mobile PWA
+        function handleMobileBackNavigation() {
+            // Check if there's history to go back to
+            if (window.history.length > 1) {
+                // Check if we're on a detail page
+                const detailsPage = document.getElementById('movie-details-page');
+                if (detailsPage && detailsPage.classList.contains('show')) {
+                    // Close the details page and go back
+                    history.back();
+                    return;
+                }
+
+                // Otherwise just use browser history
+                history.back();
+            } else {
+                // No history - go to discover
+                goBackToDiscover(true);
+            }
+        }
+
         // ============ Initialization ============
         document.addEventListener('DOMContentLoaded', async () => {
-            console.log('%c🔵 REQUEST SITE VERSION: 2025-12-29-PUSH LOADED', 'color: cyan; font-size: 16px; font-weight: bold');
+            console.log('%c🔵 REQUEST SITE VERSION: 2025-12-30-PWA-BACK LOADED', 'color: cyan; font-size: 16px; font-weight: bold');
 
             // Check authentication first - redirect to login if not authenticated
             const isAuthenticated = await checkAuth();
@@ -7472,6 +7629,7 @@
             setupSearch();
             checkBackLink();
             setupDragScrolling();
+            initPWABackButton(); // Initialize PWA back button for mobile webapp mode
 
             // Restore view from URL (will handle non-discover views)
             if (!isDiscoverView) {
@@ -8908,6 +9066,167 @@
             return div.innerHTML;
         }
 
+        // ============ Admin Media Management Functions ============
+        let currentMediaBlocked = false;
+
+        function toggleAdminMediaMenu(event) {
+            event.stopPropagation();
+            const dropdown = document.getElementById('admin-media-menu-dropdown');
+            dropdown.classList.toggle('show');
+
+            // Close on click outside
+            const closeHandler = (e) => {
+                if (!e.target.closest('.admin-media-menu')) {
+                    dropdown.classList.remove('show');
+                    document.removeEventListener('click', closeHandler);
+                }
+            };
+            setTimeout(() => document.addEventListener('click', closeHandler), 10);
+        }
+
+        async function checkMediaBlockedStatus(tmdbId, mediaType) {
+            try {
+                const response = await fetch(`/api/v2/request-site/media/${mediaType}/${tmdbId}/blocked`);
+                const data = await response.json();
+                currentMediaBlocked = data.blocked;
+                updateBlockedUI(data.blocked);
+                return data.blocked;
+            } catch (error) {
+                console.error('Failed to check blocked status:', error);
+                return false;
+            }
+        }
+
+        function updateBlockedUI(isBlocked) {
+            const blockBtn = document.getElementById('admin-block-btn');
+            const blockText = document.getElementById('admin-block-text');
+            const blockedBadge = document.getElementById('admin-blocked-badge');
+            const requestBtn = document.getElementById('details-request-btn');
+            const request4kBtn = document.getElementById('details-request-4k-btn');
+
+            // Check if current user is admin
+            const isAdmin = isAdminMode && currentUser && currentUser.role === 'admin';
+
+            if (isBlocked) {
+                // Update menu button text (admin only)
+                if (blockText) blockText.textContent = 'Unblock Requests';
+                if (blockBtn) {
+                    blockBtn.querySelector('i').className = 'fas fa-check-circle';
+                    blockBtn.classList.remove('danger');
+                }
+                // Show blocked badge ONLY for admins - regular users just won't see the request button
+                if (blockedBadge) {
+                    if (isAdmin) {
+                        blockedBadge.style.display = 'block';
+                        blockedBadge.innerHTML = '<span class="blocked-badge"><i class="fas fa-ban"></i> Blocked</span>';
+                    } else {
+                        blockedBadge.style.display = 'none';
+                    }
+                }
+                // Hide request buttons when blocked
+                if (requestBtn) requestBtn.style.display = 'none';
+                if (request4kBtn) request4kBtn.style.display = 'none';
+            } else {
+                // Update menu button text
+                if (blockText) blockText.textContent = 'Block Requests';
+                if (blockBtn) {
+                    blockBtn.querySelector('i').className = 'fas fa-ban';
+                }
+                // Hide blocked badge
+                if (blockedBadge) blockedBadge.style.display = 'none';
+                // Request buttons visibility will be controlled by other logic (availability, permissions)
+            }
+        }
+
+        async function toggleBlockMedia(event) {
+            event.stopPropagation();
+            if (!currentMedia) return;
+
+            const tmdbId = currentMedia.id;
+            const mediaType = currentMedia.mediaType;
+            const title = currentMedia.title || currentMedia.name;
+            const token = localStorage.getItem('sessionToken') || sessionStorage.getItem('sessionToken');
+
+            try {
+                if (currentMediaBlocked) {
+                    // Unblock
+                    const response = await fetch(`/api/v2/request-site/media/${mediaType}/${tmdbId}/block`, {
+                        method: 'DELETE',
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    if (response.ok) {
+                        currentMediaBlocked = false;
+                        updateBlockedUI(false);
+                        alert(`"${title}" has been unblocked. Users can now request this content.`);
+                        // Refresh to update request button visibility
+                        await openMediaModal(tmdbId, mediaType, true);
+                    }
+                } else {
+                    // Block
+                    if (!confirm(`Are you sure you want to block requests for "${title}"?\n\nUsers will not be able to request this content.`)) return;
+
+                    const response = await fetch(`/api/v2/request-site/media/${mediaType}/${tmdbId}/block`, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            title: title,
+                            poster_path: currentMedia.poster_path
+                        })
+                    });
+                    if (response.ok) {
+                        currentMediaBlocked = true;
+                        updateBlockedUI(true);
+                        alert(`"${title}" has been blocked. Users can no longer request this content.`);
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to toggle block status:', error);
+                alert('Failed to update block status');
+            }
+
+            // Close dropdown
+            document.getElementById('admin-media-menu-dropdown').classList.remove('show');
+        }
+
+        async function clearMediaData(event) {
+            event.stopPropagation();
+            if (!currentMedia) return;
+
+            const tmdbId = currentMedia.id;
+            const mediaType = currentMedia.mediaType;
+            const title = currentMedia.title || currentMedia.name;
+            const token = localStorage.getItem('sessionToken') || sessionStorage.getItem('sessionToken');
+
+            if (!confirm(`Are you sure you want to clear ALL data for "${title}"?\n\nThis will delete all request history and make it appear as if this content was never requested. This action cannot be undone.`)) return;
+
+            try {
+                const response = await fetch(`/api/v2/request-site/media/${mediaType}/${tmdbId}/clear-data`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    alert(`Cleared ${data.deletedCount} request(s) for "${title}".`);
+                    // Clear from local availability cache
+                    delete availabilityCache[`${mediaType}-${tmdbId}`];
+                    // Refresh the details page to show updated status
+                    await openMediaModal(tmdbId, mediaType, true);
+                } else {
+                    throw new Error('Failed to clear data');
+                }
+            } catch (error) {
+                console.error('Failed to clear media data:', error);
+                alert('Failed to clear media data');
+            }
+
+            // Close dropdown
+            document.getElementById('admin-media-menu-dropdown').classList.remove('show');
+        }
+
         // ============ Render Functions ============
         function renderMediaSlider(containerId, items) {
             const container = document.getElementById(containerId);
@@ -9069,9 +9388,10 @@
                 history.pushState({ view: 'media', id, type }, '', `#${type}/${id}`);
             }
 
-            // Hide discover and browse sections, show movie details page
+            // Hide discover, browse, and requests sections, show movie details page
             document.getElementById('discover-section').style.display = 'none';
             document.getElementById('browse-section').style.display = 'none';
+            document.getElementById('requests-section').style.display = 'none';
             const detailsPage = document.getElementById('movie-details-page');
             detailsPage.classList.add('show');
             window.scrollTo(0, 0);
@@ -9093,6 +9413,19 @@
             document.getElementById('details-similar').style.display = 'none';
             document.getElementById('details-recommendations').style.display = 'none';
             document.getElementById('details-seasons').style.display = 'none';
+
+            // Reset admin menu and blocked badge
+            document.getElementById('admin-blocked-badge').style.display = 'none';
+            document.getElementById('admin-blocked-badge').innerHTML = '';
+            currentMediaBlocked = false;
+
+            // Show admin menu for admins only
+            const adminMenu = document.getElementById('admin-media-menu');
+            if (isAdminMode && currentUser && currentUser.role === 'admin') {
+                adminMenu.style.display = 'inline-block';
+            } else {
+                adminMenu.style.display = 'none';
+            }
 
             try {
                 const response = await fetch(`/api/v2/request-site/${type}/${id}`);
@@ -9584,6 +9917,9 @@
                     recommendationsEl.style.display = 'none';
                 }
 
+                // Check if media is blocked (for admins and users)
+                await checkMediaBlockedStatus(id, type);
+
                 // Update request button
                 updateDetailsRequestButton();
             } catch (error) {
@@ -9618,6 +9954,12 @@
             const btn4k = document.getElementById('details-request-4k-btn');
             const cacheKey = `${currentMedia.mediaType}-${currentMedia.id}`;
             const cachedStatus = availabilityCache[cacheKey]?.status;
+
+            // If media is blocked, hide all request buttons
+            if (currentMediaBlocked) {
+                container.style.display = 'none';
+                return;
+            }
 
             // Check if user can request 4K based on media type
             const can4k = userPermissions && (
