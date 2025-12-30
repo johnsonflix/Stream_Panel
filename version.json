@@ -1,6 +1,6 @@
 {
-  "version": "1.5.11",
+  "version": "1.5.12",
   "name": "Stream Panel",
   "releaseDate": "2025-12-30",
-  "description": "Mobile PWA improvements - back button, hamburger menu, Plex auth fix"
+  "description": "Hotfix - F-015 admin media management routes missing"
 }

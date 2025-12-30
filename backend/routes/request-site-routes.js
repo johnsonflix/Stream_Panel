@@ -4304,4 +4304,223 @@ router.get('/my-usage', (req, res) => {
     }
 });
 
+// ============ Admin Media Management Routes ============
+
+/**
+ * Ensure blocked_media table exists
+ */
+function ensureBlockedMediaTable() {
+    const db = getDb();
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS blocked_media (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tmdb_id INTEGER NOT NULL,
+            media_type TEXT NOT NULL,
+            title TEXT,
+            poster_path TEXT,
+            blocked_by INTEGER,
+            blocked_reason TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(tmdb_id, media_type)
+        )
+    `);
+}
+
+/**
+ * GET /api/v2/request-site/media/:type/:id/blocked
+ * Check if media is blocked from requests
+ */
+router.get('/media/:type/:id/blocked', (req, res) => {
+    try {
+        ensureBlockedMediaTable();
+        const db = getDb();
+        const { type, id } = req.params;
+
+        const blocked = db.prepare(`
+            SELECT * FROM blocked_media WHERE tmdb_id = ? AND media_type = ?
+        `).get(parseInt(id), type);
+
+        res.json({
+            blocked: !!blocked,
+            blockedAt: blocked?.created_at,
+            reason: blocked?.blocked_reason
+        });
+    } catch (error) {
+        console.error('[Request Site] Failed to check blocked status:', error);
+        res.status(500).json({ error: 'Failed to check blocked status' });
+    }
+});
+
+/**
+ * POST /api/v2/request-site/media/:type/:id/block
+ * Block media from being requested (admin only)
+ */
+router.post('/media/:type/:id/block', async (req, res) => {
+    try {
+        ensureBlockedMediaTable();
+        const db = getDb();
+        const { type, id } = req.params;
+        const { title, poster_path, reason } = req.body;
+        const adminId = req.user?.id;
+
+        await dbQueue.write(() => {
+            db.prepare(`
+                INSERT OR REPLACE INTO blocked_media (tmdb_id, media_type, title, poster_path, blocked_by, blocked_reason, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            `).run(parseInt(id), type, title, poster_path, adminId, reason || null);
+        });
+
+        console.log(`[Request Site] Media blocked: ${title} (TMDB ${id}, ${type})`);
+        res.json({ success: true, message: 'Media blocked successfully' });
+    } catch (error) {
+        console.error('[Request Site] Failed to block media:', error);
+        res.status(500).json({ error: 'Failed to block media' });
+    }
+});
+
+/**
+ * DELETE /api/v2/request-site/media/:type/:id/block
+ * Unblock media (admin only)
+ */
+router.delete('/media/:type/:id/block', async (req, res) => {
+    try {
+        ensureBlockedMediaTable();
+        const db = getDb();
+        const { type, id } = req.params;
+
+        await dbQueue.write(() => {
+            db.prepare(`
+                DELETE FROM blocked_media WHERE tmdb_id = ? AND media_type = ?
+            `).run(parseInt(id), type);
+        });
+
+        console.log(`[Request Site] Media unblocked: TMDB ${id}, ${type}`);
+        res.json({ success: true, message: 'Media unblocked successfully' });
+    } catch (error) {
+        console.error('[Request Site] Failed to unblock media:', error);
+        res.status(500).json({ error: 'Failed to unblock media' });
+    }
+});
+
+/**
+ * DELETE /api/v2/request-site/media/:type/:id/clear-data
+ * Clear all request data for a specific media item (admin only)
+ * Removes all requests, making it appear as if it was never requested
+ */
+router.delete('/media/:type/:id/clear-data', async (req, res) => {
+    try {
+        const db = getDb();
+        const { type, id } = req.params;
+
+        // Delete all requests for this media
+        const result = await dbQueue.write(() => {
+            return db.prepare(`
+                DELETE FROM media_requests WHERE tmdb_id = ? AND media_type = ?
+            `).run(parseInt(id), type);
+        });
+
+        // Also clear from request_site_media cache if exists
+        try {
+            await dbQueue.write(() => {
+                db.prepare(`
+                    DELETE FROM request_site_media WHERE tmdb_id = ? AND media_type = ?
+                `).run(parseInt(id), type);
+            });
+        } catch (e) {
+            // Table might not exist, ignore
+        }
+
+        console.log(`[Request Site] Cleared data for TMDB ${id} (${type}): ${result.changes} requests deleted`);
+        res.json({
+            success: true,
+            message: `Cleared ${result.changes} request(s)`,
+            deletedCount: result.changes
+        });
+    } catch (error) {
+        console.error('[Request Site] Failed to clear media data:', error);
+        res.status(500).json({ error: 'Failed to clear media data' });
+    }
+});
+
+/**
+ * POST /api/v2/request-site/sync-deleted-media
+ * Check for media that was deleted from Radarr/Sonarr and reset their request status
+ * This makes previously "processing" content requestable again
+ */
+router.post('/sync-deleted-media', async (req, res) => {
+    try {
+        const db = getDb();
+        let resetCount = 0;
+
+        // Get all media_requests in 'processing' or 'approved' status
+        const processingRequests = db.prepare(`
+            SELECT id, tmdb_id, media_type, title, status, is_4k
+            FROM media_requests
+            WHERE status IN ('processing', 'approved')
+        `).all();
+
+        for (const request of processingRequests) {
+            let stillExists = false;
+
+            if (request.media_type === 'movie') {
+                // Check if movie is still in Radarr (either regular or 4K servers)
+                const radarrEntry = db.prepare(`
+                    SELECT * FROM radarr_library_cache WHERE tmdb_id = ?
+                `).get(request.tmdb_id);
+                stillExists = !!radarrEntry;
+            } else if (request.media_type === 'tv') {
+                // Check if TV show is still in Sonarr
+                const sonarrEntry = db.prepare(`
+                    SELECT * FROM sonarr_library_cache WHERE tmdb_id = ?
+                `).get(request.tmdb_id);
+                stillExists = !!sonarrEntry;
+            }
+
+            // If not in arr anymore, reset the request status to allow new requests
+            if (!stillExists) {
+                await dbQueue.write(() => {
+                    // Mark the existing request as "removed" so it doesn't block new requests
+                    db.prepare(`
+                        UPDATE media_requests
+                        SET status = 'removed', notes = 'Media was deleted from server'
+                        WHERE id = ?
+                    `).run(request.id);
+                });
+                resetCount++;
+                console.log(`[Deleted Media Sync] Reset status for ${request.title} (TMDB ${request.tmdb_id}) - removed from server`);
+            }
+        }
+
+        res.json({
+            success: true,
+            checked: processingRequests.length,
+            reset: resetCount,
+            message: `Checked ${processingRequests.length} requests, reset ${resetCount} that were deleted from servers`
+        });
+    } catch (error) {
+        console.error('[Deleted Media Sync] Error:', error);
+        res.status(500).json({ error: 'Failed to sync deleted media' });
+    }
+});
+
+/**
+ * GET /api/v2/request-site/blocked-media
+ * Get list of all blocked media (admin only)
+ */
+router.get('/blocked-media', (req, res) => {
+    try {
+        ensureBlockedMediaTable();
+        const db = getDb();
+
+        const blocked = db.prepare(`
+            SELECT * FROM blocked_media ORDER BY created_at DESC
+        `).all();
+
+        res.json({ blocked });
+    } catch (error) {
+        console.error('[Request Site] Failed to get blocked media:', error);
+        res.status(500).json({ error: 'Failed to get blocked media' });
+    }
+});
+
 module.exports = router;
