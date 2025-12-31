@@ -1,6 +1,6 @@
 {
-  "version": "1.5.17",
+  "version": "1.5.18",
   "name": "Stream Panel",
   "releaseDate": "2025-12-30",
-  "description": "Safari mobile Plex auth - use native <a> link instead of JS button (can't be blocked)"
+  "description": "Safari mobile Plex auth - NO JavaScript on mobile, pure HTML link navigation"
 }
