@@ -1,6 +1,6 @@
 {
-  "version": "1.5.18",
+  "version": "1.5.19",
   "name": "Stream Panel",
   "releaseDate": "2025-12-30",
-  "description": "Safari mobile Plex auth - NO JavaScript on mobile, pure HTML link navigation"
+  "description": "Safari mobile Plex auth - fixed MAIN login.html (was only updating portal/login.html)"
 }
