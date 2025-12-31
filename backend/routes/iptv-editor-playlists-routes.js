@@ -681,16 +681,18 @@ router.post('/:id/run-auto-updater', async (req, res) => {
 });
 
 // POST /api/v2/iptv-editor/playlists/:id/refresh-guide-cache - Refresh guide cache for specific playlist
+// Uses worker process to avoid blocking main app during heavy EPG parsing
 router.post('/:id/refresh-guide-cache', async (req, res) => {
     try {
         const { id } = req.params;
+        const playlistId = parseInt(id);
 
-        console.log(`📺 Manual guide cache refresh requested for playlist ${id}`);
+        console.log(`📺 Manual guide cache refresh requested for playlist ${playlistId} (using worker)`);
 
         // Check if playlist exists
         const playlists = await db.query(
             'SELECT id, name, guide_username, guide_password FROM iptv_editor_playlists WHERE id = ?',
-            [id]
+            [playlistId]
         );
 
         if (playlists.length === 0) {
@@ -710,23 +712,25 @@ router.post('/:id/refresh-guide-cache', async (req, res) => {
             });
         }
 
-        const { refreshPlaylistGuide } = require('../jobs/guide-cache-refresh-scheduler');
-        const result = await refreshPlaylistGuide(parseInt(id));
+        const { startGuideCacheWorker } = require('../jobs/guide-cache-refresh-scheduler');
 
-        if (result.success) {
+        // Use worker process to avoid blocking main app
+        const workerResult = await startGuideCacheWorker('refreshPlaylist', { playlistId });
+
+        if (workerResult.success) {
             res.json({
                 success: true,
                 message: `Guide cache refreshed for ${playlist.name}`,
                 playlist_name: playlist.name,
-                categories: result.categories,
-                channels: result.channels,
-                epgPrograms: result.epgPrograms
+                categories: workerResult.result?.categories || 0,
+                channels: workerResult.result?.channels || 0,
+                epgPrograms: workerResult.result?.epgPrograms || 0
             });
         } else {
             res.status(500).json({
                 success: false,
                 message: `Failed to refresh guide cache for ${playlist.name}`,
-                error: result.error
+                error: workerResult.error || 'Unknown error'
             });
         }
 

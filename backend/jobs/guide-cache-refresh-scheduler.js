@@ -36,14 +36,15 @@ const pendingPlaylistRefreshes = new Map();
  * Start guide cache worker in a separate Node.js process
  * This prevents EPG caching from blocking the main app
  *
- * @param {string} command - Command to send: 'fullRefresh', 'refreshAllPanels', 'refreshAllPlaylists'
+ * @param {string} command - Command to send: 'fullRefresh', 'refreshAllPanels', 'refreshAllPlaylists', 'refreshPanel', 'refreshPlaylist'
+ * @param {Object} options - Optional parameters (panelId, playlistId)
  * @returns {Promise} Resolves when worker completes
  */
-function startGuideCacheWorker(command) {
+function startGuideCacheWorker(command, options = {}) {
     return new Promise((resolve) => {
         const workerPath = path.join(__dirname, '..', 'workers', 'guide-cache-worker.js');
 
-        console.log(`[Guide Cache] Forking worker for scheduled: ${command}`);
+        console.log(`[Guide Cache] Forking worker for: ${command}${options.panelId ? ` (panel ${options.panelId})` : ''}${options.playlistId ? ` (playlist ${options.playlistId})` : ''}`);
         const worker = fork(workerPath, [], {
             env: { ...process.env }
         });
@@ -53,7 +54,8 @@ function startGuideCacheWorker(command) {
         worker.on('message', (msg) => {
             switch (msg.type) {
                 case 'ready':
-                    worker.send({ command });
+                    // Send command with any additional options
+                    worker.send({ command, ...options });
                     break;
                 case 'status':
                     console.log(`[Guide Cache Worker] ${msg.message}`);
@@ -69,7 +71,25 @@ function startGuideCacheWorker(command) {
                     console.log(`[Guide Cache Worker] ✅ ${msg.message}`);
                     completed = true;
                     // After worker completes, reload memory cache
-                    reloadAllMemoryCaches().then(() => resolve(msg));
+                    // For single panel/playlist refresh, only reload that specific source
+                    if (options.panelId) {
+                        reloadSourceCache('panel', options.panelId)
+                            .then(() => {
+                                if (clearUserCategoriesCache) clearUserCategoriesCache();
+                                resolve(msg);
+                            })
+                            .catch(() => resolve(msg));
+                    } else if (options.playlistId) {
+                        reloadSourceCache('playlist', options.playlistId)
+                            .then(() => {
+                                if (clearUserCategoriesCache) clearUserCategoriesCache();
+                                resolve(msg);
+                            })
+                            .catch(() => resolve(msg));
+                    } else {
+                        // Full refresh - reload all memory caches
+                        reloadAllMemoryCaches().then(() => resolve(msg));
+                    }
                     break;
                 case 'error':
                     console.error(`[Guide Cache Worker] ❌ ${msg.message}`);
@@ -94,7 +114,15 @@ function startGuideCacheWorker(command) {
 }
 
 /**
+ * Sleep for specified milliseconds
+ */
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
  * Reload all source caches into memory after worker completes
+ * Adds delays between sources to avoid blocking the main event loop
  */
 async function reloadAllMemoryCaches() {
     if (!reloadSourceCache) {
@@ -112,11 +140,17 @@ async function reloadAllMemoryCaches() {
 
         console.log(`[Guide Cache] Reloading ${panels.length} panels and ${playlists.length} playlists into memory...`);
 
+        // Reload panels with delay between each to avoid blocking
         for (const panel of panels) {
             await reloadSourceCache('panel', panel.id);
+            // Small delay between sources to let other requests through
+            await sleep(100);
         }
+
+        // Reload playlists with delay between each
         for (const playlist of playlists) {
             await reloadSourceCache('playlist', playlist.id);
+            await sleep(100);
         }
 
         if (clearUserCategoriesCache) {
@@ -350,6 +384,7 @@ function getCacheStatus() {
 /**
  * Pre-load all cached EPG data into memory at application startup
  * This ensures guide loads instantly on the first request after server restart
+ * Adds delays between sources to avoid blocking the main app during startup
  */
 async function preloadAllGuideCaches() {
     console.log('[Guide Cache] Pre-loading all EPG data into memory at startup...');
@@ -385,6 +420,8 @@ async function preloadAllGuideCaches() {
             try {
                 await reloadSourceCache(source.source_type, source.source_id);
                 loaded++;
+                // Small delay between sources to let other operations through
+                await sleep(100);
             } catch (error) {
                 console.error(`[Guide Cache] Failed to pre-load ${source.source_type}:${source.source_id}:`, error.message);
                 failed++;
@@ -408,5 +445,7 @@ module.exports = {
     refreshAllPlaylistsGuide,
     schedulePlaylistGuideRefresh,
     getCacheStatus,
-    preloadAllGuideCaches
+    preloadAllGuideCaches,
+    // Worker-based refresh (non-blocking)
+    startGuideCacheWorker
 };

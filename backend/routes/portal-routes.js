@@ -8,11 +8,66 @@
 const express = require('express');
 const { spawn } = require('child_process');
 const path = require('path');
+const { Worker } = require('worker_threads');
 const db = require('../database-config');
 const { query } = db;
 const IPTVServiceManager = require('../services/iptv/IPTVServiceManager');
 const IPTVEditorService = require('../services/iptv-editor-service');
 const { parseXMLTVEPG, organizeForGuideGrid } = require('../utils/xmltv-parser');
+
+/**
+ * Yield to event loop - prevents blocking during large operations
+ */
+function yieldToEventLoop() {
+    return new Promise(resolve => setImmediate(resolve));
+}
+
+/**
+ * Parse JSON in a Worker Thread to avoid blocking main event loop
+ * Falls back to synchronous parse for small payloads
+ * @param {string} jsonString - JSON string to parse
+ * @param {number} threshold - Size threshold in bytes for using worker (default 1MB)
+ * @returns {Promise<any>} Parsed JSON object
+ */
+async function parseJsonAsync(jsonString, threshold = 1024 * 1024) {
+    // For small payloads, sync parse is fine
+    if (!jsonString || jsonString.length < threshold) {
+        return JSON.parse(jsonString);
+    }
+
+    // For large payloads, use a worker thread
+    return new Promise((resolve, reject) => {
+        const workerCode = `
+            const { parentPort, workerData } = require('worker_threads');
+            try {
+                const parsed = JSON.parse(workerData);
+                parentPort.postMessage({ success: true, data: parsed });
+            } catch (error) {
+                parentPort.postMessage({ success: false, error: error.message });
+            }
+        `;
+
+        const worker = new Worker(workerCode, {
+            eval: true,
+            workerData: jsonString
+        });
+
+        worker.on('message', (msg) => {
+            if (msg.success) {
+                resolve(msg.data);
+            } else {
+                reject(new Error(msg.error));
+            }
+        });
+
+        worker.on('error', reject);
+        worker.on('exit', (code) => {
+            if (code !== 0) {
+                reject(new Error(`Worker stopped with exit code ${code}`));
+            }
+        });
+    });
+}
 
 // In-memory cache for parsed EPG data to avoid re-parsing large JSON on each request
 const epgCache = {
@@ -3154,12 +3209,16 @@ router.get('/iptv/guide-channels', async (req, res) => {
 /**
  * Reload source cache into memory after a database refresh
  * This pre-loads EPG and channel data so requests are instant
+ * Uses Worker Threads for large JSON parsing to avoid blocking main event loop
  * @param {string} sourceType - 'panel' or 'playlist'
  * @param {number} sourceId - Panel or playlist ID
  */
 async function reloadSourceCache(sourceType, sourceId) {
     try {
         console.log(`[Portal Cache] Pre-loading data for ${sourceType}:${sourceId} into memory`);
+
+        // Yield before DB query
+        await yieldToEventLoop();
 
         const cache = await query(`
             SELECT categories_json, channels_json, epg_json, last_updated, epg_last_updated
@@ -3171,9 +3230,12 @@ async function reloadSourceCache(sourceType, sourceId) {
             const row = cache[0];
 
             // Pre-load channel/category data WITH metadata (so no DB query needed later)
+            // Uses async parsing for large payloads
             if (row.categories_json && row.channels_json) {
-                const categories = JSON.parse(row.categories_json);
-                const channels = JSON.parse(row.channels_json);
+                await yieldToEventLoop();
+                const categories = await parseJsonAsync(row.categories_json);
+                await yieldToEventLoop();
+                const channels = await parseJsonAsync(row.channels_json);
                 const metadata = {
                     last_updated: row.last_updated,
                     epg_last_updated: row.epg_last_updated,
@@ -3183,15 +3245,20 @@ async function reloadSourceCache(sourceType, sourceId) {
                 console.log(`[Portal Cache] ✅ Loaded ${categories.length} categories, ${channels.length} channels for ${sourceType}:${sourceId}`);
             }
 
-            // Pre-load EPG data
+            // Pre-load EPG data - uses Worker Thread for large EPG JSON
             if (row.epg_json) {
-                const parsedEpg = JSON.parse(row.epg_json);
+                await yieldToEventLoop();
+                const parsedEpg = await parseJsonAsync(row.epg_json);
                 epgCache.set(sourceType, sourceId, parsedEpg);
-                console.log(`[Portal Cache] ✅ Loaded EPG for ${sourceType}:${sourceId} (${Object.keys(parsedEpg.programsByChannel || {}).length} EPG channels)`);
+                const epgChannelCount = Object.keys(parsedEpg.programsByChannel || parsedEpg.channels || {}).length;
+                console.log(`[Portal Cache] ✅ Loaded EPG for ${sourceType}:${sourceId} (${epgChannelCount} EPG channels)`);
             }
         } else {
             console.log(`[Portal Cache] No data to cache for ${sourceType}:${sourceId}`);
         }
+
+        // Yield after completing this source
+        await yieldToEventLoop();
     } catch (error) {
         console.error(`[Portal Cache] Failed to reload cache for ${sourceType}:${sourceId}:`, error.message);
     }

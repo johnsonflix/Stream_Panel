@@ -1,6 +1,6 @@
 {
-  "version": "1.5.22",
+  "version": "1.5.23",
   "name": "Stream Panel",
   "releaseDate": "2025-12-31",
-  "description": "Fix Plex email reverting after Check for Access"
+  "description": "EPG caching performance fix - move all EPG operations to worker process"
 }

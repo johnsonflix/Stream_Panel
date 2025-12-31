@@ -1482,23 +1482,34 @@ router.put('/:id/playlist-link', async (req, res) => {
 // ============================================================================
 
 // POST /api/v2/iptv-panels/refresh-guide-cache - Refresh guide cache for all panels
+// Uses worker process to avoid blocking main app during heavy EPG parsing
 router.post('/refresh-guide-cache', async (req, res) => {
     try {
-        console.log(`📺 Manual guide cache refresh requested for all panels`);
+        console.log(`📺 Manual guide cache refresh requested for all panels (using worker)`);
 
-        const { refreshAllPanelsGuide } = require('../jobs/guide-cache-refresh-scheduler');
-        const results = await refreshAllPanelsGuide();
+        const { startGuideCacheWorker } = require('../jobs/guide-cache-refresh-scheduler');
 
-        res.json({
-            success: true,
-            message: 'Guide cache refresh completed',
-            results: {
-                total: results.total,
-                successful: results.success,
-                failed: results.failed,
-                skipped: results.skipped || 0
-            }
-        });
+        // Use worker process to avoid blocking main app
+        const workerResult = await startGuideCacheWorker('refreshAllPanels');
+
+        if (workerResult.success) {
+            res.json({
+                success: true,
+                message: 'Guide cache refresh completed',
+                results: workerResult.results || {
+                    total: workerResult.results?.total || 0,
+                    successful: workerResult.results?.success || 0,
+                    failed: workerResult.results?.failed || 0,
+                    skipped: workerResult.results?.skipped || 0
+                }
+            });
+        } else {
+            res.status(500).json({
+                success: false,
+                message: 'Guide cache refresh failed',
+                error: workerResult.error || 'Unknown error'
+            });
+        }
 
     } catch (error) {
         console.error('Error refreshing guide cache:', error);
@@ -1511,14 +1522,16 @@ router.post('/refresh-guide-cache', async (req, res) => {
 });
 
 // POST /api/v2/iptv-panels/:id/refresh-guide-cache - Refresh guide cache for specific panel
+// Uses worker process to avoid blocking main app during heavy EPG parsing
 router.post('/:id/refresh-guide-cache', async (req, res) => {
     try {
         const { id } = req.params;
+        const panelId = parseInt(id);
 
-        console.log(`📺 Manual guide cache refresh requested for panel ${id}`);
+        console.log(`📺 Manual guide cache refresh requested for panel ${panelId} (using worker)`);
 
         // Check if panel exists
-        const panels = await db.query('SELECT id, name FROM iptv_panels WHERE id = ?', [id]);
+        const panels = await db.query('SELECT id, name FROM iptv_panels WHERE id = ?', [panelId]);
         if (panels.length === 0) {
             return res.status(404).json({
                 success: false,
@@ -1526,23 +1539,25 @@ router.post('/:id/refresh-guide-cache', async (req, res) => {
             });
         }
 
-        const { refreshPanelGuide } = require('../jobs/guide-cache-refresh-scheduler');
-        const result = await refreshPanelGuide(parseInt(id));
+        const { startGuideCacheWorker } = require('../jobs/guide-cache-refresh-scheduler');
 
-        if (result.success) {
+        // Use worker process to avoid blocking main app
+        const workerResult = await startGuideCacheWorker('refreshPanel', { panelId });
+
+        if (workerResult.success) {
             res.json({
                 success: true,
                 message: `Guide cache refreshed for ${panels[0].name}`,
                 panel_name: panels[0].name,
-                categories: result.categories,
-                channels: result.channels,
-                epgPrograms: result.epgPrograms
+                categories: workerResult.result?.categories || 0,
+                channels: workerResult.result?.channels || 0,
+                epgPrograms: workerResult.result?.epgPrograms || 0
             });
         } else {
             res.status(500).json({
                 success: false,
                 message: `Failed to refresh guide cache for ${panels[0].name}`,
-                error: result.error
+                error: workerResult.error || 'Unknown error'
             });
         }
 
