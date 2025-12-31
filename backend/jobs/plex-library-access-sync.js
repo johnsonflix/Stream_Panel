@@ -106,27 +106,44 @@ async function syncServerLibraryAccess(server) {
 
                 for (const user of result.users || []) {
                     try {
-                        // Update user_plex_shares with current library access
-                        // Use LOWER() for case-insensitive email matching
+                        // First find the user in our users table by plex_email (case-insensitive)
+                        const matchingUsers = await query(`
+                            SELECT id, plex_email
+                            FROM users
+                            WHERE LOWER(plex_email) = ?
+                        `, [user.email?.toLowerCase()]);
+
+                        if (matchingUsers.length === 0) {
+                            // User not in our system, skip
+                            continue;
+                        }
+
+                        const userId = matchingUsers[0].id;
+                        const libraryIds = (user.library_ids || []).map(id => String(id));
+
+                        // Check if user_plex_shares record exists for this server
                         const existingShares = await query(`
-                            SELECT ups.id, u.id as user_id, u.plex_email
-                            FROM user_plex_shares ups
-                            JOIN users u ON ups.user_id = u.id
-                            WHERE ups.plex_server_id = ?
-                            AND LOWER(u.plex_email) = ?
-                        `, [serverConfig.id, user.email?.toLowerCase()]);
+                            SELECT id
+                            FROM user_plex_shares
+                            WHERE user_id = ? AND plex_server_id = ?
+                        `, [userId, serverConfig.id]);
 
                         if (existingShares.length > 0) {
                             // Update existing share with library IDs
-                            const libraryIds = (user.library_ids || []).map(id => String(id));
                             await query(`
                                 UPDATE user_plex_shares
                                 SET library_ids = ?,
                                     updated_at = datetime('now')
                                 WHERE id = ?
                             `, [JSON.stringify(libraryIds), existingShares[0].id]);
-                            usersUpdated++;
+                        } else {
+                            // Insert new share record for this user/server
+                            await query(`
+                                INSERT INTO user_plex_shares (user_id, plex_server_id, library_ids, created_at, updated_at)
+                                VALUES (?, ?, ?, datetime('now'), datetime('now'))
+                            `, [userId, serverConfig.id, JSON.stringify(libraryIds)]);
                         }
+                        usersUpdated++;
 
                         usersWithAccess.push({
                             email: user.email,

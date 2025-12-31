@@ -1,6 +1,6 @@
 {
-  "version": "1.5.24",
+  "version": "1.5.25",
   "name": "Stream Panel",
   "releaseDate": "2025-12-31",
-  "description": "Fix Plex sync - library access now updates properly via Sync Now button and scheduled syncs"
+  "description": "Hotfix: Library access sync now creates missing user_plex_shares records (not just updates)"
 }
