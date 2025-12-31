@@ -409,10 +409,11 @@
                         <i class="fab fa-plex"></i>
                     </div>
                     <p>Click below to sign in with your Plex account. We'll verify your access to our Plex servers.</p>
-                    <button id="plex-login-btn" class="login-button plex-button">
+                    <!-- Use <a> tag for mobile - Safari can't block native link navigation -->
+                    <a id="plex-login-link" class="login-button plex-button" href="/api/v2/portal/auth/plex/redirect" style="text-decoration: none;">
                         <i class="fab fa-plex"></i>
                         Sign in with Plex
-                    </button>
+                    </a>
                 </div>
             </div>
 
@@ -541,26 +542,30 @@
             return isStandaloneMode() || isMobileDevice();
         }
 
-        // Plex Login Button Handler - supports both popup and server redirect flow
-        document.getElementById('plex-login-btn').addEventListener('click', async (e) => {
-            const plexBtn = document.getElementById('plex-login-btn');
+        // Plex Login Link Handler - supports both popup (desktop) and direct link navigation (mobile)
+        // Using <a> tag ensures Safari can't block the navigation on mobile
+        document.getElementById('plex-login-link').addEventListener('click', async (e) => {
+            const plexLink = document.getElementById('plex-login-link');
 
-            console.log('[Plex Auth] Button clicked. isMobile:', isMobileDevice(), 'isStandalone:', isStandaloneMode());
+            console.log('[Plex Auth] Link clicked. isMobile:', isMobileDevice(), 'isStandalone:', isStandaloneMode());
 
-            // Mobile/PWA: Use server-side redirect (no async JS before navigation)
-            // This MUST happen synchronously on user click to not be blocked by Safari
+            // Mobile/PWA: Let the link navigate naturally - Safari can't block native link clicks!
+            // Do NOT call e.preventDefault() - just let the <a> tag do its thing
             if (shouldUseServerRedirect()) {
-                console.log('[Plex Auth] Using server redirect flow');
-                plexBtn.disabled = true;
-                plexBtn.innerHTML = '<span class="spinner"></span> Redirecting to Plex...';
-                // Direct navigation - no async before this!
-                window.location.href = `${API_BASE}/portal/auth/plex/redirect`;
-                return;
+                console.log('[Plex Auth] Mobile detected - allowing native link navigation');
+                // Show visual feedback but don't prevent navigation
+                plexLink.style.pointerEvents = 'none';
+                plexLink.innerHTML = '<span class="spinner"></span> Redirecting to Plex...';
+                // Link will navigate to href="/api/v2/portal/auth/plex/redirect" naturally
+                return; // Don't prevent default!
             }
 
-            // Desktop: Use popup flow with async init
-            plexBtn.disabled = true;
-            plexBtn.innerHTML = '<span class="spinner"></span> Connecting to Plex...';
+            // Desktop: Prevent default link behavior and use popup flow
+            e.preventDefault();
+            console.log('[Plex Auth] Desktop detected - using popup flow');
+
+            plexLink.style.pointerEvents = 'none';
+            plexLink.innerHTML = '<span class="spinner"></span> Connecting to Plex...';
 
             try {
                 const initResponse = await fetch(`${API_BASE}/portal/auth/plex/init`, { method: 'POST' });
@@ -571,7 +576,6 @@
                 }
 
                 const pinId = initData.pinId;
-                console.log('[Plex Auth] Using popup flow');
 
                 // Desktop/Browser mode: use popup flow
                 const authWindow = window.open(
@@ -588,7 +592,7 @@
                     return;
                 }
 
-                plexBtn.innerHTML = '<span class="spinner"></span> Waiting for Plex authorization...';
+                plexLink.innerHTML = '<span class="spinner"></span> Waiting for Plex authorization...';
 
                 // Poll for authentication
                 let attempts = 0;
@@ -599,8 +603,8 @@
                     attempts++;
 
                     if (authWindow && authWindow.closed) {
-                        plexBtn.disabled = false;
-                        plexBtn.innerHTML = '<i class="fab fa-plex"></i> Sign in with Plex';
+                        plexLink.style.pointerEvents = 'auto';
+                        plexLink.innerHTML = '<i class="fab fa-plex"></i> Sign in with Plex';
                         showAlert('error', 'Plex authorization was cancelled');
                         return;
                     }
@@ -627,8 +631,8 @@
                             throw new Error('Plex authorization timed out. Please try again.');
                         }
                     } catch (pollError) {
-                        plexBtn.disabled = false;
-                        plexBtn.innerHTML = '<i class="fab fa-plex"></i> Sign in with Plex';
+                        plexLink.style.pointerEvents = 'auto';
+                        plexLink.innerHTML = '<i class="fab fa-plex"></i> Sign in with Plex';
                         showAlert('error', pollError.message || 'Failed to check Plex authorization');
                     }
                 };
@@ -637,8 +641,8 @@
 
             } catch (error) {
                 console.error('Plex login error:', error);
-                plexBtn.disabled = false;
-                plexBtn.innerHTML = '<i class="fab fa-plex"></i> Sign in with Plex';
+                plexLink.style.pointerEvents = 'auto';
+                plexLink.innerHTML = '<i class="fab fa-plex"></i> Sign in with Plex';
                 showAlert('error', error.message || 'Failed to connect to Plex');
             }
         });
@@ -670,7 +674,7 @@
                 window.history.replaceState({}, '', cleanUrl.toString());
             }
 
-            const plexBtn = document.getElementById('plex-login-btn');
+            const plexLink = document.getElementById('plex-login-link');
 
             // Switch to Plex tab
             document.querySelectorAll('.login-tab').forEach(t => t.classList.remove('active'));
@@ -678,8 +682,8 @@
             document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
             document.getElementById('plex-panel').classList.add('active');
 
-            plexBtn.disabled = true;
-            plexBtn.innerHTML = '<span class="spinner"></span> Checking Plex authorization...';
+            plexLink.style.pointerEvents = 'none';
+            plexLink.innerHTML = '<span class="spinner"></span> Checking Plex authorization...';
 
             // Poll for the pending PIN
             let attempts = 0;
@@ -706,8 +710,8 @@
                         deleteCookie('plex_pending_pin');
                         sessionStorage.removeItem('plex_pending_pin');
                         sessionStorage.removeItem('plex_redirect_url');
-                        plexBtn.disabled = false;
-                        plexBtn.innerHTML = '<i class="fab fa-plex"></i> Sign in with Plex';
+                        plexLink.style.pointerEvents = 'auto';
+                        plexLink.innerHTML = '<i class="fab fa-plex"></i> Sign in with Plex';
                         showAlert('error', 'Plex authorization expired. Please try again.');
                         return;
                     }
@@ -718,16 +722,16 @@
                         deleteCookie('plex_pending_pin');
                         sessionStorage.removeItem('plex_pending_pin');
                         sessionStorage.removeItem('plex_redirect_url');
-                        plexBtn.disabled = false;
-                        plexBtn.innerHTML = '<i class="fab fa-plex"></i> Sign in with Plex';
+                        plexLink.style.pointerEvents = 'auto';
+                        plexLink.innerHTML = '<i class="fab fa-plex"></i> Sign in with Plex';
                         showAlert('error', 'Plex authorization timed out. Please try again.');
                     }
                 } catch (error) {
                     deleteCookie('plex_pending_pin');
                     sessionStorage.removeItem('plex_pending_pin');
                     sessionStorage.removeItem('plex_redirect_url');
-                    plexBtn.disabled = false;
-                    plexBtn.innerHTML = '<i class="fab fa-plex"></i> Sign in with Plex';
+                    plexLink.style.pointerEvents = 'auto';
+                    plexLink.innerHTML = '<i class="fab fa-plex"></i> Sign in with Plex';
                     showAlert('error', 'Failed to verify Plex authorization');
                 }
             };
@@ -737,8 +741,8 @@
 
         // Complete Plex login after popup or redirect authorization
         async function completePlexLogin(pinId, customRedirect = null) {
-            const plexBtn = document.getElementById('plex-login-btn');
-            plexBtn.innerHTML = '<span class="spinner"></span> Completing login...';
+            const plexLink = document.getElementById('plex-login-link');
+            plexLink.innerHTML = '<span class="spinner"></span> Completing login...';
 
             try {
                 const response = await fetch(`${API_BASE}/portal/auth/plex/complete`, {
@@ -762,8 +766,8 @@
                 }
             } catch (error) {
                 console.error('Complete Plex login error:', error);
-                plexBtn.disabled = false;
-                plexBtn.innerHTML = '<i class="fab fa-plex"></i> Sign in with Plex';
+                plexLink.style.pointerEvents = 'auto';
+                plexLink.innerHTML = '<i class="fab fa-plex"></i> Sign in with Plex';
                 showAlert('error', error.message || 'Failed to complete Plex login');
             }
         }

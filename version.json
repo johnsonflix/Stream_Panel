@@ -1,6 +1,6 @@
 {
-  "version": "1.5.16",
+  "version": "1.5.17",
   "name": "Stream Panel",
   "releaseDate": "2025-12-30",
-  "description": "Mobile Plex auth - forwardUrl redirect back with pinId (Safari cookie-free)"
+  "description": "Safari mobile Plex auth - use native <a> link instead of JS button (can't be blocked)"
 }
