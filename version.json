@@ -1,6 +1,6 @@
 {
-  "version": "1.5.21",
+  "version": "1.5.22",
   "name": "Stream Panel",
   "releaseDate": "2025-12-31",
-  "description": "Plex library sync button, Check Plex Access fix, login security enhancements, UI improvements"
+  "description": "Fix Plex email reverting after Check for Access"
 }

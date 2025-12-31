@@ -2096,6 +2096,9 @@ const CreateUserWizard = {
             const response = await API.checkPlexAccess({ email });
             this.cache.plexAccessResults = response;
 
+            // Save the typed email to formData so it persists after re-render
+            this.formData.plex.email = email;
+
             // IMPORTANT: Clear all existing server selections first
             // This ensures servers without access don't keep old/stale selections
             this.formData.plex.servers = [];
