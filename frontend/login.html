@@ -558,11 +558,11 @@
                     <span>or</span>
                 </div>
 
-                <!-- Admin Plex SSO Button -->
-                <button type="button" id="admin-plex-sso-btn" class="login-button plex-button">
+                <!-- Admin Plex SSO Link - use <a> tag so Safari mobile can navigate without JS blocking -->
+                <a id="admin-plex-sso-btn" class="login-button plex-button" href="/api/v2/auth/plex/redirect" style="text-decoration: none;">
                     <i class="fab fa-plex"></i>
                     Sign in with Plex
-                </button>
+                </a>
             </div>
 
             <div class="login-footer" id="login-footer">
@@ -1116,84 +1116,166 @@
         });
 
         // =====================================================
-        // ADMIN PLEX SSO
+        // ADMIN PLEX SSO - Mobile uses native link, Desktop uses popup
         // =====================================================
-        document.getElementById('admin-plex-sso-btn').addEventListener('click', async () => {
-            const plexButton = document.getElementById('admin-plex-sso-btn');
 
-            plexButton.disabled = true;
-            plexButton.innerHTML = '<span class="spinner"></span> Connecting to Plex...';
+        // Only attach JavaScript handler on desktop - let mobile use native <a> link navigation
+        if (!shouldUseServerRedirect()) {
+            console.log('[Admin Plex Auth] Desktop detected - attaching popup handler');
 
-            try {
-                const initResponse = await fetch(`${API_BASE}/auth/plex/init`, { method: 'POST' });
-                const initData = await initResponse.json();
+            document.getElementById('admin-plex-sso-btn').addEventListener('click', async (e) => {
+                e.preventDefault(); // Only prevent default on desktop
 
-                if (!initData.success) {
-                    throw new Error(initData.message || 'Failed to initialize Plex login');
-                }
+                const plexButton = document.getElementById('admin-plex-sso-btn');
 
-                // Open Plex auth popup
-                const authWindow = window.open(
-                    initData.authUrl,
-                    'PlexAuth',
-                    'width=600,height=700,menubar=no,toolbar=no,location=no,status=no'
-                );
+                plexButton.style.pointerEvents = 'none';
+                plexButton.innerHTML = '<span class="spinner"></span> Connecting to Plex...';
 
-                plexButton.innerHTML = '<span class="spinner"></span> Waiting for Plex authorization...';
+                try {
+                    const initResponse = await fetch(`${API_BASE}/auth/plex/init`, { method: 'POST' });
+                    const initData = await initResponse.json();
 
-                // Poll for authentication
-                const pinId = initData.pinId;
-                let attempts = 0;
-                const maxAttempts = 90;
-                const pollInterval = 2000;
+                    if (!initData.success) {
+                        throw new Error(initData.message || 'Failed to initialize Plex login');
+                    }
 
-                const pollForAuth = async () => {
-                    attempts++;
+                    // Open Plex auth popup
+                    const authWindow = window.open(
+                        initData.authUrl,
+                        'PlexAuth',
+                        'width=600,height=700,menubar=no,toolbar=no,location=no,status=no'
+                    );
 
-                    if (authWindow && authWindow.closed) {
-                        plexButton.disabled = false;
-                        plexButton.innerHTML = '<i class="fab fa-plex"></i> Sign in with Plex';
-                        showAlert('error', 'Plex authorization was cancelled');
+                    // If popup was blocked, fall back to redirect
+                    if (!authWindow || authWindow.closed || typeof authWindow.closed === 'undefined') {
+                        sessionStorage.setItem('admin_plex_pending_pin', initData.pinId);
+                        window.location.href = initData.authUrl;
                         return;
                     }
 
-                    try {
-                        const statusResponse = await fetch(`${API_BASE}/auth/plex/status/${pinId}`);
-                        const statusData = await statusResponse.json();
+                    plexButton.innerHTML = '<span class="spinner"></span> Waiting for Plex authorization...';
 
-                        if (statusData.authenticated) {
-                            if (authWindow && !authWindow.closed) authWindow.close();
-                            await completeAdminPlexLogin(pinId);
+                    // Poll for authentication
+                    const pinId = initData.pinId;
+                    let attempts = 0;
+                    const maxAttempts = 90;
+                    const pollInterval = 2000;
+
+                    const pollForAuth = async () => {
+                        attempts++;
+
+                        if (authWindow && authWindow.closed) {
+                            plexButton.style.pointerEvents = 'auto';
+                            plexButton.innerHTML = '<i class="fab fa-plex"></i> Sign in with Plex';
+                            showAlert('error', 'Plex authorization was cancelled');
                             return;
                         }
 
-                        if (statusData.expired) {
-                            if (authWindow && !authWindow.closed) authWindow.close();
-                            throw new Error('Plex authorization expired. Please try again.');
+                        try {
+                            const statusResponse = await fetch(`${API_BASE}/auth/plex/status/${pinId}`);
+                            const statusData = await statusResponse.json();
+
+                            if (statusData.authenticated) {
+                                if (authWindow && !authWindow.closed) authWindow.close();
+                                await completeAdminPlexLogin(pinId);
+                                return;
+                            }
+
+                            if (statusData.expired) {
+                                if (authWindow && !authWindow.closed) authWindow.close();
+                                throw new Error('Plex authorization expired. Please try again.');
+                            }
+
+                            if (attempts < maxAttempts) {
+                                setTimeout(pollForAuth, pollInterval);
+                            } else {
+                                if (authWindow && !authWindow.closed) authWindow.close();
+                                throw new Error('Plex authorization timed out. Please try again.');
+                            }
+                        } catch (pollError) {
+                            plexButton.style.pointerEvents = 'auto';
+                            plexButton.innerHTML = '<i class="fab fa-plex"></i> Sign in with Plex';
+                            showAlert('error', pollError.message || 'Failed to check Plex authorization');
                         }
+                    };
 
-                        if (attempts < maxAttempts) {
-                            setTimeout(pollForAuth, pollInterval);
-                        } else {
-                            if (authWindow && !authWindow.closed) authWindow.close();
-                            throw new Error('Plex authorization timed out. Please try again.');
-                        }
-                    } catch (pollError) {
-                        plexButton.disabled = false;
-                        plexButton.innerHTML = '<i class="fab fa-plex"></i> Sign in with Plex';
-                        showAlert('error', pollError.message || 'Failed to check Plex authorization');
-                    }
-                };
+                    setTimeout(pollForAuth, pollInterval);
 
-                setTimeout(pollForAuth, pollInterval);
+                } catch (error) {
+                    console.error('Admin Plex SSO error:', error);
+                    plexButton.style.pointerEvents = 'auto';
+                    plexButton.innerHTML = '<i class="fab fa-plex"></i> Sign in with Plex';
+                    showAlert('error', error.message || 'Failed to connect to Plex');
+                }
+            });
+        } else {
+            // Mobile: NO JavaScript handler - let native <a> link work
+            console.log('[Admin Plex Auth] Mobile detected - link will navigate natively (no JS handler)');
+        }
 
-            } catch (error) {
-                console.error('Admin Plex SSO error:', error);
-                plexButton.disabled = false;
-                plexButton.innerHTML = '<i class="fab fa-plex"></i> Sign in with Plex';
-                showAlert('error', error.message || 'Failed to connect to Plex');
+        // Check for pending admin Plex auth on page load (redirect flow returns with admin_plex_pin in URL)
+        (async function checkPendingAdminPlexAuth() {
+            const adminPlexPinFromUrl = urlParams.get('admin_plex_pin');
+            const pendingPin = adminPlexPinFromUrl || sessionStorage.getItem('admin_plex_pending_pin');
+            if (!pendingPin) return;
+
+            // Clean up URL if pin came from URL
+            if (adminPlexPinFromUrl) {
+                const cleanUrl = new URL(window.location.href);
+                cleanUrl.searchParams.delete('admin_plex_pin');
+                window.history.replaceState({}, '', cleanUrl.toString());
             }
-        });
+
+            // Switch to admin tab since this is admin Plex SSO
+            document.getElementById('admin-toggle').click();
+
+            const plexButton = document.getElementById('admin-plex-sso-btn');
+            plexButton.style.pointerEvents = 'none';
+            plexButton.innerHTML = '<span class="spinner"></span> Checking Plex authorization...';
+
+            // Poll for the pending PIN
+            let attempts = 0;
+            const maxAttempts = 30;
+            const pollInterval = 2000;
+
+            const pollPending = async () => {
+                attempts++;
+                try {
+                    const statusResponse = await fetch(`${API_BASE}/auth/plex/status/${pendingPin}`);
+                    const statusData = await statusResponse.json();
+
+                    if (statusData.authenticated) {
+                        sessionStorage.removeItem('admin_plex_pending_pin');
+                        await completeAdminPlexLogin(pendingPin);
+                        return;
+                    }
+
+                    if (statusData.expired) {
+                        sessionStorage.removeItem('admin_plex_pending_pin');
+                        plexButton.style.pointerEvents = 'auto';
+                        plexButton.innerHTML = '<i class="fab fa-plex"></i> Sign in with Plex';
+                        showAlert('error', 'Plex authorization expired. Please try again.');
+                        return;
+                    }
+
+                    if (attempts < maxAttempts) {
+                        setTimeout(pollPending, pollInterval);
+                    } else {
+                        sessionStorage.removeItem('admin_plex_pending_pin');
+                        plexButton.style.pointerEvents = 'auto';
+                        plexButton.innerHTML = '<i class="fab fa-plex"></i> Sign in with Plex';
+                        showAlert('error', 'Plex authorization timed out. Please try again.');
+                    }
+                } catch (error) {
+                    sessionStorage.removeItem('admin_plex_pending_pin');
+                    plexButton.style.pointerEvents = 'auto';
+                    plexButton.innerHTML = '<i class="fab fa-plex"></i> Sign in with Plex';
+                    showAlert('error', 'Failed to verify Plex authorization');
+                }
+            };
+
+            pollPending();
+        })();
 
         async function completeAdminPlexLogin(pinId) {
             const plexButton = document.getElementById('admin-plex-sso-btn');

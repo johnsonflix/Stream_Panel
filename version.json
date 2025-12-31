@@ -1,6 +1,6 @@
 {
-  "version": "1.5.19",
+  "version": "1.5.20",
   "name": "Stream Panel",
   "releaseDate": "2025-12-30",
-  "description": "Safari mobile Plex auth - fixed MAIN login.html (was only updating portal/login.html)"
+  "description": "Safari mobile Plex auth - fixed admin Plex SSO button on login.html"
 }
