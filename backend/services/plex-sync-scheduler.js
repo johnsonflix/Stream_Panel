@@ -497,12 +497,13 @@ async function syncServerLibraryAccess(server) {
                 for (const user of result.users || []) {
                     try {
                         // Update user_plex_shares with current library access
+                        // Use LOWER() for case-insensitive email matching
                         const existingShares = await query(`
                             SELECT ups.id, u.id as user_id
                             FROM user_plex_shares ups
                             JOIN users u ON ups.user_id = u.id
                             WHERE ups.plex_server_id = ?
-                            AND u.plex_email = ?
+                            AND LOWER(u.plex_email) = ?
                         `, [server.id, user.email?.toLowerCase()]);
 
                         if (existingShares.length > 0) {

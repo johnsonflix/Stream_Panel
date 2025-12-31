@@ -231,8 +231,8 @@ router.get('/:id', async (req, res) => {
             user.plex_shares = plexShares;
 
             // Get plex activity data (days_since_last_activity, is_pending_invite) from plex_user_activity
-            // Use plex_email or email to match
-            const plexEmailToCheck = user.plex_email || user.email;
+            // Use plex_email or email to match (lowercase for case-insensitive matching)
+            const plexEmailToCheck = (user.plex_email || user.email || '').toLowerCase();
             if (plexEmailToCheck) {
                 const activityData = await db.query(`
                     SELECT
@@ -242,7 +242,7 @@ router.get('/:id', async (req, res) => {
                         pua.is_pending_invite,
                         pua.is_active_friend
                     FROM plex_user_activity pua
-                    WHERE pua.plex_user_email = ?
+                    WHERE LOWER(pua.plex_user_email) = ?
                     ORDER BY pua.last_seen_at DESC
                 `, [plexEmailToCheck]);
 

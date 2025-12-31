@@ -1,6 +1,6 @@
 {
-  "version": "1.5.23",
+  "version": "1.5.24",
   "name": "Stream Panel",
   "releaseDate": "2025-12-31",
-  "description": "EPG caching performance fix - move all EPG operations to worker process"
+  "description": "Fix Plex sync - library access now updates properly via Sync Now button and scheduled syncs"
 }

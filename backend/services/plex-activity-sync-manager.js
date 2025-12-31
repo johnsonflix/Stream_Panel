@@ -7,6 +7,7 @@
 
 const { query } = require('../database-config');
 const PlexServiceManager = require('./plex/PlexServiceManager');
+const { syncAllServersLibraryAccess } = require('../jobs/plex-library-access-sync');
 
 class PlexActivitySyncManager {
     constructor() {
@@ -135,14 +136,31 @@ class PlexActivitySyncManager {
                 }
             }
 
+            console.log(`✅ Plex activity sync completed. Processed ${this.syncStatus.usersProcessed} users across ${this.syncStatus.serversCompleted} servers`);
+
+            // Now run library access sync to update which libraries each user has access to
+            console.log('🔄 Starting library access sync...');
+            this.syncStatus.currentServer = 'Library Access Sync';
+            try {
+                const libraryAccessResult = await syncAllServersLibraryAccess();
+                if (libraryAccessResult.success) {
+                    const totalUsersUpdated = libraryAccessResult.results?.reduce((sum, r) => sum + (r.usersUpdated || 0), 0) || 0;
+                    console.log(`✅ Library access sync completed. Updated ${totalUsersUpdated} user records`);
+                } else {
+                    console.error('⚠️ Library access sync completed with issues:', libraryAccessResult.message);
+                    this.syncStatus.errors.push(`Library access: ${libraryAccessResult.message}`);
+                }
+            } catch (libAccessError) {
+                console.error('⚠️ Library access sync failed:', libAccessError.message);
+                this.syncStatus.errors.push(`Library access: ${libAccessError.message}`);
+            }
+
             // Update completion status
             this.syncStatus.isRunning = false;
             this.syncStatus.lastSync = new Date();
             this.syncStatus.lastSyncStatus = this.syncStatus.errors.length > 0 ? 'completed_with_errors' : 'completed';
             this.syncStatus.currentServer = null;
             this.syncStatus.progress = 100;
-
-            console.log(`✅ Plex activity sync completed. Processed ${this.syncStatus.usersProcessed} users across ${this.syncStatus.serversCompleted} servers`);
 
         } catch (error) {
             console.error('❌ Plex activity sync failed:', error);
