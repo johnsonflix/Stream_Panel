@@ -25,6 +25,14 @@ const Router = {
             }
         });
 
+        // Handle hash changes from anchor clicks (e.g., <a href="#edit-user/123">)
+        window.addEventListener('hashchange', () => {
+            const hash = window.location.hash.slice(1);
+            if (hash && hash !== this.currentPage) {
+                this.loadPage(hash);
+            }
+        });
+
         // Load initial page from URL hash or default to dashboard
         const hash = window.location.hash.slice(1);
         const initialPage = hash || 'dashboard';
@@ -106,7 +114,7 @@ const Router = {
                     }
                     break;
                 case 'email':
-                    await EmailComposer.render(contentDiv);
+                    await EmailComposer.render(contentDiv, params);
                     break;
                 case 'settings':
                     await Settings.render(contentDiv);

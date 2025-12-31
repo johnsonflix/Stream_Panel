@@ -450,7 +450,7 @@ const Users = {
                 sortable: true,
                 sortKey: 'email',
                 renderHeader: () => `<th onclick="Users.toggleSort('email')" style="cursor: pointer;">Email ${this.getSortIcon('email')}</th>`,
-                renderCell: (user) => `<td>${Utils.escapeHtml(user.email)}</td>`
+                renderCell: (user) => `<td><a href="mailto:${Utils.escapeHtml(user.email)}" style="color: inherit; text-decoration: none;" title="Click to email, right-click for options">${Utils.escapeHtml(user.email)}</a></td>`
             },
             owner: {
                 label: 'Owner',
@@ -530,15 +530,15 @@ const Users = {
                 sortable: false,
                 renderHeader: () => `<th>Actions</th>`,
                 renderCell: (user) => `<td>
-                    <button class="btn btn-sm btn-outline" onclick="Users.emailUser(${user.id})" title="Send Email">
+                    <a href="#email/${user.id}" class="btn btn-sm btn-outline" title="Send Email (right-click for new tab)">
                         <i class="fas fa-envelope"></i>
-                    </button>
+                    </a>
                     <button class="btn btn-sm btn-outline" onclick="Users.viewUser(${user.id})" title="View Details">
                         <i class="fas fa-eye"></i>
                     </button>
-                    <button class="btn btn-sm btn-outline" onclick="Users.editUser(${user.id})" title="Edit">
+                    <a href="#edit-user/${user.id}" class="btn btn-sm btn-outline" title="Edit (right-click for new tab)" onclick="sessionStorage.setItem('usersPageFilters', JSON.stringify(Users.currentFilters))">
                         <i class="fas fa-edit"></i>
-                    </button>
+                    </a>
                     <button class="btn btn-sm btn-danger" onclick="Users.deleteUser(${user.id})" title="Delete">
                         <i class="fas fa-trash"></i>
                     </button>
@@ -599,7 +599,7 @@ const Users = {
                                     ${Utils.escapeHtml(user.name)}
                                 </div>
                                 <div style="font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 0.5rem;">
-                                    ${Utils.escapeHtml(user.email)}
+                                    <a href="mailto:${Utils.escapeHtml(user.email)}" style="color: inherit; text-decoration: none;">${Utils.escapeHtml(user.email)}</a>
                                 </div>
                                 ${user.tags && user.tags.length > 0 ? `
                                     <div style="display: flex; flex-wrap: wrap; gap: 0.25rem;">
@@ -647,9 +647,9 @@ const Users = {
                                     <button class="btn btn-sm btn-outline" onclick="Users.viewUser(${user.id})" style="flex: 1;">
                                         <i class="fas fa-eye"></i> View
                                     </button>
-                                    <button class="btn btn-sm btn-outline" onclick="Users.editUser(${user.id})" style="flex: 1;">
+                                    <a href="#edit-user/${user.id}" class="btn btn-sm btn-outline" style="flex: 1; text-align: center;" onclick="sessionStorage.setItem('usersPageFilters', JSON.stringify(Users.currentFilters))">
                                         <i class="fas fa-edit"></i> Edit
-                                    </button>
+                                    </a>
                                     <button class="btn btn-sm btn-danger" onclick="Users.deleteUser(${user.id})" style="flex: 1;">
                                         <i class="fas fa-trash"></i> Delete
                                     </button>

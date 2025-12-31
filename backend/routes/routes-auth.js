@@ -14,6 +14,11 @@ const router = express.Router();
 // Session duration: 7 days
 const SESSION_DURATION_DAYS = 7;
 
+// Lockout configuration
+const LOCKOUT_MAX_ATTEMPTS = 5;
+const LOCKOUT_WINDOW_MINUTES = 15;
+const LOCKOUT_DURATION_MINUTES = 30;
+
 /**
  * Helper: Generate secure session token
  */
@@ -47,13 +52,40 @@ function isAccountLocked(user) {
  */
 async function lockAccount(userId) {
     const lockUntil = new Date();
-    lockUntil.setMinutes(lockUntil.getMinutes() + 15); // Lock for 15 minutes
+    lockUntil.setMinutes(lockUntil.getMinutes() + LOCKOUT_DURATION_MINUTES);
 
     await query(`
         UPDATE users
-        SET account_locked_until = ?, login_attempts = 0
+        SET account_locked_until = ?, login_attempts = 0, first_failed_attempt_at = NULL
         WHERE id = ?
     `, [lockUntil.toISOString(), userId]);
+}
+
+/**
+ * Helper: Track failed login attempt with time window
+ * Returns the new attempt count
+ */
+async function trackFailedAttempt(user) {
+    const now = new Date();
+
+    // Check if first attempt was outside window - reset if so
+    if (user.first_failed_attempt_at) {
+        const firstAttempt = new Date(user.first_failed_attempt_at);
+        const windowExpiry = new Date(firstAttempt.getTime() + LOCKOUT_WINDOW_MINUTES * 60000);
+        if (now > windowExpiry) {
+            // Reset counter - outside window
+            await query(`UPDATE users SET login_attempts = 1, first_failed_attempt_at = ? WHERE id = ?`,
+                [now.toISOString(), user.id]);
+            return 1;
+        }
+    }
+
+    // Within window or first attempt
+    const newAttempts = (user.login_attempts || 0) + 1;
+    const firstAttempt = user.first_failed_attempt_at || now.toISOString();
+    await query(`UPDATE users SET login_attempts = ?, first_failed_attempt_at = ? WHERE id = ?`,
+        [newAttempts, firstAttempt, user.id]);
+    return newAttempts;
 }
 
 /**
@@ -63,6 +95,7 @@ async function lockAccount(userId) {
 router.post('/login', async (req, res) => {
     try {
         const { email, password } = req.body;
+        console.log(`[Admin Login] Attempt for email: ${email}`);
 
         if (!email || !password) {
             return res.status(400).json({
@@ -75,6 +108,7 @@ router.post('/login', async (req, res) => {
         const users = await query('SELECT * FROM users WHERE email = ? AND is_app_user = 1', [email]);
 
         if (users.length === 0) {
+            console.log(`[Admin Login] No user found for email: ${email} - cannot track attempts for non-existent user`);
             return res.status(401).json({
                 success: false,
                 message: 'Invalid email or password',
@@ -94,7 +128,9 @@ router.post('/login', async (req, res) => {
         }
 
         // Check if account is locked
+        console.log(`[Admin Login] User found: ${user.email}, login_attempts: ${user.login_attempts}, locked_until: ${user.account_locked_until}, first_failed: ${user.first_failed_attempt_at}`);
         if (isAccountLocked(user)) {
+            console.log(`[Admin Login] Account is LOCKED for: ${user.email}`);
             return res.status(423).json({
                 success: false,
                 message: 'Account is temporarily locked due to too many failed login attempts. Please try again later.',
@@ -106,30 +142,26 @@ router.post('/login', async (req, res) => {
         const passwordMatch = await bcrypt.compare(password, user.password_hash);
 
         if (!passwordMatch) {
-            // Increment login attempts
-            const newAttempts = (user.login_attempts || 0) + 1;
+            // Track failed attempt with time window
+            const newAttempts = await trackFailedAttempt(user);
+            console.log(`[Admin Login] Failed password for ${user.email}. Attempt #${newAttempts} of ${LOCKOUT_MAX_ATTEMPTS}`);
 
-            await query(`
-                UPDATE users
-                SET login_attempts = ?
-                WHERE id = ?
-            `, [newAttempts, user.id]);
-
-            // Lock account after 5 failed attempts
-            if (newAttempts >= 5) {
+            // Lock account after max failed attempts within window
+            if (newAttempts >= LOCKOUT_MAX_ATTEMPTS) {
                 await lockAccount(user.id);
+                console.log(`[Admin Login] LOCKING account ${user.email} for ${LOCKOUT_DURATION_MINUTES} minutes`);
                 return res.status(423).json({
                     success: false,
-                    message: 'Too many failed login attempts. Account locked for 15 minutes.',
+                    message: `Too many failed login attempts. Account locked for ${LOCKOUT_DURATION_MINUTES} minutes.`,
                     showForgotPassword: true
                 });
             }
 
+            // Generic error message - don't reveal attempt count for security
             return res.status(401).json({
                 success: false,
                 message: 'Invalid email or password',
-                attemptsRemaining: 5 - newAttempts,
-                showForgotPassword: newAttempts >= 1  // Show forgot password after first failed attempt
+                showForgotPassword: true
             });
         }
 
@@ -154,6 +186,7 @@ router.post('/login', async (req, res) => {
             UPDATE users
             SET last_login = datetime('now'),
                 login_attempts = 0,
+                first_failed_attempt_at = NULL,
                 account_locked_until = NULL
             WHERE id = ?
         `, [user.id]);
@@ -161,6 +194,7 @@ router.post('/login', async (req, res) => {
         // Remove sensitive data before sending response
         delete user.password_hash;
         delete user.login_attempts;
+        delete user.first_failed_attempt_at;
         delete user.account_locked_until;
 
         res.json({

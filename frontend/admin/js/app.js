@@ -148,15 +148,22 @@ function initMobileMenu() {
             }
         });
 
-        // Close menu when clicking on a nav link
-        const navLinks = navMenu.querySelectorAll('.nav-link');
-        navLinks.forEach(link => {
-            link.addEventListener('click', () => {
-                navMenu.classList.remove('active');
-                const icon = mobileMenuToggle.querySelector('i');
-                icon.classList.remove('fa-times');
-                icon.classList.add('fa-bars');
-            });
+        // Close menu when clicking on a nav link (except dropdown toggles)
+        // Use event delegation to handle dynamically added dropdown items too
+        navMenu.addEventListener('click', (e) => {
+            const link = e.target.closest('.nav-link, .nav-link-external, .dropdown-menu a');
+            if (!link) return;
+
+            // Don't close menu if clicking a dropdown toggle
+            if (link.classList.contains('dropdown-toggle')) {
+                return;
+            }
+
+            // Close the menu for actual navigation
+            navMenu.classList.remove('active');
+            const icon = mobileMenuToggle.querySelector('i');
+            icon.classList.remove('fa-times');
+            icon.classList.add('fa-bars');
         });
     }
 }

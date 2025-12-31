@@ -2100,8 +2100,9 @@ app.get('/admin/forgot-password', (req, res) => {
     res.sendFile(path.join(__dirname, '../frontend/admin/forgot-password.html'));
 });
 
+// Redirect old admin login path to unified login page
 app.get('/admin/login', (req, res) => {
-    res.sendFile(path.join(__dirname, '../frontend/admin/login.html'));
+    res.redirect('/login.html');
 });
 
 // Admin SPA catch-all (for hash-based routing within admin)
@@ -2113,9 +2114,9 @@ app.get('/admin/*', (req, res) => {
     res.sendFile(path.join(__dirname, '../frontend/admin/index.html'));
 });
 
-// Portal login route
+// Redirect old portal login path to unified login page
 app.get('/portal/login', (req, res) => {
-    res.sendFile(path.join(__dirname, '../frontend/portal/login.html'));
+    res.redirect('/login.html');
 });
 
 // Portal SPA catch-all
@@ -2127,9 +2128,12 @@ app.get('/portal/*', (req, res) => {
     res.sendFile(path.join(__dirname, '../frontend/portal/index.html'));
 });
 
-// Legacy redirects (for bookmarks/old links)
+// Unified login page (handles both admin and end-user login)
 app.get('/login.html', (req, res) => {
-    res.redirect('/admin/login');
+    res.sendFile(path.join(__dirname, '../frontend/login.html'));
+});
+app.get('/login', (req, res) => {
+    res.sendFile(path.join(__dirname, '../frontend/login.html'));
 });
 
 app.get('/index.html', (req, res) => {

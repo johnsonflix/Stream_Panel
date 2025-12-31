@@ -814,31 +814,39 @@ def get_all_users_with_library_access(server_config):
                     if email_lower in seen_emails:
                         continue
 
-                    # For home users, we need to get their library restrictions
-                    # If not restricted, they have access to all libraries
-                    if not is_restricted:
-                        library_ids = all_library_ids.copy()
-                    else:
-                        # Get restrictions for this user on this server
-                        library_ids = []
-                        try:
-                            # Fetch user's sharing preferences for this server
-                            sharing_url = f"https://plex.tv/api/servers/{server_config['server_id']}/shared_servers/{user_id}?X-Plex-Token={server_config['token']}"
-                            sharing_response = requests.get(sharing_url, headers={'Accept': 'application/xml'}, timeout=10)
+                    # For home users, we need to get their library restrictions for THIS specific server
+                    # Check if this home user is actually shared on this server
+                    library_ids = []
+                    try:
+                        # First check if user appears in the shared_servers list for THIS server
+                        # The shared_servers API is server-specific
+                        sharing_url = f"https://plex.tv/api/servers/{server_config['server_id']}/shared_servers/{user_id}?X-Plex-Token={server_config['token']}"
+                        sharing_response = requests.get(sharing_url, headers={'Accept': 'application/xml'}, timeout=10)
 
-                            if sharing_response.status_code == 200:
-                                sharing_root = ET.fromstring(sharing_response.text)
-                                for section in sharing_root.findall('.//Section'):
-                                    section_id = section.get('key') or section.get('id')
-                                    shared = section.get('shared')
-                                    if section_id and shared == '1':
-                                        library_ids.append(str(section_id))
-                            else:
-                                # If we can't get specific restrictions, assume full access
+                        if sharing_response.status_code == 200:
+                            sharing_root = ET.fromstring(sharing_response.text)
+                            for section in sharing_root.findall('.//Section'):
+                                section_id = section.get('key') or section.get('id')
+                                shared = section.get('shared')
+                                if section_id and shared == '1':
+                                    library_ids.append(str(section_id))
+
+                            # If restricted home user has no specific library shares, they have no access to this server
+                            if is_restricted and not library_ids:
+                                log_info(f"  Home user {email} is restricted and has no library access on this server")
+                            elif not is_restricted and not library_ids:
+                                # Unrestricted home user with no specific shares = full access to all libraries
                                 library_ids = all_library_ids.copy()
-                        except Exception as share_err:
-                            log_error(f"Error getting home user restrictions: {share_err}")
-                            library_ids = all_library_ids.copy()
+                                log_info(f"  Home user {email} is unrestricted, granting access to all {len(library_ids)} libraries")
+                        else:
+                            # User not found in shared_servers for this server = NO access to this server
+                            # This is the key fix - don't assume full access!
+                            log_info(f"  Home user {email} not shared on this server (HTTP {sharing_response.status_code})")
+                            library_ids = []
+                    except Exception as share_err:
+                        log_error(f"Error getting home user restrictions: {share_err}")
+                        # On error, assume NO access (safer than assuming full access)
+                        library_ids = []
 
                     if library_ids:  # Only add if user has some library access
                         seen_emails.add(email_lower)

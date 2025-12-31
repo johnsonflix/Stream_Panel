@@ -14,7 +14,7 @@ window.submitRequestFromDetails = async function() {
 
     if (!currentUser) {
         alert('Please log in to submit a request');
-        window.location.href = '/portal/login.html';
+        window.location.href = '/login.html';
         return;
     }
 

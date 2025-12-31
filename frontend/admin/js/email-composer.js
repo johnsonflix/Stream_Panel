@@ -22,8 +22,11 @@ const EmailComposer = {
 
     /**
      * Render email composer page
+     * @param {HTMLElement} container - The container element
+     * @param {Array} params - URL parameters (e.g., [userId] from #email/123)
      */
-    async render(container) {
+    async render(container, params = []) {
+        this.urlParams = params; // Store params for checkPreselectedUser
         container.innerHTML = `
             <div class="page-header">
                 <h1><i class="fas fa-envelope"></i> Send Email</h1>
@@ -1595,15 +1598,26 @@ const EmailComposer = {
 
     /**
      * Check if a user was preselected from another page
+     * Checks both URL params (for new tab/direct link) and sessionStorage (legacy)
      */
     async checkPreselectedUser() {
         try {
-            const preselectedUserId = sessionStorage.getItem('emailPreselectedUserId');
+            // First check URL params (works with new tabs)
+            let preselectedUserId = null;
+
+            if (this.urlParams && this.urlParams.length > 0 && this.urlParams[0]) {
+                preselectedUserId = this.urlParams[0];
+            }
+
+            // Fallback to sessionStorage (legacy, same-tab navigation)
+            if (!preselectedUserId) {
+                preselectedUserId = sessionStorage.getItem('emailPreselectedUserId');
+                if (preselectedUserId) {
+                    sessionStorage.removeItem('emailPreselectedUserId');
+                }
+            }
 
             if (preselectedUserId) {
-                // Clear the sessionStorage value immediately
-                sessionStorage.removeItem('emailPreselectedUserId');
-
                 // Fetch user data
                 const response = await API.request(`/users/${preselectedUserId}`, { method: 'GET' });
 

@@ -1387,6 +1387,86 @@
             margin: 4px 0;
         }
 
+        /* Desktop Account Dropdown */
+        .account-dropdown-wrapper {
+            position: relative;
+        }
+        .account-dropdown-toggle {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 14px;
+            background: transparent;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-secondary);
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .account-dropdown-toggle:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            border-color: var(--text-muted);
+        }
+        .account-dropdown-toggle i.fa-chevron-down {
+            font-size: 10px;
+            transition: transform 0.2s;
+        }
+        .account-dropdown-wrapper.open .account-dropdown-toggle i.fa-chevron-down {
+            transform: rotate(180deg);
+        }
+        .account-dropdown-menu {
+            display: none;
+            position: absolute;
+            top: calc(100% + 6px);
+            right: 0;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+            min-width: 180px;
+            z-index: 1000;
+            overflow: hidden;
+        }
+        .account-dropdown-wrapper.open .account-dropdown-menu {
+            display: block;
+        }
+        .account-dropdown-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            width: 100%;
+            padding: 12px 16px;
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: left;
+        }
+        .account-dropdown-item:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+        .account-dropdown-item i {
+            width: 16px;
+            text-align: center;
+        }
+        .account-dropdown-item.text-danger {
+            color: var(--text-muted);
+        }
+        .account-dropdown-item.text-danger:hover {
+            color: #ef4444;
+            background: rgba(239, 68, 68, 0.1);
+        }
+        .account-dropdown-divider {
+            height: 1px;
+            background: var(--border-color);
+            margin: 4px 0;
+        }
+
         /* Responsive */
         @media (max-width: 768px) {
             .header {
@@ -1415,9 +1495,56 @@
                 min-height: auto;
             }
         }
+
+        /* Pull to Refresh */
+        .pull-to-refresh-indicator {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(180deg, rgba(15, 23, 42, 0.98) 0%, rgba(15, 23, 42, 0.9) 100%);
+            transform: translateY(-100%);
+            transition: transform 0.2s ease-out;
+            z-index: 9999;
+            pointer-events: none;
+        }
+        .pull-to-refresh-indicator.visible {
+            transform: translateY(0);
+        }
+        .pull-to-refresh-indicator.refreshing {
+            transform: translateY(0);
+        }
+        .pull-to-refresh-spinner {
+            width: 24px;
+            height: 24px;
+            border: 3px solid var(--border-color);
+            border-top-color: var(--primary-color);
+            border-radius: 50%;
+            margin-right: 10px;
+        }
+        .pull-to-refresh-indicator.refreshing .pull-to-refresh-spinner {
+            animation: ptr-spin 0.8s linear infinite;
+        }
+        .pull-to-refresh-text {
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+        @keyframes ptr-spin {
+            to { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body>
+    <!-- Pull to Refresh Indicator -->
+    <div class="pull-to-refresh-indicator" id="pull-to-refresh">
+        <div class="pull-to-refresh-spinner"></div>
+        <span class="pull-to-refresh-text">Pull to refresh</span>
+    </div>
+
     <!-- Header -->
     <header class="header">
         <div class="header-brand">
@@ -1435,10 +1562,25 @@
                 <i class="fas fa-envelope"></i>
                 Contact Support
             </button>
-            <button class="header-btn" id="logout-btn">
-                <i class="fas fa-sign-out-alt"></i>
-                Logout
-            </button>
+            <!-- Account Dropdown -->
+            <div class="account-dropdown-wrapper" id="account-dropdown-wrapper">
+                <button class="account-dropdown-toggle" id="account-dropdown-toggle" onclick="toggleAccountDropdown(event)">
+                    <i class="fas fa-user-cog"></i>
+                    Account
+                    <i class="fas fa-chevron-down"></i>
+                </button>
+                <div class="account-dropdown-menu">
+                    <button class="account-dropdown-item" id="desktop-logout-btn">
+                        <i class="fas fa-sign-out-alt"></i>
+                        Logout
+                    </button>
+                    <div class="account-dropdown-divider" id="desktop-cancel-divider" style="display: none;"></div>
+                    <button class="account-dropdown-item text-danger" id="desktop-cancel-service-btn" style="display: none;">
+                        <i class="fas fa-times-circle"></i>
+                        Cancel Service
+                    </button>
+                </div>
+            </div>
         </div>
         <!-- Mobile Menu -->
         <div style="position: relative;">
@@ -1454,6 +1596,11 @@
                 <button class="mobile-menu-item" id="mobile-logout-btn">
                     <i class="fas fa-sign-out-alt"></i>
                     Logout
+                </button>
+                <div class="mobile-menu-divider" id="mobile-cancel-divider" style="display: none;"></div>
+                <button class="mobile-menu-item" id="mobile-cancel-service-btn" style="display: none;">
+                    <i class="fas fa-times-circle"></i>
+                    Cancel Service
                 </button>
             </div>
         </div>
@@ -2235,6 +2382,9 @@
             document.getElementById('account-name').textContent = displayName;
             document.getElementById('account-email').textContent = user.email || '';
 
+            // Update cancel service buttons in header menus
+            updateCancelServiceButtons();
+
             // Render status badges
             renderStatusBadges(user);
 
@@ -2349,13 +2499,6 @@
             if (!hasPlex || !hasIPTV) {
                 html += `<button class="action-btn secondary" onclick="openAddServiceModal()">
                     <i class="fas fa-plus"></i> Add Service
-                </button>`;
-            }
-
-            // Cancel service option (if they have any active services)
-            if (user.plex_enabled || user.iptv_enabled) {
-                html += `<button class="action-btn secondary" onclick="openCancelModal()">
-                    <i class="fas fa-times"></i> Cancel Service
                 </button>`;
             }
 
@@ -4283,17 +4426,48 @@
             dropdown.classList.toggle('show');
         }
 
-        // Close mobile menu when clicking outside
+        // Desktop account dropdown toggle
+        function toggleAccountDropdown(event) {
+            event.stopPropagation();
+            const wrapper = document.getElementById('account-dropdown-wrapper');
+            wrapper.classList.toggle('open');
+        }
+
+        // Close dropdowns when clicking outside
         document.addEventListener('click', (e) => {
-            const dropdown = document.getElementById('mobile-menu-dropdown');
-            const toggle = document.getElementById('mobile-menu-toggle');
-            if (dropdown && toggle && !dropdown.contains(e.target) && !toggle.contains(e.target)) {
-                dropdown.classList.remove('show');
+            // Mobile menu
+            const mobileDropdown = document.getElementById('mobile-menu-dropdown');
+            const mobileToggle = document.getElementById('mobile-menu-toggle');
+            if (mobileDropdown && mobileToggle && !mobileDropdown.contains(e.target) && !mobileToggle.contains(e.target)) {
+                mobileDropdown.classList.remove('show');
+            }
+            // Desktop account dropdown
+            const accountWrapper = document.getElementById('account-dropdown-wrapper');
+            if (accountWrapper && !accountWrapper.contains(e.target)) {
+                accountWrapper.classList.remove('open');
             }
         });
 
-        // Event listeners
-        document.getElementById('logout-btn').addEventListener('click', async () => {
+        // Update cancel service visibility in header menus
+        function updateCancelServiceButtons() {
+            const user = currentUser;
+            const hasActiveService = user && (user.plex_enabled || user.iptv_enabled);
+
+            // Desktop dropdown
+            const desktopCancelBtn = document.getElementById('desktop-cancel-service-btn');
+            const desktopCancelDivider = document.getElementById('desktop-cancel-divider');
+            if (desktopCancelBtn) desktopCancelBtn.style.display = hasActiveService ? 'flex' : 'none';
+            if (desktopCancelDivider) desktopCancelDivider.style.display = hasActiveService ? 'block' : 'none';
+
+            // Mobile menu
+            const mobileCancelBtn = document.getElementById('mobile-cancel-service-btn');
+            const mobileCancelDivider = document.getElementById('mobile-cancel-divider');
+            if (mobileCancelBtn) mobileCancelBtn.style.display = hasActiveService ? 'flex' : 'none';
+            if (mobileCancelDivider) mobileCancelDivider.style.display = hasActiveService ? 'block' : 'none';
+        }
+
+        // Logout function (shared)
+        async function performLogout() {
             try {
                 const token = localStorage.getItem('portal_token');
                 await fetch(`${API_BASE}/portal/auth/logout`, {
@@ -4305,10 +4479,17 @@
             } catch (error) {
                 console.error('Logout error:', error);
             }
-
             localStorage.removeItem('portal_token');
             localStorage.removeItem('portal_user');
             window.location.href = '/login.html';
+        }
+
+        // Event listeners - Desktop
+        document.getElementById('desktop-logout-btn').addEventListener('click', performLogout);
+
+        document.getElementById('desktop-cancel-service-btn').addEventListener('click', () => {
+            document.getElementById('account-dropdown-wrapper').classList.remove('open');
+            openCancelModal();
         });
 
         document.getElementById('message-admin-btn').addEventListener('click', () => {
@@ -4316,21 +4497,11 @@
         });
 
         // Mobile menu buttons
-        document.getElementById('mobile-logout-btn').addEventListener('click', async () => {
-            try {
-                const token = localStorage.getItem('portal_token');
-                await fetch(`${API_BASE}/portal/auth/logout`, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
-            } catch (error) {
-                console.error('Logout error:', error);
-            }
-            localStorage.removeItem('portal_token');
-            localStorage.removeItem('portal_user');
-            window.location.href = '/login.html';
+        document.getElementById('mobile-logout-btn').addEventListener('click', performLogout);
+
+        document.getElementById('mobile-cancel-service-btn').addEventListener('click', () => {
+            document.getElementById('mobile-menu-dropdown').classList.remove('show');
+            openCancelModal();
         });
 
         document.getElementById('mobile-message-admin-btn').addEventListener('click', () => {
@@ -4346,6 +4517,88 @@
                 }
             });
         });
+
+        // ============ Pull to Refresh ============
+        (function initPullToRefresh() {
+            const indicator = document.getElementById('pull-to-refresh');
+            const textEl = indicator?.querySelector('.pull-to-refresh-text');
+            if (!indicator) return;
+
+            let startY = 0;
+            let currentY = 0;
+            let isPulling = false;
+            let isRefreshing = false;
+            const threshold = 80; // pixels to pull before triggering refresh
+
+            // Only enable on touch devices
+            function isTouchDevice() {
+                return 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+            }
+
+            if (!isTouchDevice()) return;
+
+            document.addEventListener('touchstart', (e) => {
+                // Only start if at top of page
+                if (window.scrollY === 0 && !isRefreshing) {
+                    startY = e.touches[0].pageY;
+                    isPulling = true;
+                }
+            }, { passive: true });
+
+            document.addEventListener('touchmove', (e) => {
+                if (!isPulling || isRefreshing) return;
+
+                currentY = e.touches[0].pageY;
+                const pullDistance = currentY - startY;
+
+                // Only activate when pulling down
+                if (pullDistance > 0 && window.scrollY === 0) {
+                    // Calculate progress (0 to 1)
+                    const progress = Math.min(pullDistance / threshold, 1);
+
+                    // Show indicator with progress
+                    indicator.style.transform = `translateY(${Math.min(pullDistance * 0.5, 60) - 60}px)`;
+                    indicator.classList.add('visible');
+
+                    // Update text based on progress
+                    if (textEl) {
+                        textEl.textContent = progress >= 1 ? 'Release to refresh' : 'Pull to refresh';
+                    }
+
+                    // Prevent default scroll when pulling
+                    if (pullDistance > 10) {
+                        e.preventDefault();
+                    }
+                }
+            }, { passive: false });
+
+            document.addEventListener('touchend', () => {
+                if (!isPulling || isRefreshing) return;
+
+                const pullDistance = currentY - startY;
+
+                if (pullDistance >= threshold && window.scrollY === 0) {
+                    // Trigger refresh
+                    isRefreshing = true;
+                    indicator.classList.add('refreshing');
+                    indicator.style.transform = 'translateY(0)';
+                    if (textEl) textEl.textContent = 'Refreshing...';
+
+                    // Reload the page after a brief delay
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 300);
+                } else {
+                    // Cancel pull
+                    indicator.classList.remove('visible');
+                    indicator.style.transform = 'translateY(-100%)';
+                }
+
+                isPulling = false;
+                startY = 0;
+                currentY = 0;
+            }, { passive: true });
+        })();
     </script>
 </body>
 </html>

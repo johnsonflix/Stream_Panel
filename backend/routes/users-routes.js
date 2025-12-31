@@ -12,6 +12,7 @@ const IPTVServiceManager = require('../services/iptv/IPTVServiceManager');
 const IPTVEditorService = require('../services/iptv-editor-service');
 const { autoAssignTagsForUser } = require('./tags-routes');
 const jobProcessor = require('../services/JobProcessor');
+const { getUserLibraryAccess } = require('../jobs/plex-library-access-sync');
 
 // Initialize service managers
 let plexManager;
@@ -1725,6 +1726,56 @@ router.post('/:id/update-plex-libraries', async (req, res) => {
             message: 'Failed to update Plex library access',
             error: error.message
         });
+    }
+});
+
+// POST /api/v2/users/:id/sync-plex-libraries - Sync library access from Plex
+router.post('/:id/sync-plex-libraries', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const users = await db.query('SELECT id, plex_email, email, plex_enabled FROM users WHERE id = ?', [id]);
+        if (users.length === 0) return res.status(404).json({ success: false, message: 'User not found' });
+        const user = users[0];
+        if (!user.plex_enabled) return res.status(400).json({ success: false, message: 'User does not have Plex enabled' });
+        const userEmail = (user.plex_email || user.email || '').toLowerCase();
+        if (!userEmail) return res.status(400).json({ success: false, message: 'User has no email for Plex lookup' });
+
+        const servers = await db.query(`SELECT id, name, url, server_id, token FROM plex_servers WHERE is_active = 1`);
+        if (servers.length === 0) return res.status(400).json({ success: false, message: 'No active Plex servers configured' });
+
+        const results = [];
+        for (const server of servers) {
+            try {
+                const result = await getUserLibraryAccess(server, userEmail);
+                if (result.success && result.libraryIds) {
+                    const existingShares = await db.query(`SELECT id FROM user_plex_shares WHERE user_id = ? AND plex_server_id = ?`, [id, server.id]);
+                    const libraryJson = JSON.stringify(result.libraryIds.map(String));
+                    if (existingShares.length > 0) {
+                        await db.query(`UPDATE user_plex_shares SET library_ids = ?, updated_at = datetime('now') WHERE user_id = ? AND plex_server_id = ?`, [libraryJson, id, server.id]);
+                        results.push({ server_id: server.id, server_name: server.name, success: true, libraries_found: result.libraryIds.length });
+                    } else {
+                        await db.query(`INSERT INTO user_plex_shares (user_id, plex_server_id, library_ids, created_at, updated_at) VALUES (?, ?, ?, datetime('now'), datetime('now'))`, [id, server.id, libraryJson]);
+                        results.push({ server_id: server.id, server_name: server.name, success: true, libraries_found: result.libraryIds.length });
+                    }
+                } else {
+                    // User not found on this server - remove any existing share record
+                    const existingShares = await db.query(`SELECT id FROM user_plex_shares WHERE user_id = ? AND plex_server_id = ?`, [id, server.id]);
+                    if (existingShares.length > 0) {
+                        await db.query(`DELETE FROM user_plex_shares WHERE user_id = ? AND plex_server_id = ?`, [id, server.id]);
+                        results.push({ server_id: server.id, server_name: server.name, success: true, libraries_found: 0, action: 'removed' });
+                    } else {
+                        results.push({ server_id: server.id, server_name: server.name, success: true, libraries_found: 0, message: 'No access' });
+                    }
+                }
+            } catch (e) {
+                results.push({ server_id: server.id, server_name: server.name, success: false, message: e.message });
+            }
+        }
+        const successCount = results.filter(r => r.success).length;
+        const totalLibraries = results.reduce((sum, r) => sum + (r.libraries_found || 0), 0);
+        res.json({ success: true, message: `Synced ${successCount}/${servers.length} servers (${totalLibraries} libraries)`, results });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Failed to sync', error: error.message });
     }
 });
 

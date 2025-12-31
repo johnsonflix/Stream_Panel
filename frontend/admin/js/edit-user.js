@@ -411,9 +411,14 @@ const EditUser = {
             <section class="edit-section">
                 <h3 style="display: flex; align-items: center; justify-content: space-between;">
                     <span><i class="fas fa-film"></i> Plex Access</span>
-                    <button class="btn btn-sm btn-danger" onclick="EditUser.deletePlexAccess()" title="Delete Plex Access">
-                        <i class="fas fa-trash"></i> Delete Plex
-                    </button>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <button class="btn btn-sm btn-secondary" onclick="EditUser.syncPlexLibraries()" title="Sync library access from Plex servers">
+                            <i class="fas fa-sync"></i> Sync Libraries
+                        </button>
+                        <button class="btn btn-sm btn-danger" onclick="EditUser.deletePlexAccess()" title="Delete Plex Access">
+                            <i class="fas fa-trash"></i> Delete Plex
+                        </button>
+                    </div>
                 </h3>
 
                 <!-- Plex User Info -->
@@ -1845,6 +1850,52 @@ const EditUser = {
                 librariesDiv.style.display = 'grid';
                 toggleIcon.className = 'fas fa-chevron-down';
             }
+        }
+    },
+
+    /**
+     * Sync Plex library access from all Plex servers
+     */
+    async syncPlexLibraries() {
+        const btn = event.target.closest('button');
+        const originalContent = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Syncing...';
+        btn.disabled = true;
+
+        try {
+            const response = await API.request(`/users/${this.userId}/sync-plex-libraries`, { method: 'POST' });
+
+            if (response.success) {
+                // Build result message
+                let message = response.message;
+                if (response.results && response.results.length > 0) {
+                    const details = response.results.map(r =>
+                        `${r.server_name}: ${r.success ? `${r.libraries_found} libraries` : r.message}`
+                    ).join('\n');
+                    message += '\n\n' + details;
+                }
+
+                Utils.showToast(message, 'success');
+
+                // Reload user data to refresh the checkboxes
+                await this.loadUserData();
+                this.originalData = JSON.parse(JSON.stringify(this.userData));
+
+                // Re-render the Plex section
+                const plexSection = document.querySelector('.edit-section:has(h3 i.fa-film)');
+                if (plexSection) {
+                    plexSection.outerHTML = this.renderPlexSection();
+                    this.attachPackageChangeListeners();
+                }
+            } else {
+                Utils.showToast(response.message || 'Failed to sync libraries', 'error');
+            }
+        } catch (error) {
+            console.error('Error syncing Plex libraries:', error);
+            Utils.showToast('Error syncing Plex libraries: ' + error.message, 'error');
+        } finally {
+            btn.innerHTML = originalContent;
+            btn.disabled = false;
         }
     },
 

@@ -1435,33 +1435,39 @@ const CreateUserWizard = {
             const response = await API.checkPlexAccess({ email });
             this.cache.plexAccessResults = response;
 
-            // Auto-populate formData with existing access
-            if (response.found && response.access) {
+            // IMPORTANT: Clear all existing server selections first
+            // This ensures servers without access don't keep old/stale selections
+            this.formData.plex.servers = [];
+            console.log('🧹 Cleared all existing server selections');
+
+            // Auto-populate formData ONLY for servers where user has access
+            if (response.access && response.access.length > 0) {
                 console.log('🔍 Processing access results:', response.access);
+
                 response.access.forEach(serverAccess => {
                     console.log(`📊 Server ${serverAccess.server_id}: has_access=${serverAccess.has_access}, libraries=${serverAccess.libraries?.length}`);
+
+                    // ONLY add entries for servers where user actually has access
                     if (serverAccess.has_access && serverAccess.libraries?.length > 0) {
-                        // Find or create server entry in formData
-                        let serverData = this.formData.plex.servers.find(s => s.server_id === serverAccess.server_id);
-
-                        if (!serverData) {
-                            serverData = {
-                                server_id: serverAccess.server_id,
-                                library_ids: [],
-                                expanded: true
-                            };
-                            this.formData.plex.servers.push(serverData);
-                            console.log(`✨ Created new server entry for server_id=${serverAccess.server_id}`);
-                        }
-
-                        // Set library IDs from existing access (convert to strings for consistent comparison)
                         const libraryIds = serverAccess.libraries.map(lib => String(lib.id));
-                        serverData.library_ids = libraryIds;
-                        serverData.expanded = true;
-                        console.log(`✅ Set ${libraryIds.length} libraries for server ${serverAccess.server_id}:`, libraryIds);
+
+                        // Add server entry with only the accessible libraries
+                        const serverData = {
+                            server_id: serverAccess.server_id,
+                            library_ids: libraryIds,
+                            expanded: true
+                        };
+                        this.formData.plex.servers.push(serverData);
+                        console.log(`✅ Added server ${serverAccess.server_id} with ${libraryIds.length} accessible libraries:`, libraryIds);
+                    } else {
+                        // Server without access - log it (no entry added, so no libraries will be selected)
+                        console.log(`⛔ Server ${serverAccess.server_id}: No access - will not select any libraries`);
                     }
                 });
+
                 console.log('📦 Final formData.plex.servers:', this.formData.plex.servers);
+            } else {
+                console.log('ℹ️ No access results or empty access array');
             }
 
             // Re-render to show results and pre-selected libraries

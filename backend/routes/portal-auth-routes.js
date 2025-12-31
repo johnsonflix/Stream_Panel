@@ -38,6 +38,72 @@ function getSessionExpiration() {
     return expiration.toISOString();
 }
 
+// Lockout configuration
+const LOCKOUT_MAX_ATTEMPTS = 5;
+const LOCKOUT_WINDOW_MINUTES = 15;
+const LOCKOUT_DURATION_MINUTES = 30;
+
+/**
+ * Helper: Check if account is locked
+ */
+function isAccountLocked(user) {
+    if (!user.account_locked_until) return false;
+    const lockTime = new Date(user.account_locked_until);
+    return new Date() < lockTime;
+}
+
+/**
+ * Helper: Lock account after too many failed attempts
+ */
+async function lockAccount(userId) {
+    const lockUntil = new Date();
+    lockUntil.setMinutes(lockUntil.getMinutes() + LOCKOUT_DURATION_MINUTES);
+
+    await query(`
+        UPDATE users
+        SET account_locked_until = ?, login_attempts = 0, first_failed_attempt_at = NULL
+        WHERE id = ?
+    `, [lockUntil.toISOString(), userId]);
+}
+
+/**
+ * Helper: Track failed login attempt with time window
+ * Returns the new attempt count
+ */
+async function trackFailedAttempt(user) {
+    const now = new Date();
+
+    // Check if first attempt was outside window - reset if so
+    if (user.first_failed_attempt_at) {
+        const firstAttempt = new Date(user.first_failed_attempt_at);
+        const windowExpiry = new Date(firstAttempt.getTime() + LOCKOUT_WINDOW_MINUTES * 60000);
+        if (now > windowExpiry) {
+            // Reset counter - outside window
+            await query(`UPDATE users SET login_attempts = 1, first_failed_attempt_at = ? WHERE id = ?`,
+                [now.toISOString(), user.id]);
+            return 1;
+        }
+    }
+
+    // Within window or first attempt
+    const newAttempts = (user.login_attempts || 0) + 1;
+    const firstAttempt = user.first_failed_attempt_at || now.toISOString();
+    await query(`UPDATE users SET login_attempts = ?, first_failed_attempt_at = ? WHERE id = ?`,
+        [newAttempts, firstAttempt, user.id]);
+    return newAttempts;
+}
+
+/**
+ * Helper: Reset login attempts on successful login
+ */
+async function resetLoginAttempts(userId) {
+    await query(`
+        UPDATE users
+        SET login_attempts = 0, first_failed_attempt_at = NULL, account_locked_until = NULL
+        WHERE id = ?
+    `, [userId]);
+}
+
 /**
  * Helper: Sanitize user data for response
  */
@@ -88,6 +154,7 @@ function sanitizeUserForPortal(user) {
 router.post('/login', async (req, res) => {
     try {
         const { username, password, method } = req.body;
+        console.log(`[Portal Login] Attempt for username: ${username}`);
 
         if (!username || !password) {
             return res.status(400).json({
@@ -96,8 +163,69 @@ router.post('/login', async (req, res) => {
             });
         }
 
-        // Search for user by IPTV credentials (either regular or editor credentials)
-        // Allow app users (admins) who also have IPTV/Plex services to login to portal
+        // First, find user by username only (to check lockout status)
+        const usersForLockCheck = await query(`
+            SELECT u.*,
+                   sp_iptv.name as iptv_subscription_name,
+                   sp_plex.name as plex_package_name
+            FROM users u
+            LEFT JOIN subscription_plans sp_iptv ON u.iptv_subscription_plan_id = sp_iptv.id
+            LEFT JOIN subscription_plans sp_plex ON u.plex_package_id = sp_plex.id
+            WHERE u.iptv_username = ? OR u.iptv_editor_username = ?
+        `, [username, username]);
+
+        // If user found, check if account is locked
+        if (usersForLockCheck.length > 0) {
+            const userToCheck = usersForLockCheck[0];
+            console.log(`[Portal Login] User found: ${userToCheck.name || userToCheck.email}, login_attempts: ${userToCheck.login_attempts}, locked_until: ${userToCheck.account_locked_until}, first_failed: ${userToCheck.first_failed_attempt_at}`);
+
+            // Check if account is locked
+            if (isAccountLocked(userToCheck)) {
+                const lockTime = new Date(userToCheck.account_locked_until);
+                const minutesRemaining = Math.ceil((lockTime - new Date()) / 60000);
+                console.log(`[Portal Login] Account is LOCKED for: ${userToCheck.name || userToCheck.email}`);
+                return res.status(401).json({
+                    success: false,
+                    message: `Account temporarily locked due to too many failed login attempts. Please try again in ${minutesRemaining} minute(s).`,
+                    locked: true
+                });
+            }
+
+            // Now check if password matches
+            const passwordMatches =
+                (userToCheck.iptv_username === username && userToCheck.iptv_password === password) ||
+                (userToCheck.iptv_editor_username === username && userToCheck.iptv_editor_password === password);
+
+            if (!passwordMatches) {
+                // Track failed attempt
+                const newAttempts = await trackFailedAttempt(userToCheck);
+                console.log(`[Portal Login] Failed password for ${userToCheck.name || userToCheck.email}. Attempt #${newAttempts} of ${LOCKOUT_MAX_ATTEMPTS}`);
+
+                // Check if we need to lock the account
+                if (newAttempts >= LOCKOUT_MAX_ATTEMPTS) {
+                    await lockAccount(userToCheck.id);
+                    console.log(`[Portal Login] LOCKING account ${userToCheck.name || userToCheck.email} for ${LOCKOUT_DURATION_MINUTES} minutes`);
+                    return res.status(401).json({
+                        success: false,
+                        message: `Account locked due to too many failed login attempts. Please try again in ${LOCKOUT_DURATION_MINUTES} minutes.`,
+                        locked: true
+                    });
+                }
+
+                return res.status(401).json({
+                    success: false,
+                    message: 'Invalid credentials. Please check your username and password.'
+                });
+            }
+
+            // Password matches - reset login attempts and continue
+            console.log(`[Portal Login] Password correct for ${userToCheck.name || userToCheck.email}, resetting attempts`);
+            await resetLoginAttempts(userToCheck.id);
+        } else {
+            console.log(`[Portal Login] No user found for IPTV username: ${username} - cannot track attempts for non-existent user`);
+        }
+
+        // Now do the full query with password check for final user data
         const users = await query(`
             SELECT u.*,
                    sp_iptv.name as iptv_subscription_name,
@@ -110,6 +238,7 @@ router.post('/login', async (req, res) => {
         `, [username, password, username, password]);
 
         if (users.length === 0) {
+            // This shouldn't happen if the above logic is correct, but handle it anyway
             return res.status(401).json({
                 success: false,
                 message: 'Invalid credentials. Please check your username and password.'
@@ -271,7 +400,7 @@ router.get('/plex/redirect', async (req, res) => {
         // Check if Plex login is enabled
         const plexEnabled = await query(`SELECT setting_value FROM settings WHERE setting_key = 'portal_plex_enabled'`);
         if (plexEnabled.length > 0 && (plexEnabled[0].setting_value === 'false' || plexEnabled[0].setting_value === false)) {
-            return res.redirect('/portal/login.html?error=plex_disabled');
+            return res.redirect('/login.html?error=plex_disabled');
         }
 
         const fetch = (await import('node-fetch')).default;
@@ -294,7 +423,7 @@ router.get('/plex/redirect', async (req, res) => {
 
         if (!pinResponse.ok) {
             console.error('[Plex Redirect] Failed to create PIN:', pinResponse.status);
-            return res.redirect('/portal/login.html?error=plex_init_failed');
+            return res.redirect('/login.html?error=plex_init_failed');
         }
 
         const pinData = await pinResponse.json();
@@ -311,7 +440,7 @@ router.get('/plex/redirect', async (req, res) => {
         // Build return URL with pinId in query params (no cookies needed!)
         const protocol = req.secure || req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http';
         const host = req.headers.host;
-        const returnUrl = `${protocol}://${host}/portal/login.html?plex_pin=${pinId}`;
+        const returnUrl = `${protocol}://${host}/login.html?plex_pin=${pinId}`;
         const encodedReturnUrl = encodeURIComponent(returnUrl);
 
         // Build the Plex auth URL with forwardUrl for automatic redirect back
@@ -322,7 +451,7 @@ router.get('/plex/redirect', async (req, res) => {
 
     } catch (error) {
         console.error('[Plex Redirect] Error:', error);
-        res.redirect('/portal/login.html?error=plex_init_failed');
+        res.redirect('/login.html?error=plex_init_failed');
     }
 });
 
