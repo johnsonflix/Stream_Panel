@@ -1,6 +1,6 @@
 {
-  "version": "1.5.25",
+  "version": "1.5.26",
   "name": "Stream Panel",
-  "releaseDate": "2025-12-31",
-  "description": "Hotfix: Library access sync now creates missing user_plex_shares records (not just updates)"
+  "releaseDate": "2026-01-01",
+  "description": "Fix Plex sign-in rejecting users with matching email"
 }

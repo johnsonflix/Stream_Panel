@@ -632,18 +632,51 @@ router.post('/plex/complete', async (req, res) => {
             });
         }
 
-        // Find user by plex_email
-        const users = await query(`
+        // Find user by plex_email OR primary email (case-insensitive)
+        console.log(`[Plex Login] Looking up user with Plex email: ${plexUserInfo.email}`);
+
+        let users = await query(`
             SELECT u.*,
                    sp_iptv.name as iptv_subscription_name,
                    sp_plex.name as plex_package_name
             FROM users u
             LEFT JOIN subscription_plans sp_iptv ON u.iptv_subscription_plan_id = sp_iptv.id
             LEFT JOIN subscription_plans sp_plex ON u.plex_package_id = sp_plex.id
-            WHERE LOWER(u.plex_email) = LOWER(?)
+            WHERE LOWER(TRIM(u.plex_email)) = LOWER(TRIM(?))
         `, [plexUserInfo.email]);
 
+        // If not found by plex_email, try primary email as fallback
         if (users.length === 0) {
+            console.log(`[Plex Login] No match on plex_email, trying primary email`);
+            users = await query(`
+                SELECT u.*,
+                       sp_iptv.name as iptv_subscription_name,
+                       sp_plex.name as plex_package_name
+                FROM users u
+                LEFT JOIN subscription_plans sp_iptv ON u.iptv_subscription_plan_id = sp_iptv.id
+                LEFT JOIN subscription_plans sp_plex ON u.plex_package_id = sp_plex.id
+                WHERE LOWER(TRIM(u.email)) = LOWER(TRIM(?))
+            `, [plexUserInfo.email]);
+        }
+
+        if (users.length === 0) {
+            // Debug: Log what plex_email values exist for users with Plex access
+            const plexUsers = await query(`
+                SELECT u.id, u.name, u.email, u.plex_email
+                FROM users u
+                WHERE u.plex_enabled = 1 OR EXISTS (
+                    SELECT 1 FROM user_plex_shares ups WHERE ups.user_id = u.id
+                )
+                LIMIT 20
+            `);
+            console.log(`[Plex Login] No user found for Plex email: ${plexUserInfo.email}`);
+            console.log(`[Plex Login] Users with Plex access in DB:`, plexUsers.map(u => ({
+                id: u.id,
+                name: u.name,
+                email: u.email,
+                plex_email: u.plex_email || '(empty)'
+            })));
+
             portalPlexPins.delete(pinId);
             return res.status(401).json({
                 success: false,
@@ -651,21 +684,23 @@ router.post('/plex/complete', async (req, res) => {
             });
         }
 
+        console.log(`[Plex Login] Found user: ${users[0].name || users[0].email} (id: ${users[0].id}, plex_email: ${users[0].plex_email})`)
+
         const user = users[0];
 
-        // Verify user has ACTIVE access to at least one of our Plex servers
+        // Verify user has access to at least one of our Plex servers (not removed)
         const plexShares = await query(`
             SELECT ups.*, ps.name as server_name, ps.server_id, ps.libraries as server_libraries
             FROM user_plex_shares ups
             JOIN plex_servers ps ON ups.plex_server_id = ps.id
-            WHERE ups.user_id = ? AND ups.share_status = 'active'
+            WHERE ups.user_id = ? AND (ups.share_status IS NULL OR ups.share_status != 'removed')
         `, [user.id]);
 
         if (plexShares.length === 0) {
             portalPlexPins.delete(pinId);
             return res.status(401).json({
                 success: false,
-                message: 'Your account does not have active access to any Plex servers. Please contact support.'
+                message: 'Your account does not have access to any Plex servers. Please contact support.'
             });
         }
 
@@ -749,32 +784,50 @@ router.post('/plex/callback', async (req, res) => {
             });
         }
 
-        // Find user by plex_email - allow all users including admins with Plex access
-        const users = await query(`
+        // Find user by plex_email OR primary email (case-insensitive)
+        console.log(`[Plex Callback] Looking up user with Plex email: ${plexUserInfo.email}`);
+
+        let users = await query(`
             SELECT u.*,
                    sp_iptv.name as iptv_subscription_name,
                    sp_plex.name as plex_package_name
             FROM users u
             LEFT JOIN subscription_plans sp_iptv ON u.iptv_subscription_plan_id = sp_iptv.id
             LEFT JOIN subscription_plans sp_plex ON u.plex_package_id = sp_plex.id
-            WHERE u.plex_email = ?
+            WHERE LOWER(TRIM(u.plex_email)) = LOWER(TRIM(?))
         `, [plexUserInfo.email]);
 
+        // If not found by plex_email, try primary email as fallback
         if (users.length === 0) {
+            console.log(`[Plex Callback] No match on plex_email, trying primary email`);
+            users = await query(`
+                SELECT u.*,
+                       sp_iptv.name as iptv_subscription_name,
+                       sp_plex.name as plex_package_name
+                FROM users u
+                LEFT JOIN subscription_plans sp_iptv ON u.iptv_subscription_plan_id = sp_iptv.id
+                LEFT JOIN subscription_plans sp_plex ON u.plex_package_id = sp_plex.id
+                WHERE LOWER(TRIM(u.email)) = LOWER(TRIM(?))
+            `, [plexUserInfo.email]);
+        }
+
+        if (users.length === 0) {
+            console.log(`[Plex Callback] No user found for email: ${plexUserInfo.email}`);
             return res.status(401).json({
                 success: false,
                 message: 'No account found linked to this Plex email. Please contact support.'
             });
         }
 
+        console.log(`[Plex Callback] Found user: ${users[0].name || users[0].email} (id: ${users[0].id})`);
         const user = users[0];
 
-        // Verify user has access to at least one of our Plex servers
+        // Verify user has access to at least one of our Plex servers (not removed)
         const plexShares = await query(`
             SELECT ups.*, ps.name as server_name, ps.server_id, ps.libraries as server_libraries
             FROM user_plex_shares ups
             JOIN plex_servers ps ON ups.plex_server_id = ps.id
-            WHERE ups.user_id = ?
+            WHERE ups.user_id = ? AND (ups.share_status IS NULL OR ups.share_status != 'removed')
         `, [user.id]);
 
         if (plexShares.length === 0) {
