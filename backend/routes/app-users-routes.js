@@ -65,30 +65,42 @@ router.get('/:id', async (req, res) => {
 
         const users = await query(`
             SELECT
-                id,
-                name,
-                email,
-                role,
-                last_login,
-                created_at,
-                updated_at,
-                telegram_username,
-                whatsapp_username,
-                discord_username,
-                venmo_username,
-                paypal_username,
-                cashapp_username,
-                google_pay_username,
-                apple_cash_username,
-                plex_sso_enabled,
-                plex_sso_required,
-                plex_sso_server_ids,
-                plex_sso_email,
-                plex_sso_username,
-                plex_sso_thumb,
-                plex_sso_last_verified
-            FROM users
-            WHERE id = ? AND is_app_user = 1
+                u.id,
+                u.name,
+                u.email,
+                u.role,
+                u.last_login,
+                u.created_at,
+                u.updated_at,
+                u.telegram_username,
+                u.whatsapp_username,
+                u.discord_username,
+                u.venmo_username,
+                u.paypal_username,
+                u.cashapp_username,
+                u.google_pay_username,
+                u.apple_cash_username,
+                u.plex_sso_enabled,
+                u.plex_sso_required,
+                u.plex_sso_server_ids,
+                u.plex_sso_email,
+                u.plex_sso_username,
+                u.plex_sso_thumb,
+                u.plex_sso_last_verified,
+                u.iptv_username,
+                u.iptv_password,
+                u.iptv_enabled,
+                u.iptv_panel_id,
+                u.iptv_package_id,
+                u.iptv_expiration,
+                u.plex_enabled,
+                u.plex_email,
+                p.name as iptv_panel_name,
+                pkg.name as iptv_package_name
+            FROM users u
+            LEFT JOIN iptv_panels p ON u.iptv_panel_id = p.id
+            LEFT JOIN iptv_packages pkg ON u.iptv_package_id = pkg.id
+            WHERE u.id = ? AND u.is_app_user = 1
         `, [id]);
 
         if (users.length === 0) {
@@ -272,7 +284,8 @@ router.put('/:id', async (req, res) => {
         const { name, email, role, password, telegram_username, whatsapp_username,
                 discord_username, venmo_username, paypal_username, cashapp_username,
                 google_pay_username, apple_cash_username,
-                plex_sso_enabled, plex_sso_required, plex_sso_server_ids, plex_sso_email } = req.body;
+                plex_sso_enabled, plex_sso_required, plex_sso_server_ids, plex_sso_email,
+                iptv_username, iptv_password, plex_enabled } = req.body;
 
         // Check if user exists and is an app user
         const existingUsers = await query('SELECT * FROM users WHERE id = ? AND is_app_user = 1', [id]);
@@ -379,6 +392,25 @@ router.put('/:id', async (req, res) => {
         if (plex_sso_email !== undefined) {
             updates.push('plex_sso_email = ?');
             values.push(plex_sso_email || null);
+        }
+
+        // Portal access fields
+        if (iptv_username !== undefined) {
+            updates.push('iptv_username = ?');
+            values.push(iptv_username || null);
+        }
+        if (iptv_password !== undefined) {
+            updates.push('iptv_password = ?');
+            values.push(iptv_password || null);
+        }
+        if (plex_enabled !== undefined) {
+            updates.push('plex_enabled = ?');
+            values.push(plex_enabled ? 1 : 0);
+            // Also set plex_email from plex_sso_email if enabling Plex
+            if (plex_enabled && plex_sso_email) {
+                updates.push('plex_email = ?');
+                values.push(plex_sso_email);
+            }
         }
 
         if (updates.length === 0) {

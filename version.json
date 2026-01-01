@@ -1,6 +1,6 @@
 {
-  "version": "1.5.27",
+  "version": "1.5.28",
   "name": "Stream Panel",
   "releaseDate": "2026-01-01",
-  "description": "Admin Portal Access - preview end user portal from admin panel"
+  "description": "Hotfix: Add missing app-users-routes.js for admin plex_enabled save"
 }
