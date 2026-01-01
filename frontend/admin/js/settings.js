@@ -7287,7 +7287,7 @@ const Settings = {
         const modalHtml = `
             <div class="modal-backdrop" id="app-user-modal-backdrop"></div>
             <div class="modal modal-xl" id="app-user-modal">
-                <div class="modal-content modal-xl">
+                <div class="modal-content modal-xl" style="max-width: 900px; width: 95%">
                     <div class="modal-header">
                         <h3 class="modal-title">
                             <i class="fas fa-user-shield"></i>
@@ -7410,6 +7410,30 @@ const Settings = {
                                     <!-- Plex SSO status info will be shown here -->
                                 </div>
                             </div>
+
+                            ${isEdit ? `
+                            <hr style="margin: 20px 0;">
+
+                            <h4 style="margin-bottom: 15px;"><i class="fas fa-door-open"></i> Portal Access</h4>
+                            <p class="form-text" style="margin-bottom: 15px;">Allow this admin to access the End User Portal for testing</p>
+
+                            <!-- IPTV Service Section -->
+                            <div id="app-admin-iptv-section" style="margin-bottom: 20px;">
+                                <div id="app-admin-iptv-status">
+                                    <!-- Will be populated dynamically -->
+                                    <em class="text-secondary">Loading IPTV status...</em>
+                                </div>
+                            </div>
+
+                            <!-- Plex Access Section -->
+                            <div class="form-group">
+                                <label class="form-label" style="display: flex; align-items: center; gap: 10px;">
+                                    <input type="checkbox" id="app-user-plex-enabled" style="width: auto;">
+                                    Enable Plex Portal Access
+                                </label>
+                                <small class="form-text">Uses their Plex SSO email for portal Plex login (if SSO is configured above)</small>
+                            </div>
+                            ` : ''}
                         </div>
                         <div class="modal-footer" style="flex-direction: column; gap: 15px;">
                             ${!isEdit ? `
@@ -7613,8 +7637,166 @@ const Settings = {
             // Start checking (will retry until servers are loaded)
             checkServerBoxes();
 
+            // Load Portal Access fields
+            const plexEnabledEl = document.getElementById('app-user-plex-enabled');
+            if (plexEnabledEl) plexEnabledEl.checked = user.plex_enabled == 1;
+
+            // Store user data for IPTV wizard and populate IPTV status section
+            this._currentAppAdminUser = user;
+            this.populateAppAdminIPTVStatus(user);
+
         } catch (error) {
             Utils.showToast('Error', `Failed to load user data: ${error.message}`, 'error');
+        }
+    },
+
+    /**
+     * Populate the IPTV status section in the App Admin edit modal
+     */
+    populateAppAdminIPTVStatus(user) {
+        const statusContainer = document.getElementById('app-admin-iptv-status');
+        if (!statusContainer) return;
+
+        if (user.iptv_enabled) {
+            // Show current IPTV info
+            const expirationDate = user.iptv_expiration ? new Date(user.iptv_expiration) : null;
+            const isExpired = expirationDate && expirationDate < new Date();
+            const expirationDisplay = expirationDate ? expirationDate.toLocaleDateString() : 'N/A';
+
+            statusContainer.innerHTML = `
+                <div style="background: var(--bg-tertiary); border-radius: 8px; padding: 15px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                        <h5 style="margin: 0; color: var(--text-primary);">
+                            <i class="fas fa-broadcast-tower"></i> IPTV Service
+                        </h5>
+                        <span class="badge ${isExpired ? 'badge-danger' : 'badge-success'}">
+                            ${isExpired ? 'Expired' : 'Active'}
+                        </span>
+                    </div>
+                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; font-size: 0.9rem;">
+                        <div>
+                            <span class="text-secondary">Panel:</span>
+                            <span>${user.iptv_panel_name || 'N/A'}</span>
+                        </div>
+                        <div>
+                            <span class="text-secondary">Package:</span>
+                            <span>${user.iptv_package_name || 'N/A'}</span>
+                        </div>
+                        <div>
+                            <span class="text-secondary">Username:</span>
+                            <span>${user.iptv_username || 'N/A'}</span>
+                        </div>
+                        <div>
+                            <span class="text-secondary">Expires:</span>
+                            <span style="color: ${isExpired ? 'var(--danger)' : 'inherit'}">${expirationDisplay}</span>
+                        </div>
+                    </div>
+                    <div style="margin-top: 12px; display: flex; gap: 10px;">
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="Settings.showAddIPTVModalForAppAdmin()">
+                            <i class="fas fa-edit"></i> Change IPTV
+                        </button>
+                        <button type="button" class="btn btn-danger btn-sm" onclick="Settings.removeIPTVFromAppAdmin()">
+                            <i class="fas fa-trash"></i> Remove
+                        </button>
+                    </div>
+                </div>
+            `;
+        } else {
+            // Show add button
+            statusContainer.innerHTML = `
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <button type="button" class="btn btn-primary" onclick="Settings.showAddIPTVModalForAppAdmin()">
+                        <i class="fas fa-broadcast-tower"></i> Add IPTV Access
+                    </button>
+                    <span class="text-secondary">No IPTV service configured</span>
+                </div>
+            `;
+        }
+    },
+
+    /**
+     * Show modal to add IPTV access for App Admin
+     */
+    async showAddIPTVModalForAppAdmin() {
+        const user = this._currentAppAdminUser;
+        if (!user) {
+            Utils.showToast('Error', 'No user selected', 'error');
+            return;
+        }
+
+        // Close the app admin modal temporarily
+        const appAdminModal = document.getElementById('app-user-modal');
+        const appAdminBackdrop = document.getElementById('app-user-modal-backdrop');
+        if (appAdminModal) appAdminModal.style.display = 'none';
+        if (appAdminBackdrop) appAdminBackdrop.style.display = 'none';
+
+        // Open the wizard in add_iptv mode
+        if (typeof CreateUserWizard !== 'undefined') {
+            await CreateUserWizard.initAddService(user, 'iptv');
+            Utils.showModal({
+                title: 'Add IPTV Service',
+                size: 'xlarge',
+                body: `<div id="wizard-modal-content" style="min-height: 500px;"></div>`,
+                hideButtons: true,
+                onClose: async () => {
+                    // Re-show app admin modal and refresh data
+                    if (appAdminModal) appAdminModal.style.display = '';
+                    if (appAdminBackdrop) appAdminBackdrop.style.display = '';
+                    // Reload user data to get updated IPTV info
+                    await this.loadAppUserData(user.id);
+                }
+            });
+            await CreateUserWizard.render('wizard-modal-content');
+        } else {
+            Utils.showToast('Error', 'Wizard component not available', 'error');
+            if (appAdminModal) appAdminModal.style.display = '';
+            if (appAdminBackdrop) appAdminBackdrop.style.display = '';
+        }
+    },
+
+    /**
+     * Remove IPTV access from App Admin
+     */
+    async removeIPTVFromAppAdmin() {
+        const user = this._currentAppAdminUser;
+        if (!user) {
+            Utils.showToast('Error', 'No user selected', 'error');
+            return;
+        }
+
+        if (!confirm('Are you sure you want to remove IPTV access from this admin?')) {
+            return;
+        }
+
+        try {
+            Utils.showLoading();
+            // Clear IPTV fields via regular user update
+            await API.request(`/users/${user.id}`, {
+                method: 'PUT',
+                body: JSON.stringify({
+                    iptv_enabled: false,
+                    iptv_panel_id: null,
+                    iptv_package_id: null,
+                    iptv_username: null,
+                    iptv_password: null,
+                    iptv_expiration: null
+                })
+            });
+            Utils.showToast('Success', 'IPTV access removed', 'success');
+            // Refresh the status display
+            user.iptv_enabled = false;
+            user.iptv_panel_id = null;
+            user.iptv_package_id = null;
+            user.iptv_username = null;
+            user.iptv_password = null;
+            user.iptv_expiration = null;
+            user.iptv_panel_name = null;
+            user.iptv_package_name = null;
+            this.populateAppAdminIPTVStatus(user);
+        } catch (error) {
+            Utils.showToast('Error', error.message, 'error');
+        } finally {
+            Utils.hideLoading();
         }
     },
 
@@ -7661,6 +7843,13 @@ const Settings = {
         const serverCheckboxes = document.querySelectorAll('.plex-sso-server-checkbox:checked');
         const selectedServerIds = Array.from(serverCheckboxes).map(cb => parseInt(cb.value));
         data.plex_sso_server_ids = selectedServerIds.length > 0 ? selectedServerIds : null;
+
+        // Portal Access fields (only when editing)
+        // Note: IPTV is handled separately via the Add IPTV wizard
+        if (userId) {
+            const plexEnabledEl = document.getElementById('app-user-plex-enabled');
+            if (plexEnabledEl) data.plex_enabled = plexEnabledEl.checked;
+        }
 
         // Send welcome email checkbox (only for new users)
         if (!userId) {

@@ -110,16 +110,16 @@ async function resetLoginAttempts(userId) {
 function sanitizeUserForPortal(user) {
     // Compute request site access:
     // - If rs_has_access is explicitly 1, access granted
-    // - If rs_has_access is explicitly 0, access denied
-    // - If rs_has_access is null/undefined, default to plex_enabled value
+    // - If rs_has_access is null/undefined/0, default to plex_enabled value (auto mode)
+    // Note: 0 is treated as "auto" (not explicitly disabled) for backwards compatibility
     // Use Number() to handle string/int type coercion from SQLite
     let hasRequestSiteAccess;
     const rsAccess = user.rs_has_access;
-    if (rsAccess !== null && rsAccess !== undefined && rsAccess !== '') {
-        // Explicit value set - convert to number and check
-        hasRequestSiteAccess = Number(rsAccess) === 1;
+    if (rsAccess === 1 || rsAccess === '1' || rsAccess === true) {
+        // Explicitly granted
+        hasRequestSiteAccess = true;
     } else {
-        // null/undefined = auto: grant access if user has Plex enabled
+        // null/undefined/0 = auto: grant access if user has Plex enabled
         hasRequestSiteAccess = Number(user.plex_enabled) === 1;
     }
 
@@ -143,7 +143,9 @@ function sanitizeUserForPortal(user) {
         iptv_subscription_name: user.iptv_subscription_name,
         plex_package_name: user.plex_package_name,
         // Request Site Access
-        has_request_site_access: hasRequestSiteAccess
+        has_request_site_access: hasRequestSiteAccess,
+        // Admin flag - allows portal to show admin-specific features
+        is_app_user: user.is_app_user === 1 || user.is_app_user === true
     };
 }
 

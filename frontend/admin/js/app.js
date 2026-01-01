@@ -46,6 +46,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Load Tools dropdown (Media Managers)
     loadToolsDropdown();
+
+    // Initialize Portal link handler
+    initPortalLink();
 });
 
 /**
@@ -694,6 +697,56 @@ async function openMediaManager(managerId) {
         console.error('Failed to open manager:', error);
         showToast('Failed to open tool', 'error');
     }
+}
+
+/**
+ * Initialize Portal link handler
+ * Creates a portal session and opens the portal in a new tab
+ */
+function initPortalLink() {
+    const portalLink = document.getElementById('portal-nav-link');
+    if (!portalLink) return;
+
+    portalLink.addEventListener('click', async (e) => {
+        e.preventDefault();
+
+        try {
+            // Show loading state
+            const originalHtml = portalLink.innerHTML;
+            portalLink.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Opening...';
+
+            // Call the portal-login endpoint to create a portal session
+            const response = await API.request('/auth/portal-login', {
+                method: 'POST'
+            });
+
+            if (response.success) {
+                // Store the portal session in localStorage for the portal
+                // Must use snake_case keys to match what portal expects
+                localStorage.setItem('portal_token', response.token);
+                localStorage.setItem('portal_user', JSON.stringify(response.user));
+
+                // Open the portal in a new tab
+                window.open('/portal/', '_blank');
+
+                // Restore the link
+                portalLink.innerHTML = originalHtml;
+            }
+        } catch (error) {
+            console.error('Failed to open portal:', error);
+
+            // Restore the link
+            portalLink.innerHTML = '<i class="fas fa-door-open"></i> Portal';
+
+            if (error.message?.includes('No portal access configured') || error.message?.includes('needsSetup')) {
+                Utils.showToast('Portal Setup Required', 'Please configure your IPTV credentials or enable Plex in Settings > App Users', 'warning');
+                // Navigate to settings
+                window.location.hash = '#settings';
+            } else {
+                Utils.showToast('Error', error.message || 'Failed to open portal', 'error');
+            }
+        }
+    });
 }
 
 // Make functions globally accessible

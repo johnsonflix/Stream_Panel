@@ -689,11 +689,14 @@ router.get('/user/full', async (req, res) => {
                 iptv_editor: iptvEditorData,
 
                 // Request Site Access
-                // rs_has_access: 1 = enabled, 0 = disabled, null = auto (plex_enabled)
+                // rs_has_access: 1 = explicitly enabled, 0/null/undefined = auto (follows plex_enabled)
                 // Use Number() to handle string/int type coercion from SQLite
-                has_request_site_access: (userData.rs_has_access !== null && userData.rs_has_access !== undefined && userData.rs_has_access !== '')
-                    ? Number(userData.rs_has_access) === 1
-                    : Number(userData.plex_enabled) === 1
+                has_request_site_access: (userData.rs_has_access === 1 || userData.rs_has_access === '1' || userData.rs_has_access === true)
+                    ? true
+                    : Number(userData.plex_enabled) === 1,
+
+                // Admin flag - allows portal to show admin-specific features (preview mode)
+                is_app_user: userData.is_app_user === 1 || userData.is_app_user === true
             }
         };
 

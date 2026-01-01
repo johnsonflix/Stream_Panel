@@ -1,6 +1,6 @@
 {
-  "version": "1.5.26",
+  "version": "1.5.27",
   "name": "Stream Panel",
   "releaseDate": "2026-01-01",
-  "description": "Fix Plex sign-in rejecting users with matching email"
+  "description": "Admin Portal Access - preview end user portal from admin panel"
 }

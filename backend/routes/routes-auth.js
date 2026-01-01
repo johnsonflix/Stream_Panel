@@ -511,6 +511,247 @@ router.delete('/sessions', async (req, res) => {
 });
 
 /**
+ * GET /api/v2/auth/portal-credentials
+ * Get the current admin's portal credentials (IPTV/Plex)
+ */
+router.get('/portal-credentials', async (req, res) => {
+    try {
+        const sessionToken = req.headers.authorization?.replace('Bearer ', '');
+
+        if (!sessionToken) {
+            return res.status(401).json({
+                success: false,
+                message: 'No session token provided'
+            });
+        }
+
+        // Find session
+        const sessions = await query(`
+            SELECT * FROM sessions
+            WHERE session_token = ?
+            AND datetime(expires_at) > datetime('now')
+        `, [sessionToken]);
+
+        if (sessions.length === 0) {
+            return res.status(401).json({
+                success: false,
+                message: 'Invalid or expired session'
+            });
+        }
+
+        const session = sessions[0];
+
+        // Get user's portal credentials
+        const users = await query(`
+            SELECT id, name, email, iptv_username, iptv_password, plex_email
+            FROM users WHERE id = ?
+        `, [session.user_id]);
+
+        if (users.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'User not found'
+            });
+        }
+
+        const user = users[0];
+
+        res.json({
+            success: true,
+            credentials: {
+                iptv_username: user.iptv_username || '',
+                iptv_password: user.iptv_password || '',
+                plex_email: user.plex_email || ''
+            }
+        });
+
+    } catch (error) {
+        console.error('Get portal credentials error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error'
+        });
+    }
+});
+
+/**
+ * PUT /api/v2/auth/portal-credentials
+ * Update the current admin's portal credentials (IPTV/Plex)
+ */
+router.put('/portal-credentials', async (req, res) => {
+    try {
+        const sessionToken = req.headers.authorization?.replace('Bearer ', '');
+        const { iptv_username, iptv_password, plex_email } = req.body;
+
+        if (!sessionToken) {
+            return res.status(401).json({
+                success: false,
+                message: 'No session token provided'
+            });
+        }
+
+        // Find session
+        const sessions = await query(`
+            SELECT * FROM sessions
+            WHERE session_token = ?
+            AND datetime(expires_at) > datetime('now')
+        `, [sessionToken]);
+
+        if (sessions.length === 0) {
+            return res.status(401).json({
+                success: false,
+                message: 'Invalid or expired session'
+            });
+        }
+
+        const session = sessions[0];
+
+        // Check if IPTV username is already taken by another user
+        if (iptv_username) {
+            const existingUsers = await query(`
+                SELECT id FROM users WHERE iptv_username = ? AND id != ?
+            `, [iptv_username, session.user_id]);
+
+            if (existingUsers.length > 0) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'This IPTV username is already taken by another user'
+                });
+            }
+        }
+
+        // Update user's portal credentials
+        await query(`
+            UPDATE users
+            SET iptv_username = ?,
+                iptv_password = ?,
+                plex_email = ?,
+                updated_at = datetime('now')
+            WHERE id = ?
+        `, [
+            iptv_username || null,
+            iptv_password || null,
+            plex_email || null,
+            session.user_id
+        ]);
+
+        res.json({
+            success: true,
+            message: 'Portal credentials updated successfully'
+        });
+
+    } catch (error) {
+        console.error('Update portal credentials error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error'
+        });
+    }
+});
+
+/**
+ * POST /api/v2/auth/portal-login
+ * Create a portal session for the current admin (auto-login to end user portal)
+ */
+router.post('/portal-login', async (req, res) => {
+    try {
+        const sessionToken = req.headers.authorization?.replace('Bearer ', '');
+
+        if (!sessionToken) {
+            return res.status(401).json({
+                success: false,
+                message: 'No session token provided'
+            });
+        }
+
+        // Find admin session
+        const sessions = await query(`
+            SELECT * FROM sessions
+            WHERE session_token = ?
+            AND datetime(expires_at) > datetime('now')
+        `, [sessionToken]);
+
+        if (sessions.length === 0) {
+            return res.status(401).json({
+                success: false,
+                message: 'Invalid or expired session'
+            });
+        }
+
+        const session = sessions[0];
+
+        // Get admin user with portal access fields
+        const users = await query(`
+            SELECT id, name, email, iptv_username, iptv_password, plex_email, plex_enabled
+            FROM users WHERE id = ? AND is_app_user = 1
+        `, [session.user_id]);
+
+        if (users.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'User not found'
+            });
+        }
+
+        const user = users[0];
+
+        // Check if admin has portal access configured
+        const hasIPTV = user.iptv_username && user.iptv_password;
+        const hasPlex = user.plex_enabled && user.plex_email;
+
+        if (!hasIPTV && !hasPlex) {
+            return res.status(400).json({
+                success: false,
+                message: 'No portal access configured. Please set IPTV credentials or enable Plex in Settings > App Users.',
+                needsSetup: true
+            });
+        }
+
+        // Generate portal session token
+        const crypto = require('crypto');
+        const portalToken = crypto.randomBytes(32).toString('hex');
+
+        // Portal session duration: 90 days
+        const expiresAt = new Date();
+        expiresAt.setDate(expiresAt.getDate() + 90);
+
+        // Create portal session
+        await query(`
+            INSERT INTO portal_sessions (user_id, token, login_method, ip_address, user_agent, expires_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+        `, [
+            user.id,
+            portalToken,
+            hasIPTV ? 'iptv' : 'plex',
+            req.ip || req.connection?.remoteAddress || 'unknown',
+            req.headers['user-agent'] || '',
+            expiresAt.toISOString()
+        ]);
+
+        res.json({
+            success: true,
+            token: portalToken,
+            expiresAt: expiresAt.toISOString(),
+            user: {
+                id: user.id,
+                name: user.name,
+                email: user.email,
+                plex_email: user.plex_email,
+                plex_enabled: user.plex_enabled,
+                iptv_username: user.iptv_username
+            }
+        });
+
+    } catch (error) {
+        console.error('Portal login error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error'
+        });
+    }
+});
+
+/**
  * Cleanup expired sessions (can be called periodically)
  */
 router.post('/cleanup-sessions', async (req, res) => {

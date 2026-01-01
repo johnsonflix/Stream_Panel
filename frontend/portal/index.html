@@ -1570,6 +1570,11 @@
                     <i class="fas fa-chevron-down"></i>
                 </button>
                 <div class="account-dropdown-menu">
+                    <button class="account-dropdown-item" id="desktop-admin-btn" style="display: none;">
+                        <i class="fas fa-cogs"></i>
+                        Back to Admin
+                    </button>
+                    <div class="account-dropdown-divider" id="desktop-admin-divider" style="display: none;"></div>
                     <button class="account-dropdown-item" id="desktop-logout-btn">
                         <i class="fas fa-sign-out-alt"></i>
                         Logout
@@ -1591,6 +1596,11 @@
                 <button class="mobile-menu-item" id="mobile-message-admin-btn">
                     <i class="fas fa-envelope"></i>
                     Contact Support
+                </button>
+                <div class="mobile-menu-divider" id="mobile-admin-divider" style="display: none;"></div>
+                <button class="mobile-menu-item" id="mobile-admin-btn" style="display: none;">
+                    <i class="fas fa-cogs"></i>
+                    Back to Admin
                 </button>
                 <div class="mobile-menu-divider"></div>
                 <button class="mobile-menu-item" id="mobile-logout-btn">
@@ -2385,6 +2395,9 @@
             // Update cancel service buttons in header menus
             updateCancelServiceButtons();
 
+            // Update admin buttons visibility (for admins only)
+            updateAdminButtons();
+
             // Render status badges
             renderStatusBadges(user);
 
@@ -2436,8 +2449,9 @@
             let html = '';
 
             // Check if user has any active service
+            // For admins (is_app_user), treat as having Plex even without server access
             const isPlexCancellingCheck = (user.plex_enabled && (user.plex_cancelled_at || user.plex_scheduled_deletion)) || cancellingServices.has('plex');
-            const hasPlexActive = (user.plex_enabled && user.plex_servers && user.plex_servers.length > 0) && !isPlexCancellingCheck;
+            const hasPlexActive = (user.plex_enabled && (user.plex_servers?.length > 0 || user.is_app_user)) && !isPlexCancellingCheck;
             const hasIPTVEditorCheck = user.iptv_editor_enabled && user.iptv_editor;
             const isIPTVCancellingCheck = ((user.iptv_enabled || hasIPTVEditorCheck) && (user.iptv_cancelled_at || user.iptv_scheduled_deletion)) || cancellingServices.has('iptv');
             const hasIPTVActive = (user.iptv_enabled || hasIPTVEditorCheck) && !isIPTVCancellingCheck;
@@ -2477,8 +2491,9 @@
             // Add Service option (if missing one of the services)
             // Show Plex card if enabled, or if cancellation is in progress (scheduled but not yet deleted)
             // Only consider "cancelling" if service is still active - once plex_enabled=0, cancellation is complete
+            // For admins (is_app_user), treat as having Plex even without server access
             const isPlexCancelling = (user.plex_enabled && (user.plex_cancelled_at || user.plex_scheduled_deletion)) || cancellingServices.has('plex');
-            const hasPlex = (user.plex_enabled && user.plex_servers && user.plex_servers.length > 0) || isPlexCancelling;
+            const hasPlex = (user.plex_enabled && (user.plex_servers?.length > 0 || user.is_app_user)) || isPlexCancelling;
             // Show IPTV card if enabled, or if cancellation is in progress (scheduled but not yet deleted)
             // For IPTV Editor, also verify they have actual editor data (not just the flag)
             const hasIPTVEditor = user.iptv_editor_enabled && user.iptv_editor;
@@ -2490,6 +2505,7 @@
                 hasPlex, hasIPTV, hasIPTVEditor,
                 plex_enabled: user.plex_enabled,
                 plex_servers: user.plex_servers?.length,
+                is_app_user: user.is_app_user,
                 iptv_enabled: user.iptv_enabled,
                 iptv_editor_enabled: user.iptv_editor_enabled,
                 iptv_editor: !!user.iptv_editor,
@@ -2515,7 +2531,8 @@
 
         async function openAddServiceModal() {
             const user = currentUser;
-            const hasPlex = user.plex_enabled && user.plex_servers && user.plex_servers.length > 0;
+            // For admins (is_app_user), treat as having Plex even without server access
+            const hasPlex = user.plex_enabled && (user.plex_servers?.length > 0 || user.is_app_user);
             const hasIPTV = user.iptv_enabled || user.iptv_editor_enabled;
 
             // Check if user already has pending requests for each service type
@@ -2996,7 +3013,9 @@
 
             // Count active services to determine if we need full-width
             // Show Plex card if enabled, or if cancellation is in progress (but NOT if fully cancelled/removed)
-            const hasPlex = (user.plex_enabled && user.plex_servers && user.plex_servers.length > 0) || (isPlexCancelling && !isPlexFullyCancelled);
+            // For admins (is_app_user), show Plex card even without server access so they can preview the portal
+            const hasPlexServers = user.plex_servers && user.plex_servers.length > 0;
+            const hasPlex = (user.plex_enabled && (hasPlexServers || user.is_app_user)) || (isPlexCancelling && !isPlexFullyCancelled);
             // Show IPTV card if enabled, or if cancellation is in progress (but NOT if fully cancelled/removed)
             const hasIPTV = user.iptv_enabled || user.iptv_editor_enabled || (isIPTVCancelling && !isIPTVFullyCancelled);
             const serviceCount = (hasPlex ? 1 : 0) + (hasIPTV ? 1 : 0);
@@ -3631,7 +3650,8 @@
 
         async function showRenewOptions() {
             const user = currentUser;
-            const hasPlex = user.plex_enabled && user.plex_servers && user.plex_servers.length > 0;
+            // For admins (is_app_user), treat as having Plex even without server access
+            const hasPlex = user.plex_enabled && (user.plex_servers?.length > 0 || user.is_app_user);
             const hasIPTV = user.iptv_enabled || user.iptv_editor_enabled;
 
             // Reset renewal state
@@ -4466,6 +4486,24 @@
             if (mobileCancelDivider) mobileCancelDivider.style.display = hasActiveService ? 'block' : 'none';
         }
 
+        // Update admin button visibility (only for app users/admins)
+        function updateAdminButtons() {
+            const user = currentUser;
+            const isAdmin = user && user.is_app_user;
+
+            // Desktop dropdown
+            const desktopAdminBtn = document.getElementById('desktop-admin-btn');
+            const desktopAdminDivider = document.getElementById('desktop-admin-divider');
+            if (desktopAdminBtn) desktopAdminBtn.style.display = isAdmin ? 'flex' : 'none';
+            if (desktopAdminDivider) desktopAdminDivider.style.display = isAdmin ? 'block' : 'none';
+
+            // Mobile menu
+            const mobileAdminBtn = document.getElementById('mobile-admin-btn');
+            const mobileAdminDivider = document.getElementById('mobile-admin-divider');
+            if (mobileAdminBtn) mobileAdminBtn.style.display = isAdmin ? 'flex' : 'none';
+            if (mobileAdminDivider) mobileAdminDivider.style.display = isAdmin ? 'block' : 'none';
+        }
+
         // Logout function (shared)
         async function performLogout() {
             try {
@@ -4502,6 +4540,17 @@
         document.getElementById('mobile-cancel-service-btn').addEventListener('click', () => {
             document.getElementById('mobile-menu-dropdown').classList.remove('show');
             openCancelModal();
+        });
+
+        // Admin panel buttons (for admins only)
+        document.getElementById('desktop-admin-btn').addEventListener('click', () => {
+            document.getElementById('account-dropdown-wrapper').classList.remove('open');
+            window.location.href = '/admin/';
+        });
+
+        document.getElementById('mobile-admin-btn').addEventListener('click', () => {
+            document.getElementById('mobile-menu-dropdown').classList.remove('show');
+            window.location.href = '/admin/';
         });
 
         document.getElementById('mobile-message-admin-btn').addEventListener('click', () => {
