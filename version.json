@@ -1,6 +1,6 @@
 {
-  "version": "1.5.29",
+  "version": "1.5.30",
   "name": "Stream Panel",
   "releaseDate": "2026-01-02",
-  "description": "Request Site search autocomplete and dedicated search bars"
+  "description": "Sign In As User feature for admin impersonation"
 }

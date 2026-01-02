@@ -539,6 +539,9 @@ const Users = {
                     <a href="#edit-user/${user.id}" class="btn btn-sm btn-outline" title="Edit (right-click for new tab)" onclick="sessionStorage.setItem('usersPageFilters', JSON.stringify(Users.currentFilters))">
                         <i class="fas fa-edit"></i>
                     </a>
+                    <button class="btn btn-sm btn-outline" onclick="Users.signInAsUser(${user.id}, '${Utils.escapeHtml(user.name || user.email)}')" title="Sign in as this user">
+                        <i class="fas fa-user-secret"></i>
+                    </button>
                     <button class="btn btn-sm btn-danger" onclick="Users.deleteUser(${user.id})" title="Delete">
                         <i class="fas fa-trash"></i>
                     </button>
@@ -643,14 +646,17 @@ const Users = {
                                     <div style="font-weight: 600; font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Created</div>
                                     <div style="font-size: 0.875rem;">${Utils.formatDate(user.created_at)}</div>
                                 </div>
-                                <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
-                                    <button class="btn btn-sm btn-outline" onclick="Users.viewUser(${user.id})" style="flex: 1;">
+                                <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem; flex-wrap: wrap;">
+                                    <button class="btn btn-sm btn-outline" onclick="Users.viewUser(${user.id})" style="flex: 1; min-width: 70px;">
                                         <i class="fas fa-eye"></i> View
                                     </button>
-                                    <a href="#edit-user/${user.id}" class="btn btn-sm btn-outline" style="flex: 1; text-align: center;" onclick="sessionStorage.setItem('usersPageFilters', JSON.stringify(Users.currentFilters))">
+                                    <a href="#edit-user/${user.id}" class="btn btn-sm btn-outline" style="flex: 1; min-width: 70px; text-align: center;" onclick="sessionStorage.setItem('usersPageFilters', JSON.stringify(Users.currentFilters))">
                                         <i class="fas fa-edit"></i> Edit
                                     </a>
-                                    <button class="btn btn-sm btn-danger" onclick="Users.deleteUser(${user.id})" style="flex: 1;">
+                                    <button class="btn btn-sm btn-outline" onclick="Users.signInAsUser(${user.id}, '${Utils.escapeHtml(user.name || user.email).replace(/'/g, "\\'")}')" style="flex: 1; min-width: 90px;">
+                                        <i class="fas fa-user-secret"></i> Sign In
+                                    </button>
+                                    <button class="btn btn-sm btn-danger" onclick="Users.deleteUser(${user.id})" style="flex: 1; min-width: 70px;">
                                         <i class="fas fa-trash"></i> Delete
                                     </button>
                                 </div>
@@ -2761,6 +2767,9 @@ const Users = {
                         <button class="btn btn-outline" onclick="Users.emailUser(${user.id}); Utils.closeModal();">
                             <i class="fas fa-envelope"></i> Send Email
                         </button>
+                        <button class="btn btn-outline" onclick="Users.signInAsUser(${user.id}, '${Utils.escapeHtml(user.name || user.email).replace(/'/g, "\\'")}'); Utils.closeModal();">
+                            <i class="fas fa-user-secret"></i> Sign In As
+                        </button>
                         <button class="btn btn-primary" onclick="Users.editUser(${user.id}); Utils.closeModal();">
                             <i class="fas fa-edit"></i> Edit User
                         </button>
@@ -3025,6 +3034,49 @@ const Users = {
 
         // Navigate to email composer page
         Router.navigate('email');
+    },
+
+    /**
+     * Sign in as a user - opens portal in new tab as that user
+     */
+    async signInAsUser(userId, userName) {
+        try {
+            // Show confirmation dialog
+            const confirmed = await Utils.confirm(
+                'Sign in as User',
+                `Are you sure you want to sign into the portal as <strong>${Utils.escapeHtml(userName)}</strong>?<br><br>This will open the End User Portal in a new tab, logged in as this user.`,
+                'Sign In',
+                'Cancel'
+            );
+
+            if (!confirmed) return;
+
+            // Show loading toast
+            Utils.showToast('Loading', 'Opening portal...', 'info');
+
+            // Call the sign-in-as-user endpoint
+            const response = await API.request('/auth/sign-in-as-user', {
+                method: 'POST',
+                body: { userId }
+            });
+
+            if (response.success) {
+                // Store the portal session in localStorage for the portal
+                // Must use snake_case keys to match what portal expects
+                localStorage.setItem('portal_token', response.token);
+                localStorage.setItem('portal_user', JSON.stringify(response.user));
+
+                // Open the portal in a new tab
+                window.open('/portal/', '_blank');
+
+                Utils.showToast('Success', `Signed in as ${userName}`, 'success');
+            } else {
+                Utils.showToast('Error', response.message || 'Failed to sign in as user', 'error');
+            }
+        } catch (error) {
+            console.error('Sign in as user error:', error);
+            Utils.showToast('Error', error.message || 'Failed to sign in as user', 'error');
+        }
     },
 
     // ============ Service Requests Functions ============

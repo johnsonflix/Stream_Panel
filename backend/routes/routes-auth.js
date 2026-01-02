@@ -752,6 +752,175 @@ router.post('/portal-login', async (req, res) => {
 });
 
 /**
+ * POST /api/v2/auth/sign-in-as-user
+ * Create a portal session for any user (admin impersonation feature)
+ * Allows admins to sign into the portal as a specific user for testing/support
+ */
+router.post('/sign-in-as-user', async (req, res) => {
+    try {
+        console.log('[Sign-in-as-user] Request received, body:', req.body);
+        const sessionToken = req.headers.authorization?.replace('Bearer ', '');
+        const { userId } = req.body;
+        console.log('[Sign-in-as-user] userId:', userId, 'sessionToken present:', !!sessionToken);
+
+        if (!sessionToken) {
+            return res.status(401).json({
+                success: false,
+                message: 'No session token provided'
+            });
+        }
+
+        if (!userId) {
+            return res.status(400).json({
+                success: false,
+                message: 'User ID is required'
+            });
+        }
+
+        // Find admin session
+        const sessions = await query(`
+            SELECT s.*, u.is_app_user FROM sessions s
+            JOIN users u ON s.user_id = u.id
+            WHERE s.session_token = ?
+            AND datetime(s.expires_at) > datetime('now')
+        `, [sessionToken]);
+
+        if (sessions.length === 0) {
+            return res.status(401).json({
+                success: false,
+                message: 'Invalid or expired session'
+            });
+        }
+
+        const session = sessions[0];
+
+        // Verify caller is an admin (app user)
+        if (!session.is_app_user) {
+            return res.status(403).json({
+                success: false,
+                message: 'Only admins can use this feature'
+            });
+        }
+
+        // Get the target user with all portal-related fields
+        const users = await query(`
+            SELECT u.*,
+                   sp_iptv.name as iptv_subscription_name,
+                   sp_plex.name as plex_package_name
+            FROM users u
+            LEFT JOIN subscription_plans sp_iptv ON u.iptv_subscription_plan_id = sp_iptv.id
+            LEFT JOIN subscription_plans sp_plex ON u.plex_package_id = sp_plex.id
+            WHERE u.id = ?
+        `, [userId]);
+
+        if (users.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'User not found'
+            });
+        }
+
+        const user = users[0];
+
+        // Generate portal session token
+        const portalToken = crypto.randomBytes(32).toString('hex');
+
+        // Portal session duration: 90 days
+        const expiresAt = new Date();
+        expiresAt.setDate(expiresAt.getDate() + 90);
+
+        // Determine login method based on what the user has
+        const hasIPTV = user.iptv_username && user.iptv_password;
+        const loginMethod = hasIPTV ? 'iptv' : 'plex';
+
+        // Create portal session for the target user
+        await query(`
+            INSERT INTO portal_sessions (user_id, token, login_method, ip_address, user_agent, expires_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+        `, [
+            user.id,
+            portalToken,
+            `admin_impersonate_${loginMethod}`,
+            req.ip || req.connection?.remoteAddress || 'unknown',
+            req.headers['user-agent'] || '',
+            expiresAt.toISOString()
+        ]);
+
+        // Get user's Plex server access
+        const plexShares = await query(`
+            SELECT ups.*, ps.name as server_name, ps.libraries as server_libraries
+            FROM user_plex_shares ups
+            JOIN plex_servers ps ON ups.plex_server_id = ps.id
+            WHERE ups.user_id = ?
+        `, [user.id]);
+
+        // Compute request site access (same logic as portal-auth-routes)
+        let hasRequestSiteAccess;
+        const rsAccess = user.rs_has_access;
+        if (rsAccess === 1 || rsAccess === '1' || rsAccess === true) {
+            hasRequestSiteAccess = true;
+        } else {
+            hasRequestSiteAccess = Number(user.plex_enabled) === 1;
+        }
+
+        // Build sanitized user object for portal
+        const sanitizedUser = {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            plex_email: user.plex_email,
+            expiration_date: user.expiration_date,
+            subscription_status: user.subscription_status,
+            plex_enabled: user.plex_enabled,
+            iptv_enabled: user.iptv_enabled,
+            iptv_editor_enabled: user.iptv_editor_enabled,
+            iptv_username: user.iptv_username,
+            iptv_password: user.iptv_password,
+            iptv_editor_username: user.iptv_editor_username,
+            iptv_editor_password: user.iptv_editor_password,
+            m3u_url: user.m3u_url,
+            iptv_subscription_name: user.iptv_subscription_name,
+            plex_package_name: user.plex_package_name,
+            has_request_site_access: hasRequestSiteAccess,
+            is_admin_impersonating: true  // Flag so portal knows this is an impersonation session
+        };
+
+        // Add Plex servers to user object
+        sanitizedUser.plex_servers = plexShares.map(share => {
+            const userLibraryIds = share.library_ids ? JSON.parse(share.library_ids) : [];
+            const serverLibraries = share.server_libraries ? JSON.parse(share.server_libraries) : [];
+
+            const userLibraries = serverLibraries.filter(lib =>
+                userLibraryIds.includes(lib.key) || userLibraryIds.includes(String(lib.key))
+            );
+
+            return {
+                id: share.plex_server_id,
+                name: share.server_name,
+                libraries: userLibraries
+            };
+        });
+
+        console.log(`[Admin Impersonate] Admin user ID ${session.user_id} signing in as user ID ${user.id} (${user.name || user.email})`);
+
+        res.json({
+            success: true,
+            token: portalToken,
+            expiresAt: expiresAt.toISOString(),
+            user: sanitizedUser
+        });
+
+    } catch (error) {
+        console.error('[Sign-in-as-user] ERROR:', error.message);
+        console.error('[Sign-in-as-user] Stack:', error.stack);
+        res.status(500).json({
+            success: false,
+            message: 'Server error: ' + error.message
+        });
+    }
+});
+
+/**
  * Cleanup expired sessions (can be called periodically)
  */
 router.post('/cleanup-sessions', async (req, res) => {
