@@ -1,6 +1,6 @@
 {
-  "version": "1.5.28",
+  "version": "1.5.29",
   "name": "Stream Panel",
-  "releaseDate": "2026-01-01",
-  "description": "Hotfix: Add missing app-users-routes.js for admin plex_enabled save"
+  "releaseDate": "2026-01-02",
+  "description": "Request Site search autocomplete and dedicated search bars"
 }

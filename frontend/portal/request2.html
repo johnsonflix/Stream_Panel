@@ -380,6 +380,121 @@
             color: #f8fafc;
         }
 
+        /* Autocomplete Dropdown */
+        .search-autocomplete {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: #1e293b;
+            border-radius: 0 0 8px 8px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+            z-index: 1000;
+            max-height: 400px;
+            overflow-y: auto;
+            display: none;
+            /* Custom scrollbar */
+            scrollbar-width: thin;
+            scrollbar-color: #4a5568 #1e293b;
+        }
+        .search-autocomplete::-webkit-scrollbar {
+            width: 8px;
+        }
+        .search-autocomplete::-webkit-scrollbar-track {
+            background: #1e293b;
+            border-radius: 0 0 8px 0;
+        }
+        .search-autocomplete::-webkit-scrollbar-thumb {
+            background: #4a5568;
+            border-radius: 4px;
+        }
+        .search-autocomplete::-webkit-scrollbar-thumb:hover {
+            background: #5a6578;
+        }
+        .search-autocomplete.show {
+            display: block;
+        }
+        .autocomplete-item {
+            display: flex;
+            align-items: center;
+            padding: 10px 14px;
+            cursor: pointer;
+            transition: background 0.2s;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        .autocomplete-item:last-child {
+            border-bottom: none;
+        }
+        .autocomplete-item:hover {
+            background: rgba(99, 102, 241, 0.2);
+        }
+        .autocomplete-poster {
+            width: 40px;
+            height: 60px;
+            border-radius: 4px;
+            object-fit: cover;
+            background: #334155;
+            flex-shrink: 0;
+        }
+        .autocomplete-poster-placeholder {
+            width: 40px;
+            height: 60px;
+            border-radius: 4px;
+            background: #334155;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #64748b;
+            font-size: 18px;
+            flex-shrink: 0;
+        }
+        .autocomplete-info {
+            margin-left: 12px;
+            flex: 1;
+            min-width: 0;
+        }
+        .autocomplete-title {
+            font-size: 14px;
+            font-weight: 500;
+            color: #f1f5f9;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .autocomplete-meta {
+            font-size: 12px;
+            color: #94a3b8;
+            margin-top: 2px;
+        }
+        .autocomplete-type {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            margin-right: 6px;
+        }
+        .autocomplete-type.movie {
+            background: rgba(59, 130, 246, 0.2);
+            color: #60a5fa;
+        }
+        .autocomplete-type.tv {
+            background: rgba(168, 85, 247, 0.2);
+            color: #c084fc;
+        }
+        .autocomplete-loading {
+            padding: 20px;
+            text-align: center;
+            color: #64748b;
+        }
+        .autocomplete-no-results {
+            padding: 20px;
+            text-align: center;
+            color: #64748b;
+            font-size: 14px;
+        }
+
         /* Container */
         .request-container {
             max-width: 1800px;
@@ -390,6 +505,11 @@
         /* Section Headers */
         .request-section-header {
             margin: 40px 0 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 12px;
         }
         .request-section-title {
             font-size: 20px;
@@ -401,6 +521,46 @@
         }
         .request-section-title i {
             color: #6366f1;
+        }
+        /* Section Search Bar */
+        .section-search-bar {
+            display: flex;
+            align-items: center;
+            background: rgba(30, 41, 59, 0.8);
+            border-radius: 8px;
+            border: 1px solid #334155;
+            overflow: hidden;
+            max-width: 300px;
+        }
+        .section-search-input {
+            background: transparent;
+            border: none;
+            padding: 10px 14px;
+            color: #f8fafc;
+            font-size: 14px;
+            outline: none;
+            flex: 1;
+            min-width: 0;
+        }
+        .section-search-input::placeholder {
+            color: rgba(255, 255, 255, 0.4);
+        }
+        .section-search-btn {
+            background: #6366f1;
+            border: none;
+            padding: 10px 14px;
+            color: white;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .section-search-btn:hover {
+            background: #4f46e5;
+        }
+        @media (max-width: 768px) {
+            .section-search-bar {
+                max-width: 100%;
+                flex: 1;
+            }
         }
 
         /* Slider Wrapper with Arrows */
@@ -5998,9 +6158,56 @@
                 align-items: center;
             }
         }
+
+        /* Pull to Refresh */
+        .pull-to-refresh-indicator {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(180deg, rgba(15, 23, 42, 0.98) 0%, rgba(15, 23, 42, 0.9) 100%);
+            transform: translateY(-100%);
+            transition: transform 0.2s ease-out;
+            z-index: 9999;
+            pointer-events: none;
+        }
+        .pull-to-refresh-indicator.visible {
+            transform: translateY(0);
+        }
+        .pull-to-refresh-indicator.refreshing {
+            transform: translateY(0);
+        }
+        .pull-to-refresh-spinner {
+            width: 24px;
+            height: 24px;
+            border: 3px solid var(--border-muted);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            margin-right: 10px;
+        }
+        .pull-to-refresh-indicator.refreshing .pull-to-refresh-spinner {
+            animation: ptr-spin 0.8s linear infinite;
+        }
+        .pull-to-refresh-text {
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+        @keyframes ptr-spin {
+            to { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body class="loading">
+    <!-- Pull to Refresh Indicator -->
+    <div class="pull-to-refresh-indicator" id="pull-to-refresh">
+        <div class="pull-to-refresh-spinner"></div>
+        <span class="pull-to-refresh-text">Pull to refresh</span>
+    </div>
+
     <!-- Navigation -->
     <nav class="request-nav">
         <div class="request-nav-brand">
@@ -6024,10 +6231,13 @@
             </div>
             <div class="request-nav-search">
                 <input type="text" class="request-search-input" id="search-input"
-                       placeholder="Search for movies or TV shows...">
+                       placeholder="Search for movies or TV shows..." autocomplete="off">
                 <button class="request-search-btn" onclick="performSearch()">
                     <i class="fas fa-search"></i>
                 </button>
+                <div class="search-autocomplete" id="search-autocomplete">
+                    <!-- Populated by JS -->
+                </div>
             </div>
         </div>
         <div class="request-nav-user">
@@ -6320,6 +6530,12 @@
                 <h2 class="request-section-title">
                     <i class="fas fa-film"></i> Movies
                 </h2>
+                <div class="section-search-bar">
+                    <input type="text" class="section-search-input" id="movies-search-input" placeholder="Search movies...">
+                    <button class="section-search-btn" onclick="performMoviesSearch()">
+                        <i class="fas fa-search"></i>
+                    </button>
+                </div>
             </div>
             <div id="movies-content"></div>
         </section>
@@ -6329,6 +6545,12 @@
                 <h2 class="request-section-title">
                     <i class="fas fa-tv"></i> TV Shows
                 </h2>
+                <div class="section-search-bar">
+                    <input type="text" class="section-search-input" id="tv-search-input" placeholder="Search TV shows...">
+                    <button class="section-search-btn" onclick="performTvSearch()">
+                        <i class="fas fa-search"></i>
+                    </button>
+                </div>
             </div>
             <div id="tv-content"></div>
         </section>
@@ -6354,12 +6576,19 @@
         <!-- Browse Section (Genre/Studio/Network filtered view) -->
         <section id="browse-section" style="display: none;">
             <div class="request-section-header">
-                <button class="browse-back-btn" onclick="goBackToDiscover()">
+                <button class="browse-back-btn" id="browse-back-btn" onclick="goBackToDiscover()">
                     <i class="fas fa-arrow-left"></i> Back to Discover
                 </button>
                 <h2 class="request-section-title" id="browse-title">
                     <i class="fas fa-film" id="browse-icon"></i> Browse
                 </h2>
+                <!-- Search bar for Movies/TV browse pages -->
+                <div class="section-search-bar" id="browse-search-bar" style="display: none;">
+                    <input type="text" class="section-search-input" id="browse-search-input" placeholder="Search...">
+                    <button class="section-search-btn" onclick="performBrowseSearch()">
+                        <i class="fas fa-search"></i>
+                    </button>
+                </div>
             </div>
             <div class="browse-controls">
                 <div class="browse-sort">
@@ -8393,6 +8622,18 @@
 
                 document.getElementById('browse-title').innerHTML = '<i class="fas fa-film" id="browse-icon"></i> Movies';
 
+                // Hide back button for main Movies page (no genre/studio to go back from)
+                const backBtnMovies = document.getElementById('browse-back-btn');
+                if (backBtnMovies) backBtnMovies.style.display = 'none';
+
+                // Show search bar for movies
+                const browseSearchBar = document.getElementById('browse-search-bar');
+                if (browseSearchBar) {
+                    browseSearchBar.style.display = 'flex';
+                    document.getElementById('browse-search-input').placeholder = 'Search movies...';
+                    document.getElementById('browse-search-input').value = '';
+                }
+
                 // Load content immediately
                 loadBrowseContent().then(() => {
                     ensureViewportFilled();
@@ -8450,6 +8691,18 @@
 
                 document.getElementById('browse-title').innerHTML = '<i class="fas fa-tv" id="browse-icon"></i> TV Shows';
 
+                // Hide back button for main TV page (no genre/network to go back from)
+                const backBtnTv = document.getElementById('browse-back-btn');
+                if (backBtnTv) backBtnTv.style.display = 'none';
+
+                // Show search bar for TV shows
+                const browseSearchBarTv = document.getElementById('browse-search-bar');
+                if (browseSearchBarTv) {
+                    browseSearchBarTv.style.display = 'flex';
+                    document.getElementById('browse-search-input').placeholder = 'Search TV shows...';
+                    document.getElementById('browse-search-input').value = '';
+                }
+
                 // Load content immediately
                 loadBrowseContent().then(() => {
                     ensureViewportFilled();
@@ -8484,13 +8737,251 @@
             }
         }
 
+        // Autocomplete state
+        let autocompleteTimeout = null;
+        let autocompleteAbortController = null;
+
         function setupSearch() {
             const searchInput = document.getElementById('search-input');
+            const autocompleteDropdown = document.getElementById('search-autocomplete');
+
+            // Enter key to search
             searchInput.addEventListener('keypress', (e) => {
                 if (e.key === 'Enter') {
+                    hideAutocomplete();
                     performSearch();
                 }
             });
+
+            // Autocomplete on input with debounce
+            searchInput.addEventListener('input', (e) => {
+                const query = e.target.value.trim();
+
+                // Clear previous timeout
+                if (autocompleteTimeout) {
+                    clearTimeout(autocompleteTimeout);
+                }
+
+                // Cancel previous request
+                if (autocompleteAbortController) {
+                    autocompleteAbortController.abort();
+                }
+
+                if (query.length < 2) {
+                    hideAutocomplete();
+                    return;
+                }
+
+                // Show loading state
+                autocompleteDropdown.innerHTML = '<div class="autocomplete-loading"><i class="fas fa-spinner fa-spin"></i> Searching...</div>';
+                autocompleteDropdown.classList.add('show');
+
+                // Debounce: wait 300ms before fetching
+                autocompleteTimeout = setTimeout(() => {
+                    fetchAutocomplete(query);
+                }, 300);
+            });
+
+            // Hide autocomplete when clicking outside
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('.request-nav-search')) {
+                    hideAutocomplete();
+                }
+            });
+
+            // Hide autocomplete on escape
+            searchInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    hideAutocomplete();
+                }
+            });
+
+            // Movies section search
+            const moviesSearchInput = document.getElementById('movies-search-input');
+            if (moviesSearchInput) {
+                moviesSearchInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        performMoviesSearch();
+                    }
+                });
+            }
+
+            // TV section search
+            const tvSearchInput = document.getElementById('tv-search-input');
+            if (tvSearchInput) {
+                tvSearchInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        performTvSearch();
+                    }
+                });
+            }
+
+            // Browse section search (Movies/TV pages)
+            const browseSearchInput = document.getElementById('browse-search-input');
+            if (browseSearchInput) {
+                browseSearchInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        performBrowseSearch();
+                    }
+                });
+            }
+        }
+
+        // Fetch autocomplete suggestions from API
+        async function fetchAutocomplete(query) {
+            const autocompleteDropdown = document.getElementById('search-autocomplete');
+
+            try {
+                autocompleteAbortController = new AbortController();
+
+                const response = await fetch(`/api/v2/request-site/search/autocomplete?query=${encodeURIComponent(query)}`, {
+                    signal: autocompleteAbortController.signal
+                });
+
+                if (!response.ok) throw new Error('Autocomplete failed');
+
+                const data = await response.json();
+
+                if (data.results && data.results.length > 0) {
+                    autocompleteDropdown.innerHTML = data.results.map(item => `
+                        <div class="autocomplete-item" onclick="selectAutocompleteItem(${item.id}, '${item.media_type}', '${escapeHtml(item.title)}')">
+                            ${item.posterUrl
+                                ? `<img class="autocomplete-poster" src="${item.posterUrl}" alt="${escapeHtml(item.title)}" loading="lazy">`
+                                : `<div class="autocomplete-poster-placeholder"><i class="fas fa-${item.media_type === 'movie' ? 'film' : 'tv'}"></i></div>`
+                            }
+                            <div class="autocomplete-info">
+                                <div class="autocomplete-title">${escapeHtml(item.title)}</div>
+                                <div class="autocomplete-meta">
+                                    <span class="autocomplete-type ${item.media_type}">${item.media_type === 'movie' ? 'Movie' : 'TV'}</span>
+                                    ${item.year ? item.year : ''}
+                                </div>
+                            </div>
+                        </div>
+                    `).join('');
+                } else {
+                    autocompleteDropdown.innerHTML = '<div class="autocomplete-no-results">No results found. Try a different spelling.</div>';
+                }
+            } catch (error) {
+                if (error.name === 'AbortError') return; // Request was cancelled
+                console.error('Autocomplete error:', error);
+                autocompleteDropdown.innerHTML = '<div class="autocomplete-no-results">Search failed. Press Enter to search.</div>';
+            }
+        }
+
+        // Hide autocomplete dropdown
+        function hideAutocomplete() {
+            const autocompleteDropdown = document.getElementById('search-autocomplete');
+            if (autocompleteDropdown) {
+                autocompleteDropdown.classList.remove('show');
+                autocompleteDropdown.innerHTML = '';
+            }
+            if (autocompleteTimeout) {
+                clearTimeout(autocompleteTimeout);
+                autocompleteTimeout = null;
+            }
+        }
+
+        // Select an autocomplete item - navigate to details page
+        function selectAutocompleteItem(id, mediaType, title) {
+            hideAutocomplete();
+            document.getElementById('search-input').value = title;
+
+            // Navigate directly to the media details page
+            if (mediaType === 'movie') {
+                showMovieDetails(id);
+            } else {
+                showTvDetails(id);
+            }
+        }
+
+        // Search within the current browse section (Movies or TV)
+        function performBrowseSearch() {
+            const query = document.getElementById('browse-search-input').value.trim();
+            if (!query) return;
+            // Determine if we're in movies or tv browse mode
+            const mediaType = browseState.mediaType || (browseState.type === 'all-movies' ? 'movie' : 'tv');
+            performTypedSearch(query, mediaType);
+        }
+
+        // Search within Movies section only
+        function performMoviesSearch() {
+            const query = document.getElementById('movies-search-input').value.trim();
+            if (!query) return;
+            performTypedSearch(query, 'movie');
+        }
+
+        // Search within TV Shows section only
+        function performTvSearch() {
+            const query = document.getElementById('tv-search-input').value.trim();
+            if (!query) return;
+            performTypedSearch(query, 'tv');
+        }
+
+        // Search with a specific type filter (movie or tv)
+        function performTypedSearch(query, mediaType) {
+            if (!query) return;
+
+            // Update URL
+            history.pushState({ view: 'search', query: query, mediaType: mediaType }, '', `#search/${encodeURIComponent(query)}/${mediaType}`);
+
+            // Set up browse state for typed search
+            browseState = {
+                type: 'search',
+                query: query,
+                searchType: mediaType,  // 'movie' or 'tv' - passed to API
+                id: null,
+                name: mediaType === 'movie' ? `Movie Search: "${query}"` : `TV Show Search: "${query}"`,
+                mediaType: mediaType,
+                page: 1,
+                isLoading: false,
+                hasMore: true,
+                sortBy: 'popularity.desc'
+            };
+
+            // Hide all sections except browse
+            document.getElementById('discover-section').style.display = 'none';
+            document.getElementById('movies-section').style.display = 'none';
+            document.getElementById('tv-section').style.display = 'none';
+            document.getElementById('requests-section').style.display = 'none';
+            document.getElementById('settings-section').style.display = 'none';
+            document.getElementById('movie-details-page').classList.remove('show');
+            document.getElementById('browse-section').style.display = 'block';
+
+            // Hide back button for search results
+            const backBtnSearch = document.getElementById('browse-back-btn');
+            if (backBtnSearch) backBtnSearch.style.display = 'none';
+
+            // Update title with search icon and type
+            const typeLabel = mediaType === 'movie' ? 'Movies' : 'TV Shows';
+            document.getElementById('browse-title').innerHTML = `<i class="fas fa-search" id="browse-icon"></i> ${typeLabel} matching "${escapeHtml(query)}"`;
+
+            // Keep search bar visible so user can refine search
+            const browseSearchBarTyped = document.getElementById('browse-search-bar');
+            if (browseSearchBarTyped) {
+                browseSearchBarTyped.style.display = 'flex';
+                document.getElementById('browse-search-input').placeholder = mediaType === 'movie' ? 'Search movies...' : 'Search TV shows...';
+            }
+
+            // Hide sort/filter controls for search
+            const browseControls = document.querySelector('.browse-controls');
+            if (browseControls) {
+                browseControls.style.display = 'none';
+            }
+
+            // Clear grid and load search results
+            document.getElementById('browse-grid').innerHTML = '';
+            loadBrowseContent().then(() => {
+                ensureViewportFilled();
+            });
+
+            // Update nav links - highlight the appropriate one
+            document.querySelectorAll('.request-nav-link').forEach(link => {
+                link.classList.remove('active');
+            });
+            const navLink = document.querySelector(`.request-nav-link[data-section="${mediaType === 'movie' ? 'movies' : 'tv'}"]`);
+            if (navLink) navLink.classList.add('active');
+
+            setupBrowseScroll();
         }
 
         // ============ Discover Content Loading ============
@@ -10619,6 +11110,13 @@
             const browseControls = document.querySelector('.browse-controls');
             if (browseControls) browseControls.style.display = 'flex';
 
+            // Show back button for genre browse
+            const backBtnGenre = document.getElementById('browse-back-btn');
+            if (backBtnGenre) backBtnGenre.style.display = 'inline-flex';
+
+            // Hide browse search bar (only for Movies/TV main pages)
+            hideBrowseSearchBar();
+
             // Update title
             const icon = type === 'movie' ? 'fa-film' : 'fa-tv';
             document.getElementById('browse-icon').className = `fas ${icon}`;
@@ -10656,6 +11154,13 @@
             const browseControls = document.querySelector('.browse-controls');
             if (browseControls) browseControls.style.display = 'flex';
 
+            // Show back button for studio browse
+            const backBtnStudio = document.getElementById('browse-back-btn');
+            if (backBtnStudio) backBtnStudio.style.display = 'inline-flex';
+
+            // Hide browse search bar (only for Movies/TV main pages)
+            hideBrowseSearchBar();
+
             // Update title
             document.getElementById('browse-icon').className = 'fas fa-building';
             document.getElementById('browse-title').innerHTML = `<i class="fas fa-building" id="browse-icon"></i> ${studioName}`;
@@ -10691,6 +11196,13 @@
             // Show browse controls (may be hidden from search)
             const browseControls = document.querySelector('.browse-controls');
             if (browseControls) browseControls.style.display = 'flex';
+
+            // Show back button for network browse
+            const backBtnNetwork = document.getElementById('browse-back-btn');
+            if (backBtnNetwork) backBtnNetwork.style.display = 'inline-flex';
+
+            // Hide browse search bar (only for Movies/TV main pages)
+            hideBrowseSearchBar();
 
             // Update title
             document.getElementById('browse-icon').className = 'fas fa-broadcast-tower';
@@ -10729,6 +11241,13 @@
             const browseControls = document.querySelector('.browse-controls');
             if (browseControls) browseControls.style.display = 'flex';
 
+            // Show back button for collection browse
+            const backBtnCollection = document.getElementById('browse-back-btn');
+            if (backBtnCollection) backBtnCollection.style.display = 'inline-flex';
+
+            // Hide browse search bar (only for Movies/TV main pages)
+            hideBrowseSearchBar();
+
             // Update title
             document.getElementById('browse-icon').className = 'fas fa-layer-group';
             document.getElementById('browse-title').innerHTML = `<i class="fas fa-layer-group" id="browse-icon"></i> ${collectionName}`;
@@ -10749,8 +11268,18 @@
             document.getElementById('movie-details-page').classList.remove('show');
             document.getElementById('discover-section').style.display = 'block';
 
+            // Hide browse search bar
+            const browseSearchBar = document.getElementById('browse-search-bar');
+            if (browseSearchBar) browseSearchBar.style.display = 'none';
+
             // Clean up scroll listener
             window.removeEventListener('scroll', handleBrowseScroll);
+        }
+
+        // Helper to hide browse search bar for genre/studio/network browse
+        function hideBrowseSearchBar() {
+            const browseSearchBar = document.getElementById('browse-search-bar');
+            if (browseSearchBar) browseSearchBar.style.display = 'none';
         }
 
         // ============ Browse Content Loading ============
@@ -10817,6 +11346,10 @@
                     endpoint = `/api/v2/request-site/collection/${browseState.id}`;
                 } else if (browseState.type === 'search') {
                     endpoint = `/api/v2/request-site/search?query=${encodeURIComponent(browseState.query)}&page=${browseState.page}`;
+                    // Add type filter if searching within movies or TV only
+                    if (browseState.searchType) {
+                        endpoint += `&type=${browseState.searchType}`;
+                    }
                 }
 
                 const response = await fetch(endpoint);
@@ -11847,8 +12380,15 @@
             document.getElementById('movie-details-page').classList.remove('show');
             document.getElementById('browse-section').style.display = 'block';
 
+            // Hide back button for global search
+            const backBtnGlobalSearch = document.getElementById('browse-back-btn');
+            if (backBtnGlobalSearch) backBtnGlobalSearch.style.display = 'none';
+
             // Update title with search icon
             document.getElementById('browse-title').innerHTML = `<i class="fas fa-search" id="browse-icon"></i> Search Results for "${escapeHtml(query)}"`;
+
+            // Hide browse search bar (search results don't need it)
+            hideBrowseSearchBar();
 
             // Hide sort/filter controls for search (not applicable)
             const browseControls = document.querySelector('.browse-controls');

@@ -450,30 +450,123 @@ router.get('/search', async (req, res) => {
             return res.status(400).json({ error: 'Query is required' });
         }
 
-        let results;
-        if (type === 'movie') {
-            results = await tmdb.searchMovies(query, parseInt(page));
-        } else if (type === 'tv') {
-            results = await tmdb.searchTv(query, parseInt(page));
-        } else {
-            results = await tmdb.searchMulti(query, parseInt(page));
-        }
+        console.log(`[Request Site] Search: query="${query}", page=${page}, type=${type || 'all'}`);
 
-        // Filter out people from multi-search and add image URLs
-        if (results.results) {
-            results.results = results.results
-                .filter(item => item.media_type !== 'person')
-                .map(item => ({
+        let results;
+
+        if (type === 'movie') {
+            // Search movies only
+            results = await tmdb.searchMovies(query, parseInt(page));
+            // Add media_type since movie search doesn't include it
+            if (results.results) {
+                results.results = results.results.map(item => ({
                     ...item,
+                    media_type: 'movie',
                     posterUrl: TMDBService.getPosterUrl(item.poster_path),
                     backdropUrl: TMDBService.getBackdropUrl(item.backdrop_path)
                 }));
+            }
+        } else if (type === 'tv') {
+            // Search TV shows only
+            results = await tmdb.searchTv(query, parseInt(page));
+            // Add media_type since TV search doesn't include it
+            if (results.results) {
+                results.results = results.results.map(item => ({
+                    ...item,
+                    media_type: 'tv',
+                    posterUrl: TMDBService.getPosterUrl(item.poster_path),
+                    backdropUrl: TMDBService.getBackdropUrl(item.backdrop_path)
+                }));
+            }
+        } else {
+            // Search BOTH movies and TV separately, then combine
+            // This avoids the issue where multi-search returns mostly people
+            const [movieResults, tvResults] = await Promise.all([
+                tmdb.searchMovies(query, parseInt(page)),
+                tmdb.searchTv(query, parseInt(page))
+            ]);
+
+            console.log(`[Request Site] TMDB returned ${movieResults.results?.length || 0} movies (total: ${movieResults.total_results})`);
+            console.log(`[Request Site] TMDB returned ${tvResults.results?.length || 0} TV shows (total: ${tvResults.total_results})`);
+            if (tvResults.results?.length > 0) {
+                console.log(`[Request Site] First few TV results: ${tvResults.results.slice(0, 5).map(t => t.name).join(', ')}`);
+            }
+
+            // Combine and add media_type
+            const combinedResults = [
+                ...(movieResults.results || []).map(item => ({
+                    ...item,
+                    media_type: 'movie',
+                    posterUrl: TMDBService.getPosterUrl(item.poster_path),
+                    backdropUrl: TMDBService.getBackdropUrl(item.backdrop_path)
+                })),
+                ...(tvResults.results || []).map(item => ({
+                    ...item,
+                    media_type: 'tv',
+                    posterUrl: TMDBService.getPosterUrl(item.poster_path),
+                    backdropUrl: TMDBService.getBackdropUrl(item.backdrop_path)
+                }))
+            ];
+
+            // Sort by vote_count (descending) so most popular/rated results appear first
+            // vote_count is more reliable than "popularity" which is based on recent trending activity
+            combinedResults.sort((a, b) => (b.vote_count || 0) - (a.vote_count || 0));
+
+            // Calculate combined totals
+            const totalResults = (movieResults.total_results || 0) + (tvResults.total_results || 0);
+            const maxPages = Math.max(movieResults.total_pages || 0, tvResults.total_pages || 0);
+
+            results = {
+                page: parseInt(page),
+                results: combinedResults,
+                total_results: totalResults,
+                total_pages: maxPages
+            };
         }
+
+        console.log(`[Request Site] Returning ${results.results?.length || 0} results (total_results: ${results.total_results})`);
 
         res.json(results);
     } catch (error) {
         console.error('[Request Site] Search failed:', error);
         res.status(500).json({ error: 'Search failed' });
+    }
+});
+
+/**
+ * GET /api/v2/request-site/search/autocomplete
+ * Autocomplete suggestions as user types - uses multi-search for better fuzzy matching
+ */
+router.get('/search/autocomplete', async (req, res) => {
+    try {
+        const { query } = req.query;
+
+        if (!query || query.length < 2) {
+            return res.json({ results: [] });
+        }
+
+        // Use multi-search for autocomplete - it has better fuzzy matching
+        const results = await tmdb.searchMulti(query, 1, false);
+
+        // Filter to only movies and TV, add poster URLs, limit to 8 suggestions
+        const suggestions = (results.results || [])
+            .filter(item => item.media_type === 'movie' || item.media_type === 'tv')
+            .slice(0, 8)
+            .map(item => ({
+                id: item.id,
+                title: item.media_type === 'movie' ? item.title : item.name,
+                media_type: item.media_type,
+                year: item.media_type === 'movie'
+                    ? (item.release_date ? item.release_date.substring(0, 4) : null)
+                    : (item.first_air_date ? item.first_air_date.substring(0, 4) : null),
+                poster_path: item.poster_path,
+                posterUrl: TMDBService.getPosterUrl(item.poster_path, 'w92')
+            }));
+
+        res.json({ results: suggestions });
+    } catch (error) {
+        console.error('[Request Site] Autocomplete failed:', error);
+        res.json({ results: [] }); // Return empty on error, don't break UI
     }
 });
 
