@@ -1719,7 +1719,7 @@ router.post('/:id/update-plex-libraries', async (req, res) => {
 
                 // Update database to reflect the new library selections
                 await db.query(`DELETE FROM user_plex_shares WHERE user_id = ? AND plex_server_id = ?`, [id, server_id]);
-                await db.query(`INSERT INTO user_plex_shares (user_id, plex_server_id, library_ids) VALUES (?, ?, ?)`,
+                await db.query(`INSERT INTO user_plex_shares (user_id, plex_server_id, library_ids, share_status, shared_at, updated_at) VALUES (?, ?, ?, 'active', datetime('now'), datetime('now'))`,
                     [id, server_id, JSON.stringify(library_ids)]);
 
                 console.log(`📚 Updated database with ${library_ids.length} libraries for server ${server_id}`);
@@ -1776,10 +1776,10 @@ router.post('/:id/sync-plex-libraries', async (req, res) => {
                     const existingShares = await db.query(`SELECT id FROM user_plex_shares WHERE user_id = ? AND plex_server_id = ?`, [id, server.id]);
                     const libraryJson = JSON.stringify(result.libraryIds.map(String));
                     if (existingShares.length > 0) {
-                        await db.query(`UPDATE user_plex_shares SET library_ids = ?, updated_at = datetime('now') WHERE user_id = ? AND plex_server_id = ?`, [libraryJson, id, server.id]);
+                        await db.query(`UPDATE user_plex_shares SET library_ids = ?, share_status = 'active', updated_at = datetime('now') WHERE user_id = ? AND plex_server_id = ?`, [libraryJson, id, server.id]);
                         results.push({ server_id: server.id, server_name: server.name, success: true, libraries_found: result.libraryIds.length });
                     } else {
-                        await db.query(`INSERT INTO user_plex_shares (user_id, plex_server_id, library_ids, created_at, updated_at) VALUES (?, ?, ?, datetime('now'), datetime('now'))`, [id, server.id, libraryJson]);
+                        await db.query(`INSERT INTO user_plex_shares (user_id, plex_server_id, library_ids, share_status, shared_at, created_at, updated_at) VALUES (?, ?, ?, 'active', datetime('now'), datetime('now'), datetime('now'))`, [id, server.id, libraryJson]);
                         results.push({ server_id: server.id, server_name: server.name, success: true, libraries_found: result.libraryIds.length });
                     }
                 } else {

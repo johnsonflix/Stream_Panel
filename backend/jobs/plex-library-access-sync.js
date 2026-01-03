@@ -133,14 +133,15 @@ async function syncServerLibraryAccess(server) {
                             await query(`
                                 UPDATE user_plex_shares
                                 SET library_ids = ?,
+                                    share_status = 'active',
                                     updated_at = datetime('now')
                                 WHERE id = ?
                             `, [JSON.stringify(libraryIds), existingShares[0].id]);
                         } else {
                             // Insert new share record for this user/server
                             await query(`
-                                INSERT INTO user_plex_shares (user_id, plex_server_id, library_ids, created_at, updated_at)
-                                VALUES (?, ?, ?, datetime('now'), datetime('now'))
+                                INSERT INTO user_plex_shares (user_id, plex_server_id, library_ids, share_status, shared_at, created_at, updated_at)
+                                VALUES (?, ?, ?, 'active', datetime('now'), datetime('now'), datetime('now'))
                             `, [userId, serverConfig.id, JSON.stringify(libraryIds)]);
                         }
                         usersUpdated++;

@@ -1,6 +1,6 @@
 {
-  "version": "1.5.41",
+  "version": "1.5.42",
   "name": "Stream Panel",
   "releaseDate": "2026-01-03",
-  "description": "Fix table width to allow column shrinking below content"
+  "description": "Fix portal showing 'No server access' for users with assigned libraries"
 }
