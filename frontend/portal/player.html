@@ -2362,8 +2362,12 @@
             const mainVideo = document.getElementById('mainVideo');
             const isVideoPlaying = mainVideo && mainVideo.style.display !== 'none' && !mainVideo.paused;
 
+            // Get the active channel (could be currentChannel or vodChannel for VOD content)
+            const activeChannel = currentChannel || vodChannel;
+
             // If switching from single player to multiview, transfer the current video first
-            if (screens.length === 0 && currentChannel && (mainPlayer || isVideoPlaying)) {
+            // Check for activeChannel OR isVodPlayback (VOD may have channel info in vodChannel)
+            if (screens.length === 0 && activeChannel && (mainPlayer || isVideoPlaying || isVodPlayback)) {
                 isMultiview = true;
                 isVodPlayback = false; // Reset VOD flag when entering multiview
                 document.getElementById('singlePlayer').style.display = 'none';
@@ -2387,7 +2391,7 @@
                         Audio
                     </div>
                     <div class="cell-overlay">
-                        <div class="cell-title">${currentChannel.name || 'Unknown'}</div>
+                        <div class="cell-title">${activeChannel.name || 'Unknown'}</div>
                         <div class="cell-actions">
                             <div class="cell-controls">
                                 <button class="cell-btn-small" onclick="event.stopPropagation(); toggleCellPlay(0)" title="Play/Pause">
@@ -2428,12 +2432,13 @@
                 screens.push({
                     element: firstCell,
                     player: mainPlayer,
-                    channel: currentChannel
+                    channel: activeChannel
                 });
 
                 // Clear the single player references
                 mainPlayer = null;
                 currentChannel = null;
+                vodChannel = null;
 
                 setActiveAudioScreen(0);
                 updateGridLayout();

@@ -1,6 +1,6 @@
 {
-  "version": "1.5.32",
+  "version": "1.5.33",
   "name": "Stream Panel",
   "releaseDate": "2026-01-02",
-  "description": "Sync all missing files from Production App"
+  "description": "Hotfix: VOD multiview transfer fix"
 }
