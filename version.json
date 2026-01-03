@@ -1,6 +1,6 @@
 {
-  "version": "1.5.39",
+  "version": "1.5.40",
   "name": "Stream Panel",
   "releaseDate": "2026-01-03",
-  "description": "Fix column resize to allow shrinking below content width"
+  "description": "Lower column resize minimum to 30px"
 }

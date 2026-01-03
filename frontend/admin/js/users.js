@@ -187,7 +187,7 @@ const Users = {
         if (!this._resizing.active) return;
 
         const diff = e.pageX - this._resizing.startX;
-        const newWidth = Math.max(60, this._resizing.startWidth + diff); // Min 60px
+        const newWidth = Math.max(30, this._resizing.startWidth + diff); // Min 30px
 
         // Update the col element width - this is the key to independent column sizing
         const col = this._resizing.col;
