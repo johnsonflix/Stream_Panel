@@ -1,6 +1,6 @@
 {
-  "version": "1.5.36",
+  "version": "1.5.37",
   "name": "Stream Panel",
   "releaseDate": "2026-01-03",
-  "description": "Hide NO OWNER/DISABLED badges, Resizable user table columns, Auto-tags for IPTV provisioning"
+  "description": "Fix column resize - allow columns narrower than content"
 }

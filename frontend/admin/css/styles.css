@@ -732,8 +732,8 @@ tbody tr:hover {
 }
 
 .users-desktop-view table {
-    width: max-content;
-    min-width: 100%;
+    table-layout: fixed;
+    width: 100%;
 }
 
 .users-desktop-view th,
@@ -741,6 +741,7 @@ tbody tr:hover {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    max-width: 0; /* Forces text-overflow to work with table-layout: fixed */
 }
 
 .column-resize-handle {
