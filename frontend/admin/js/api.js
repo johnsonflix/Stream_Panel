@@ -129,6 +129,23 @@ class API {
         });
     }
 
+    /**
+     * Get admin's portal credentials (IPTV/Plex for accessing the end user portal)
+     */
+    static async getPortalCredentials() {
+        return this.request('/auth/portal-credentials');
+    }
+
+    /**
+     * Update admin's portal credentials
+     */
+    static async updatePortalCredentials(credentials) {
+        return this.request('/auth/portal-credentials', {
+            method: 'PUT',
+            body: credentials
+        });
+    }
+
     // ============ App Users (Login Accounts) ============
     static async getAppUsers() {
         return this.request('/app-users');

@@ -1,6 +1,6 @@
 {
-  "version": "1.5.31",
+  "version": "1.5.32",
   "name": "Stream Panel",
   "releaseDate": "2026-01-02",
-  "description": "IPTV VOD Movies & Series support, VOD seek bar, PiP mode, hero cards, bugfixes"
+  "description": "Sync all missing files from Production App"
 }

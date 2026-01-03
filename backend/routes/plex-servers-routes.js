@@ -7,7 +7,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../database-config');
-const { syncServerLibraryAccess } = require('../jobs/plex-library-access-sync');
+const { syncServerLibraryAccess, getUserLibraryAccess } = require('../jobs/plex-library-access-sync');
 
 // GET /api/v2/plex-servers - Get all Plex servers with user counts from Plex API
 router.get('/', async (req, res) => {
@@ -101,9 +101,9 @@ router.post('/check-access', async (req, res) => {
             });
         }
 
-        // Get all active servers
+        // Get all active servers with their libraries
         const servers = await db.query(`
-            SELECT id, name, server_id, token, libraries
+            SELECT id, name, url, server_id, token, libraries
             FROM plex_servers
             WHERE is_active = TRUE
             ORDER BY name
@@ -119,74 +119,42 @@ router.post('/check-access', async (req, res) => {
             });
         }
 
-        const axios = require('axios');
-        const xml2js = require('xml2js');
-        const parser = new xml2js.Parser();
-
         const accessResults = [];
         let foundUser = false;
 
-        // Check each server for user access
+        // Check each server for user access using the Python script (same as sync button)
         for (const server of servers) {
             try {
-                // Get shared users from Plex.tv
-                const sharedUsersResponse = await axios.get(`https://plex.tv/api/servers/${server.server_id}/shared_servers`, {
-                    params: {
-                        'X-Plex-Token': server.token
-                    },
-                    timeout: 10000
-                });
+                // Use the same method as the sync button - this uses the Python script
+                const result = await getUserLibraryAccess(server, email);
 
-                // Parse XML response
-                const result = await parser.parseStringPromise(sharedUsersResponse.data);
-                const sharedServers = result.MediaContainer.SharedServer || [];
-
-                // Find user by email
-                const userAccess = sharedServers.find(s =>
-                    s.$.email && s.$.email.toLowerCase() === email.toLowerCase()
-                );
-
-                if (userAccess) {
+                if (result.success && result.libraryIds && result.libraryIds.length > 0) {
                     foundUser = true;
 
-                    // Parse server libraries
+                    // Parse server libraries to get names
                     const serverLibraries = server.libraries ? JSON.parse(server.libraries) : [];
 
-                    // Get library sections user has access to
-                    const sections = userAccess.Section || [];
-                    // Plex API uses $.key NOT $.id for section IDs!
-                    const accessibleLibraryIds = sections.map(s => s.$.key);
-
-                    console.log(`🔍 Server ${server.name}:`, {
-                        serverLibraries: serverLibraries.map(l => ({ key: l.key, id: l.id, title: l.title })),
-                        sections: sections.map(s => ({ key: s.$.key, id: s.$.id, title: s.$.title })),
-                        accessibleLibraryIds
+                    // Build accessible libraries with names
+                    const accessibleLibraries = result.libraryIds.map(libId => {
+                        const lib = serverLibraries.find(l => String(l.key || l.id) === String(libId));
+                        return {
+                            id: String(libId),
+                            name: lib ? lib.title : `Library ${libId}`,
+                            type: lib ? lib.type : 'unknown'
+                        };
                     });
 
-                    // Match with library names - handle both "key" and "id" fields
-                    const accessibleLibraries = serverLibraries
-                        .filter(lib => {
-                            const libId = lib.key || lib.id;
-                            return accessibleLibraryIds.includes(libId);
-                        })
-                        .map(lib => ({
-                            id: lib.key || lib.id,
-                            name: lib.title,
-                            type: lib.type
-                        }));
-
-                    console.log(`✅ Matched ${accessibleLibraries.length} libraries for ${server.name}`);
+                    console.log(`✅ [check-access] ${server.name}: User has access to ${accessibleLibraries.length} libraries`);
 
                     accessResults.push({
                         server_id: server.id,
                         server_name: server.name,
                         has_access: true,
-                        status: userAccess.$.acceptedAt ? 'accepted' : 'pending',
-                        invited_at: userAccess.$.invitedAt || null,
-                        accepted_at: userAccess.$.acceptedAt || null,
+                        status: 'accepted',
                         libraries: accessibleLibraries
                     });
                 } else {
+                    console.log(`ℹ️ [check-access] ${server.name}: User not found or no access`);
                     accessResults.push({
                         server_id: server.id,
                         server_name: server.name,
@@ -1309,11 +1277,10 @@ router.get('/sync-activity/status', async (req, res) => {
 // Library Access Sync Routes
 // ============================================================================
 
-// Import library access sync functions
+// Import additional library access sync functions (getUserLibraryAccess already imported at top)
 const {
     getSyncStatus: getLibrarySyncStatus,
-    syncAllServersLibraryAccess,
-    getUserLibraryAccess
+    syncAllServersLibraryAccess
 } = require('../jobs/plex-library-access-sync');
 
 // POST /api/v2/plex-servers/library-access-sync/start - Start library access sync for all servers

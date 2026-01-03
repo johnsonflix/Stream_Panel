@@ -730,6 +730,34 @@ const EditUser = {
                     </div>
                 </div>
 
+                <!-- VOD Visibility Settings -->
+                <div class="form-group" style="margin-bottom: 1.5rem;">
+                    <label style="margin-bottom: 0.75rem; display: block;">VOD Access (Portal)</label>
+                    <div style="display: flex; gap: 2rem; padding: 0.75rem; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 6px;">
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; margin: 0;">
+                            <input
+                                type="checkbox"
+                                id="edit-iptv-show-movies"
+                                ${user.show_iptv_movies !== 0 ? 'checked' : ''}
+                                data-track-changes
+                            />
+                            <i class="fas fa-film" style="color: var(--primary-color);"></i>
+                            <span>Show Movies</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; margin: 0;">
+                            <input
+                                type="checkbox"
+                                id="edit-iptv-show-series"
+                                ${user.show_iptv_series !== 0 ? 'checked' : ''}
+                                data-track-changes
+                            />
+                            <i class="fas fa-tv" style="color: var(--primary-color);"></i>
+                            <span>Show TV Shows</span>
+                        </label>
+                    </div>
+                    <small class="form-text">Control which VOD buttons appear in the portal for this user</small>
+                </div>
+
                 ${this.renderIPTVEditorSubsection()}
             </section>
         `;
@@ -1295,6 +1323,10 @@ const EditUser = {
             if (iptvUpdates.expiration_date !== undefined) {
                 basicUpdates.iptv_expiration_date = iptvUpdates.expiration_date;
             }
+
+            // VOD visibility settings
+            basicUpdates.show_iptv_movies = document.getElementById('edit-iptv-show-movies')?.checked ? 1 : 0;
+            basicUpdates.show_iptv_series = document.getElementById('edit-iptv-show-series')?.checked ? 1 : 0;
         }
 
         return {

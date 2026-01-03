@@ -553,6 +553,9 @@ async function sendWebPushNotification(userId, type, data) {
             return false;
         }
 
+        console.log('[WebPush Send] VAPID public key (first 20 chars):', vapidConfig.vapid_public_key?.substring(0, 20));
+        console.log('[WebPush Send] Subscription endpoints:', subscriptions.map(s => s.endpoint?.substring(0, 50)));
+
         webpush.setVapidDetails(`mailto:${vapidConfig.vapid_email || 'admin@localhost'}`, vapidConfig.vapid_public_key, vapidConfig.vapid_private_key);
 
         // Try to get custom template from database

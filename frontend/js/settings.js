@@ -46,7 +46,7 @@ const Settings = {
                         <i class="fas fa-box-open"></i> Subscription Plans
                     </button>
                     <button class="tab" data-tab="app-users">
-                        <i class="fas fa-user-shield"></i> App Users
+                        <i class="fas fa-user-shield"></i> App Admin
                     </button>
                 </div>
 
@@ -5480,9 +5480,9 @@ const Settings = {
                 <div class="card-body">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
                         <div>
-                            <h3 style="margin: 0;">App Users</h3>
+                            <h3 style="margin: 0;">App Admin</h3>
                             <p style="margin: 0.5rem 0 0 0; color: var(--text-secondary); font-size: 0.875rem;">
-                                Manage login accounts for admins and staff members
+                                Manage admin login accounts and portal access
                             </p>
                         </div>
                         <button class="btn btn-primary" id="add-app-user-btn">
@@ -5604,6 +5604,34 @@ const Settings = {
                                     ${isEdit ? 'Leave blank to keep current password' : 'Leave blank to send welcome email with password setup link'}
                                 </small>
                             </div>
+
+                            ${isEdit ? `
+                            <hr style="margin: 1.5rem 0; border-color: var(--border-color);">
+                            <h4 style="margin: 0 0 1rem 0; color: var(--text-secondary);">
+                                <i class="fas fa-door-open"></i> Portal Access
+                            </h4>
+                            <p style="font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 1rem;">
+                                Allow this admin to access the End User Portal for testing
+                            </p>
+
+                            <div class="form-group">
+                                <label class="form-label">IPTV Username</label>
+                                <input type="text" id="app-user-iptv-username" class="form-input" placeholder="Username for portal IPTV login">
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">IPTV Password</label>
+                                <input type="text" id="app-user-iptv-password" class="form-input" placeholder="Password for portal IPTV login">
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-check" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                    <input type="checkbox" id="app-user-plex-enabled" class="form-checkbox">
+                                    <span>Enable Plex Portal Access</span>
+                                </label>
+                                <small class="form-text">Uses their Plex SSO email for portal Plex login (if SSO is configured above)</small>
+                            </div>
+                            ` : ''}
                         </div>
                         <div class="modal-footer">
                             <button type="button" class="btn btn-secondary" onclick="document.getElementById('app-user-modal-backdrop').remove(); document.getElementById('app-user-modal').remove();">
@@ -5652,6 +5680,15 @@ const Settings = {
             document.getElementById('app-user-email').value = user.email;
             document.getElementById('app-user-role').value = user.role;
 
+            // Portal access fields
+            const iptvUsernameEl = document.getElementById('app-user-iptv-username');
+            const iptvPasswordEl = document.getElementById('app-user-iptv-password');
+            const plexEnabledEl = document.getElementById('app-user-plex-enabled');
+
+            if (iptvUsernameEl) iptvUsernameEl.value = user.iptv_username || '';
+            if (iptvPasswordEl) iptvPasswordEl.value = user.iptv_password || '';
+            if (plexEnabledEl) plexEnabledEl.checked = user.plex_enabled == 1;
+
         } catch (error) {
             Utils.showToast('Error', `Failed to load user data: ${error.message}`, 'error');
         }
@@ -5680,6 +5717,17 @@ const Settings = {
         const data = { name, email, role };
         if (password) {
             data.password = password;
+        }
+
+        // Portal access fields (only when editing)
+        if (userId) {
+            const iptvUsernameEl = document.getElementById('app-user-iptv-username');
+            const iptvPasswordEl = document.getElementById('app-user-iptv-password');
+            const plexEnabledEl = document.getElementById('app-user-plex-enabled');
+
+            if (iptvUsernameEl) data.iptv_username = iptvUsernameEl.value.trim();
+            if (iptvPasswordEl) data.iptv_password = iptvPasswordEl.value;
+            if (plexEnabledEl) data.plex_enabled = plexEnabledEl.checked;
         }
 
         try {
