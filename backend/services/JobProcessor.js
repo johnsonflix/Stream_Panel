@@ -326,6 +326,14 @@ class JobProcessor {
                         }
                     }
 
+                    // Auto-assign tags now that IPTV account is linked
+                    try {
+                        await autoAssignTagsForUser(userData.user_id);
+                        console.log(`[JobProcessor] ✅ Auto-assigned tags for user ${userData.user_id} after IPTV linking`);
+                    } catch (tagError) {
+                        console.error(`[JobProcessor] Failed to auto-assign tags:`, tagError);
+                    }
+
                     // Link IPTV Editor account if one was found
                     if (jobConfig.iptv.linked_editor_user_id && jobConfig.iptv.linked_editor_playlist_id) {
                         this.updateJobStatus(jobId, 'iptvEditor', 'processing', 'Linking existing IPTV Editor account...');
@@ -519,6 +527,14 @@ class JobProcessor {
                             } catch (emailError) {
                                 console.error(`[JobProcessor] Failed to send IPTV welcome email:`, emailError);
                             }
+                        }
+
+                        // Auto-assign tags now that IPTV account is created
+                        try {
+                            await autoAssignTagsForUser(userData.user_id);
+                            console.log(`[JobProcessor] ✅ Auto-assigned tags for user ${userData.user_id} after IPTV provisioning`);
+                        } catch (tagError) {
+                            console.error(`[JobProcessor] Failed to auto-assign tags:`, tagError);
                         }
                     } else {
                         this.updateJobStatus(jobId, 'iptv', 'failed', 'IPTV creation failed - no line_id returned');

@@ -726,6 +726,40 @@ tbody tr:hover {
     background-color: var(--light-bg);
 }
 
+/* Column resize handles */
+.users-desktop-view .table-container {
+    overflow-x: auto;
+}
+
+.users-desktop-view table {
+    width: max-content;
+    min-width: 100%;
+}
+
+.users-desktop-view th,
+.users-desktop-view td {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.column-resize-handle {
+    position: absolute;
+    right: -3px;
+    top: 0;
+    bottom: 0;
+    width: 6px;
+    cursor: col-resize;
+    background: transparent;
+    z-index: 10;
+}
+
+.column-resize-handle:hover,
+.column-resize-handle.resizing {
+    background: var(--primary-color);
+    opacity: 0.6;
+}
+
 /* Badges */
 .badge {
     display: inline-flex;

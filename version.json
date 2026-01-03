@@ -1,6 +1,6 @@
 {
-  "version": "1.5.35",
+  "version": "1.5.36",
   "name": "Stream Panel",
   "releaseDate": "2026-01-03",
-  "description": "Backup & Restore system, Payment Provider PNG upload fix, Settings icon error fix, No Expiration badge color"
+  "description": "Hide NO OWNER/DISABLED badges, Resizable user table columns, Auto-tags for IPTV provisioning"
 }

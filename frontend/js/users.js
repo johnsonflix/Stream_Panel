@@ -235,7 +235,7 @@ const Users = {
                                                         `<br><small style="color: var(--warning-color);"><i class="fas fa-clock"></i> Cancelled</small>` :
                                                         (user.plex_package_name ? `<br><small>${user.plex_package_name}</small>` : '')}
                                                 </div>
-                                            ` : '<span class="badge badge-secondary">Disabled</span>'}
+                                            ` : ''}
                                         </td>
                                         <td>
                                             ${user.iptv_enabled ? `
@@ -245,9 +245,9 @@ const Users = {
                                                         `<br><small style="color: var(--warning-color);"><i class="fas fa-clock"></i> Cancelled</small>` :
                                                         (user.iptv_panel_name ? `<br><small>${user.iptv_panel_name}</small>` : '')}
                                                 </div>
-                                            ` : '<span class="badge badge-secondary">Disabled</span>'}
+                                            ` : ''}
                                         </td>
-                                        <td>${Utils.getStatusBadge(user.iptv_editor_enabled, 'Enabled', 'Disabled')}</td>
+                                        <td>${user.iptv_editor_enabled ? Utils.getStatusBadge(true, 'Enabled', 'Disabled') : ''}</td>
                                         <td>
                                             ${user.tags && user.tags.length > 0 ? `
                                                 <div style="display: flex; flex-wrap: wrap; gap: 0.25rem;">

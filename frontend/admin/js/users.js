@@ -28,7 +28,16 @@ const Users = {
             created: true,
             actions: true
         },
-        columnOrder: ['checkbox', 'name', 'email', 'owner', 'plex', 'iptv', 'iptvEditor', 'tags', 'created', 'actions']
+        columnOrder: ['checkbox', 'name', 'email', 'owner', 'plex', 'iptv', 'iptvEditor', 'tags', 'created', 'actions'],
+        columnWidths: {} // Stores custom widths per column, e.g., { name: 150, email: 200 }
+    },
+
+    // Column resize state
+    _resizing: {
+        active: false,
+        column: null,
+        startX: 0,
+        startWidth: 0
     },
 
     /**
@@ -66,6 +75,11 @@ const Users = {
                     });
                     this.userPreferences.columnsVisible = { ...this.userPreferences.columnsVisible, ...validColumnsVisible };
                 }
+
+                // Load saved column widths
+                if (parsed.columnWidths) {
+                    this.userPreferences.columnWidths = { ...parsed.columnWidths };
+                }
             } catch (error) {
                 console.error('Failed to parse user preferences:', error);
             }
@@ -77,6 +91,151 @@ const Users = {
      */
     savePreferences() {
         localStorage.setItem('usersPagePreferences', JSON.stringify(this.userPreferences));
+    },
+
+    /**
+     * Get column width style string
+     */
+    getColumnWidthStyle(columnKey) {
+        const width = this.userPreferences.columnWidths[columnKey];
+        return width ? `width: ${width}px; min-width: ${width}px; max-width: ${width}px;` : '';
+    },
+
+    /**
+     * Initialize column resize handlers
+     */
+    initColumnResize() {
+        const table = document.querySelector('.users-desktop-view table');
+        if (!table) return;
+
+        // Add resize handles to all th elements
+        const headers = table.querySelectorAll('thead th');
+        headers.forEach((th, index) => {
+            // Skip checkbox and actions columns for resize handles
+            const colKey = this.getColumnKeyFromIndex(index);
+            if (colKey === 'checkbox' || colKey === 'actions') return;
+
+            // Add resize handle
+            const handle = document.createElement('div');
+            handle.className = 'column-resize-handle';
+            handle.dataset.column = colKey;
+            handle.addEventListener('mousedown', (e) => this.startColumnResize(e, colKey, th, handle));
+
+            // Make th position relative for handle positioning
+            th.style.position = 'relative';
+            th.appendChild(handle);
+        });
+
+        // Global mouse events for resize
+        document.addEventListener('mousemove', (e) => this.handleColumnResize(e));
+        document.addEventListener('mouseup', () => this.endColumnResize());
+    },
+
+    /**
+     * Get column key from header index
+     */
+    getColumnKeyFromIndex(index) {
+        const visibleColumns = this.userPreferences.columnOrder.filter(
+            col => this.userPreferences.columnsVisible[col]
+        );
+        return visibleColumns[index] || null;
+    },
+
+    /**
+     * Start column resize
+     */
+    startColumnResize(e, columnKey, th, handle) {
+        e.preventDefault();
+        e.stopPropagation();
+
+        this._resizing.active = true;
+        this._resizing.column = columnKey;
+        this._resizing.startX = e.pageX;
+        this._resizing.startWidth = th.offsetWidth;
+        this._resizing.handle = handle;
+        this._resizing.th = th;
+
+        // Add visual feedback
+        handle.classList.add('resizing');
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+    },
+
+    /**
+     * Handle column resize movement
+     */
+    handleColumnResize(e) {
+        if (!this._resizing.active) return;
+
+        const diff = e.pageX - this._resizing.startX;
+        const newWidth = Math.max(60, this._resizing.startWidth + diff); // Min 60px
+
+        // Update the th element directly (stored in _resizing)
+        const th = this._resizing.th;
+        if (th) {
+            th.style.width = `${newWidth}px`;
+            th.style.minWidth = `${newWidth}px`;
+        }
+    },
+
+    /**
+     * End column resize
+     */
+    endColumnResize() {
+        if (!this._resizing.active) return;
+
+        // Save final width
+        const th = this._resizing.th;
+        if (th) {
+            const finalWidth = th.offsetWidth;
+            this.userPreferences.columnWidths[this._resizing.column] = finalWidth;
+            this.savePreferences();
+        }
+
+        // Remove visual feedback
+        if (this._resizing.handle) {
+            this._resizing.handle.classList.remove('resizing');
+        }
+
+        // Reset state
+        this._resizing.active = false;
+        this._resizing.column = null;
+        this._resizing.handle = null;
+        this._resizing.th = null;
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+    },
+
+    /**
+     * Apply saved column widths to table
+     */
+    applyColumnWidths() {
+        const table = document.querySelector('.users-desktop-view table');
+        if (!table) return;
+
+        const visibleColumns = this.userPreferences.columnOrder.filter(
+            col => this.userPreferences.columnsVisible[col]
+        );
+
+        visibleColumns.forEach((colKey, index) => {
+            const width = this.userPreferences.columnWidths[colKey];
+            if (width) {
+                const th = table.querySelectorAll('thead th')[index];
+                if (th) {
+                    th.style.width = `${width}px`;
+                    th.style.minWidth = `${width}px`;
+                }
+            }
+        });
+    },
+
+    /**
+     * Reset column widths to default
+     */
+    resetColumnWidths() {
+        this.userPreferences.columnWidths = {};
+        this.savePreferences();
+        this.loadUsers(); // Reload to apply
     },
 
     /**
@@ -340,6 +499,10 @@ const Users = {
                 ${this.renderMobileCards(users)}
             `;
 
+            // Initialize column resize functionality and apply saved widths
+            this.initColumnResize();
+            this.applyColumnWidths();
+
         } catch (error) {
             console.error('Error loading users:', error);
             container.innerHTML = `
@@ -458,10 +621,10 @@ const Users = {
                 renderHeader: () => `<th>Owner</th>`,
                 renderCell: (user) => {
                     if (!user.owner_id) {
-                        return `<td><span class="badge badge-secondary">No Owner</span></td>`;
+                        return `<td></td>`;
                     }
                     const owner = this.owners.find(o => o.id === user.owner_id);
-                    return `<td>${owner ? Utils.escapeHtml(owner.name) : 'Unknown'}</td>`;
+                    return `<td>${owner ? Utils.escapeHtml(owner.name) : ''}</td>`;
                 }
             },
             plex: {
@@ -477,7 +640,7 @@ const Users = {
                                 `<br><small style="color: var(--warning-color);"><i class="fas fa-clock"></i> Cancelled</small>` :
                                 (user.plex_package_name ? `<br><small>${user.plex_package_name}</small>` : '')}
                         </div>
-                    ` : '<span class="badge badge-secondary">Disabled</span>'}
+                    ` : ''}
                 </td>`
             },
             iptv: {
@@ -493,7 +656,7 @@ const Users = {
                                 `<br><small style="color: var(--warning-color);"><i class="fas fa-clock"></i> Cancelled</small>` :
                                 (user.iptv_panel_name ? `<br><small>${user.iptv_panel_name}</small>` : '')}
                         </div>
-                    ` : '<span class="badge badge-secondary">Disabled</span>'}
+                    ` : ''}
                 </td>`
             },
             iptvEditor: {
@@ -1221,6 +1384,16 @@ const Users = {
                     <p style="color: var(--text-secondary); font-size: 0.875rem; margin-top: 1rem;">
                         <i class="fas fa-info-circle"></i> The Actions column is always shown last.
                     </p>
+
+                    <div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border-color);">
+                        <h4 style="margin-bottom: 0.5rem;">Column Widths</h4>
+                        <p style="color: var(--text-secondary); margin-bottom: 0.75rem; font-size: 0.875rem;">
+                            Drag column borders in the table to resize. Widths are saved automatically.
+                        </p>
+                        <button class="btn btn-sm btn-outline" onclick="Users.resetColumnWidths(); Utils.closeModal();">
+                            <i class="fas fa-undo"></i> Reset to Default Widths
+                        </button>
+                    </div>
                 </div>
             `,
             buttons: [
