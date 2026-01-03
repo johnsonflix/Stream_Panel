@@ -179,7 +179,7 @@ const Utils = {
         }
 
         if (!dateString) {
-            return '<span class="badge badge-secondary">No Expiration</span>';
+            return '<span class="badge badge-success">No Expiration</span>';
         }
 
         if (this.isExpired(dateString)) {

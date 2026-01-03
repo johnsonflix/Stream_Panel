@@ -22,4 +22,6 @@ services:
       - ./logs:/app/backend/logs
       # Persist Kometa app (so it doesn't need to be reinstalled on rebuild)
       - ./kometa_app:/app/kometa_app
+      # Persist backups
+      - ./backups:/app/backups
     restart: unless-stopped

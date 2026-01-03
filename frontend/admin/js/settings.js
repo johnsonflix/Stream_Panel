@@ -60,6 +60,9 @@ const Settings = {
                     <button class="tab" data-tab="logs">
                         <i class="fas fa-file-alt"></i> Logs
                     </button>
+                    <button class="tab" data-tab="backup">
+                        <i class="fas fa-database"></i> Backup & Restore
+                    </button>
                     <button class="tab" data-tab="updates">
                         <i class="fas fa-cloud-download-alt"></i> Updates
                     </button>
@@ -157,6 +160,13 @@ const Settings = {
                     </div>
                 </div>
 
+                <div id="backup" class="tab-content">
+                    <div class="text-center mt-4 mb-4">
+                        <div class="spinner" style="margin: 0 auto;"></div>
+                        <p class="mt-2">Loading...</p>
+                    </div>
+                </div>
+
                 <div id="updates" class="tab-content">
                     <div class="text-center mt-4 mb-4">
                         <div class="spinner" style="margin: 0 auto;"></div>
@@ -232,6 +242,9 @@ const Settings = {
                 break;
             case 'logs':
                 await this.loadLogs();
+                break;
+            case 'backup':
+                await this.loadBackup();
                 break;
             case 'updates':
                 await this.loadUpdates();
@@ -964,11 +977,12 @@ const Settings = {
 
     handleIconError(img) {
         if (!img || !img.parentElement) return;
+        const parent = img.parentElement;
         const icon = img.dataset.fallbackIcon || 'fa-server';
         const bg = img.dataset.fallbackBg || '#6b7280';
         img.style.display = 'none';
-        img.parentElement.innerHTML = `<i class="fas ${icon}"></i>`;
-        img.parentElement.style.background = bg;
+        parent.innerHTML = `<i class="fas ${icon}"></i>`;
+        parent.style.background = bg;
     },
 
     adjustColor(hex, amount) {
@@ -9745,6 +9759,531 @@ const Settings = {
             }
         } catch (error) {
             Utils.showToast('Error', error.message, 'error');
+        }
+    },
+
+    // =====================================================
+    // BACKUP & RESTORE MANAGEMENT
+    // =====================================================
+
+    backupState: {
+        backups: [],
+        restoreGroups: {},
+        selectedBackup: null,
+        selectedGroups: []
+    },
+
+    /**
+     * Load Backup Tab
+     */
+    async loadBackup() {
+        const container = document.getElementById('backup');
+
+        container.innerHTML = `
+            <div style="padding: 1.5rem;">
+                <div class="mb-4">
+                    <h3><i class="fas fa-database"></i> Backup & Restore</h3>
+                    <p style="color: var(--text-secondary); font-size: 0.875rem;">
+                        Create full system backups and restore data with granular control
+                    </p>
+                </div>
+
+                <!-- Create Backup Section -->
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <h4 style="margin-bottom: 1rem;"><i class="fas fa-plus-circle"></i> Create Backup</h4>
+                        <p style="color: var(--text-secondary); font-size: 0.875rem; margin-bottom: 1rem;">
+                            Create a full backup of the database, uploads, and configuration files.
+                        </p>
+                        <button class="btn btn-success" onclick="Settings.createBackup()" id="create-backup-btn">
+                            <i class="fas fa-download"></i> Create Backup
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Available Backups Section -->
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                            <h4 style="margin: 0;"><i class="fas fa-archive"></i> Available Backups</h4>
+                            <button class="btn btn-secondary btn-sm" onclick="Settings.refreshBackupList()">
+                                <i class="fas fa-sync"></i> Refresh
+                            </button>
+                        </div>
+                        <div id="backup-list">
+                            <div class="text-center">
+                                <div class="spinner" style="margin: 0 auto;"></div>
+                                <p class="mt-2">Loading backups...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Upload Backup Section -->
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <h4 style="margin-bottom: 1rem;"><i class="fas fa-upload"></i> Upload Backup</h4>
+                        <p style="color: var(--text-secondary); font-size: 0.875rem; margin-bottom: 1rem;">
+                            Upload a backup file from another instance to restore.
+                        </p>
+                        <input type="file" id="backup-upload-input" accept=".zip" style="display: none;" onchange="Settings.handleBackupUpload(this)">
+                        <button class="btn btn-secondary" onclick="document.getElementById('backup-upload-input').click()">
+                            <i class="fas fa-file-upload"></i> Choose Backup File
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Load backups and restore groups
+        await Promise.all([
+            this.refreshBackupList(),
+            this.loadRestoreGroups()
+        ]);
+    },
+
+    /**
+     * Load restore groups configuration
+     */
+    async loadRestoreGroups() {
+        try {
+            const response = await fetch('/api/v2/backup/groups', {
+                headers: { 'Authorization': `Bearer ${API.getSessionToken()}` }
+            });
+            const data = await response.json();
+            if (data.success) {
+                this.backupState.restoreGroups = data.groups;
+            }
+        } catch (error) {
+            console.error('Failed to load restore groups:', error);
+        }
+    },
+
+    /**
+     * Refresh backup list
+     */
+    async refreshBackupList() {
+        const container = document.getElementById('backup-list');
+        if (!container) return;
+
+        try {
+            const response = await fetch('/api/v2/backup/list', {
+                headers: { 'Authorization': `Bearer ${API.getSessionToken()}` }
+            });
+            const data = await response.json();
+
+            if (!data.success) {
+                container.innerHTML = `<p style="color: var(--text-secondary);">Failed to load backups</p>`;
+                return;
+            }
+
+            this.backupState.backups = data.backups;
+
+            if (data.backups.length === 0) {
+                container.innerHTML = `
+                    <p style="color: var(--text-secondary); text-align: center; padding: 2rem;">
+                        <i class="fas fa-inbox" style="font-size: 2rem; margin-bottom: 0.5rem; display: block;"></i>
+                        No backups found. Create your first backup above.
+                    </p>
+                `;
+                return;
+            }
+
+            container.innerHTML = `
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Filename</th>
+                                <th>Created</th>
+                                <th>Size</th>
+                                <th>Version</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${data.backups.map(backup => `
+                                <tr>
+                                    <td>
+                                        <i class="fas fa-file-archive" style="color: var(--primary);"></i>
+                                        ${Utils.escapeHtml(backup.filename)}
+                                    </td>
+                                    <td>${Utils.formatDate(backup.created)}</td>
+                                    <td>${this.formatFileSize(backup.size)}</td>
+                                    <td>${backup.manifest?.version || 'Unknown'}</td>
+                                    <td>
+                                        <div style="display: flex; gap: 0.5rem;">
+                                            <button class="btn btn-primary btn-sm" onclick="Settings.showRestoreModal('${Utils.escapeHtml(backup.filename)}')" title="Restore">
+                                                <i class="fas fa-undo"></i>
+                                            </button>
+                                            <button class="btn btn-secondary btn-sm" onclick="Settings.downloadBackup('${Utils.escapeHtml(backup.filename)}')" title="Download">
+                                                <i class="fas fa-download"></i>
+                                            </button>
+                                            <button class="btn btn-danger btn-sm" onclick="Settings.deleteBackup('${Utils.escapeHtml(backup.filename)}')" title="Delete">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        } catch (error) {
+            container.innerHTML = `<p style="color: var(--danger);">Error: ${error.message}</p>`;
+        }
+    },
+
+    /**
+     * Format file size
+     */
+    formatFileSize(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    },
+
+    /**
+     * Create a new backup
+     */
+    async createBackup() {
+        const btn = document.getElementById('create-backup-btn');
+        const originalText = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating backup...';
+
+        try {
+            const response = await fetch('/api/v2/backup/create', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${API.getSessionToken()}` }
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                Utils.showToast('Success', `Backup created: ${data.backup.filename}`, 'success');
+                await this.refreshBackupList();
+            } else {
+                Utils.showToast('Error', data.error || 'Failed to create backup', 'error');
+            }
+        } catch (error) {
+            Utils.showToast('Error', error.message, 'error');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
+    },
+
+    /**
+     * Download a backup file
+     */
+    downloadBackup(filename) {
+        window.open(`/api/v2/backup/download/${encodeURIComponent(filename)}`, '_blank');
+    },
+
+    /**
+     * Delete a backup
+     */
+    async deleteBackup(filename) {
+        if (!confirm(`Are you sure you want to delete this backup?\n\n${filename}\n\nThis action cannot be undone.`)) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/v2/backup/${encodeURIComponent(filename)}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${API.getSessionToken()}` }
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                Utils.showToast('Success', 'Backup deleted', 'success');
+                await this.refreshBackupList();
+            } else {
+                Utils.showToast('Error', data.error || 'Failed to delete backup', 'error');
+            }
+        } catch (error) {
+            Utils.showToast('Error', error.message, 'error');
+        }
+    },
+
+    /**
+     * Handle backup file upload
+     */
+    async handleBackupUpload(input) {
+        const file = input.files[0];
+        if (!file) return;
+
+        const formData = new FormData();
+        formData.append('backup', file);
+
+        Utils.showToast('Info', 'Uploading backup...', 'info');
+
+        try {
+            const response = await fetch('/api/v2/backup/upload', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${API.getSessionToken()}`
+                },
+                body: formData
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                Utils.showToast('Success', `Backup uploaded: ${data.backup.filename}`, 'success');
+                await this.refreshBackupList();
+            } else {
+                Utils.showToast('Error', data.error || 'Failed to upload backup', 'error');
+            }
+        } catch (error) {
+            Utils.showToast('Error', error.message, 'error');
+        }
+
+        // Reset file input
+        input.value = '';
+    },
+
+    /**
+     * Show restore modal with granular options
+     */
+    async showRestoreModal(filename) {
+        this.backupState.selectedBackup = filename;
+        this.backupState.selectedGroups = [];
+
+        // Get backup manifest for details
+        let manifest = null;
+        try {
+            const response = await fetch(`/api/v2/backup/manifest/${encodeURIComponent(filename)}`, {
+                headers: { 'Authorization': `Bearer ${API.getSessionToken()}` }
+            });
+            const data = await response.json();
+            if (data.success) {
+                manifest = data.manifest;
+            }
+        } catch (e) {
+            console.error('Failed to load manifest:', e);
+        }
+
+        const groups = this.backupState.restoreGroups;
+        const restoreGroupsInfo = manifest?.restoreGroups || {};
+
+        // Build restore group checkboxes
+        const groupCheckboxes = Object.entries(groups).map(([key, group]) => {
+            const info = restoreGroupsInfo[key] || {};
+            const rowCount = info.totalRows || 0;
+            const iconMap = {
+                'users': 'fas fa-users',
+                'user-shield': 'fas fa-user-shield',
+                'film': 'fas fa-film',
+                'server': 'fas fa-server',
+                'tv': 'fas fa-tv',
+                'cog': 'fas fa-cog',
+                'envelope': 'fas fa-envelope',
+                'tags': 'fas fa-tags',
+                'credit-card': 'fas fa-credit-card',
+                'tools': 'fas fa-tools',
+                'palette': 'fas fa-palette',
+                'bell': 'fas fa-bell'
+            };
+            const icon = iconMap[group.icon] || 'fas fa-folder';
+
+            return `
+                <label class="restore-group-option" style="display: flex; align-items: flex-start; padding: 0.75rem; margin-bottom: 0.5rem; background: var(--card-bg); border-radius: 8px; cursor: pointer; border: 1px solid var(--border-color);">
+                    <input type="checkbox" value="${key}" onchange="Settings.toggleRestoreGroup('${key}')" style="margin-right: 0.75rem; margin-top: 0.25rem;">
+                    <div style="flex: 1;">
+                        <div style="font-weight: 500;">
+                            <i class="${icon}" style="width: 20px; color: var(--primary);"></i>
+                            ${Utils.escapeHtml(group.name)}
+                            ${rowCount > 0 ? `<span style="color: var(--text-secondary); font-weight: normal; font-size: 0.8rem;">(${rowCount} rows)</span>` : ''}
+                        </div>
+                        <div style="font-size: 0.8rem; color: var(--text-secondary);">
+                            ${Utils.escapeHtml(group.description)}
+                        </div>
+                    </div>
+                </label>
+            `;
+        }).join('');
+
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay';
+        modal.id = 'restore-modal';
+        modal.innerHTML = `
+            <div class="modal" style="max-width: 600px;">
+                <div class="modal-header">
+                    <h3><i class="fas fa-undo"></i> Restore from Backup</h3>
+                    <button class="modal-close" onclick="Settings.closeRestoreModal()">&times;</button>
+                </div>
+                <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
+                    <div style="background: var(--card-bg); padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+                        <strong>Backup:</strong> ${Utils.escapeHtml(filename)}<br>
+                        ${manifest ? `
+                            <strong>Created:</strong> ${Utils.formatDate(manifest.created)}<br>
+                            <strong>Version:</strong> ${manifest.version}
+                        ` : ''}
+                    </div>
+
+                    <div style="margin-bottom: 1rem;">
+                        <label class="restore-group-option" style="display: flex; align-items: center; padding: 0.75rem; margin-bottom: 1rem; background: var(--success); color: white; border-radius: 8px; cursor: pointer;">
+                            <input type="radio" name="restore-type" value="full" checked onchange="Settings.setRestoreType('full')" style="margin-right: 0.75rem;">
+                            <div>
+                                <div style="font-weight: 600;">
+                                    <i class="fas fa-sync"></i> Full Restore
+                                </div>
+                                <div style="font-size: 0.8rem; opacity: 0.9;">
+                                    Restore everything from backup (recommended for new instances)
+                                </div>
+                            </div>
+                        </label>
+
+                        <label class="restore-group-option" style="display: flex; align-items: center; padding: 0.75rem; margin-bottom: 0.5rem; background: var(--card-bg); border-radius: 8px; cursor: pointer; border: 1px solid var(--border-color);">
+                            <input type="radio" name="restore-type" value="granular" onchange="Settings.setRestoreType('granular')" style="margin-right: 0.75rem;">
+                            <div>
+                                <div style="font-weight: 500;">
+                                    <i class="fas fa-sliders-h"></i> Granular Restore
+                                </div>
+                                <div style="font-size: 0.8rem; color: var(--text-secondary);">
+                                    Choose specific data to restore
+                                </div>
+                            </div>
+                        </label>
+                    </div>
+
+                    <div id="granular-options" style="display: none; margin-top: 1rem;">
+                        <h4 style="margin-bottom: 0.5rem;">Select data to restore:</h4>
+                        ${groupCheckboxes}
+                    </div>
+
+                    <div style="background: rgba(255, 193, 7, 0.1); border: 1px solid var(--warning); border-radius: 8px; padding: 1rem; margin-top: 1rem;">
+                        <div style="display: flex; align-items: flex-start;">
+                            <i class="fas fa-exclamation-triangle" style="color: var(--warning); margin-right: 0.75rem; margin-top: 0.25rem;"></i>
+                            <div>
+                                <strong style="color: var(--warning);">Warning</strong>
+                                <p style="margin: 0.25rem 0 0 0; font-size: 0.875rem; color: var(--text-secondary);">
+                                    Restoring will <strong>replace</strong> existing data with data from the backup. This action cannot be undone.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" onclick="Settings.closeRestoreModal()">Cancel</button>
+                    <button class="btn btn-warning" onclick="Settings.executeRestore()" id="restore-btn">
+                        <i class="fas fa-undo"></i> Restore
+                    </button>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+        this.backupState.restoreType = 'full';
+    },
+
+    /**
+     * Set restore type
+     */
+    setRestoreType(type) {
+        this.backupState.restoreType = type;
+        const granularOptions = document.getElementById('granular-options');
+        if (granularOptions) {
+            granularOptions.style.display = type === 'granular' ? 'block' : 'none';
+        }
+    },
+
+    /**
+     * Toggle restore group selection
+     */
+    toggleRestoreGroup(groupKey) {
+        const index = this.backupState.selectedGroups.indexOf(groupKey);
+        if (index === -1) {
+            this.backupState.selectedGroups.push(groupKey);
+        } else {
+            this.backupState.selectedGroups.splice(index, 1);
+        }
+    },
+
+    /**
+     * Close restore modal
+     */
+    closeRestoreModal() {
+        const modal = document.getElementById('restore-modal');
+        if (modal) {
+            modal.remove();
+        }
+        this.backupState.selectedBackup = null;
+        this.backupState.selectedGroups = [];
+    },
+
+    /**
+     * Execute restore
+     */
+    async executeRestore() {
+        const filename = this.backupState.selectedBackup;
+        if (!filename) return;
+
+        let groups = [];
+        if (this.backupState.restoreType === 'full') {
+            groups = ['full'];
+        } else {
+            groups = this.backupState.selectedGroups;
+            if (groups.length === 0) {
+                Utils.showToast('Error', 'Please select at least one data group to restore', 'error');
+                return;
+            }
+        }
+
+        const confirmMsg = this.backupState.restoreType === 'full'
+            ? 'Are you sure you want to perform a FULL RESTORE?\n\nThis will replace ALL data with data from the backup.'
+            : `Are you sure you want to restore the following data?\n\n${groups.join(', ')}\n\nThis will replace existing data.`;
+
+        if (!confirm(confirmMsg)) {
+            return;
+        }
+
+        const btn = document.getElementById('restore-btn');
+        const originalText = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Restoring...';
+
+        try {
+            const response = await fetch('/api/v2/backup/restore', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${API.getSessionToken()}`
+                },
+                body: JSON.stringify({ filename, groups })
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                this.closeRestoreModal();
+
+                if (data.requiresRestart) {
+                    if (confirm('Restore completed successfully!\n\nA restart is recommended for all changes to take effect.\n\nRestart now?')) {
+                        await fetch('/api/v2/backup/restart', {
+                            method: 'POST',
+                            headers: { 'Authorization': `Bearer ${API.getSessionToken()}` }
+                        });
+                        Utils.showToast('Info', 'App is restarting...', 'info');
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 5000);
+                    } else {
+                        Utils.showToast('Success', data.message, 'success');
+                    }
+                } else {
+                    Utils.showToast('Success', data.message, 'success');
+                }
+            } else {
+                Utils.showToast('Error', data.error || 'Restore failed', 'error');
+            }
+        } catch (error) {
+            Utils.showToast('Error', error.message, 'error');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = originalText;
         }
     },
 

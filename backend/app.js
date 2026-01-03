@@ -62,8 +62,8 @@ const { dashboardStatsCache, iptvPanelsCache, saveCacheToDatabase, loadCacheFrom
 
 // Middleware
 app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Serve static files from frontend directory
 app.use(express.static(path.join(__dirname, '../frontend')));
@@ -105,6 +105,7 @@ const requestSiteApiRoutes = require('./routes/request-site-api-routes'); // New
 const requestSiteWebhooksRoutes = require('./routes/request-site-webhooks-routes');
 const mediaManagersRoutes = require('./routes/media-managers-routes');
 const requestSiteNotificationsRoutes = require('./routes/request-site-notifications-routes');
+const backupRoutes = require('./routes/backup-routes');
 
 // Authentication routes (no auth required for these endpoints)
 app.use('/api/v2/auth', authRoutes);
@@ -148,6 +149,7 @@ app.use('/api/v2/request-site-api', requestSiteApiRoutes); // New core API route
 app.use('/api/v2/webhooks', requestSiteWebhooksRoutes); // No auth required - external webhooks
 app.use('/api/v2/media-managers', mediaManagersRoutes); // Admin tools (Sonarr, Radarr, qBittorrent, SABnzbd)
 app.use('/api/v2/request-site/notifications', requestSiteNotificationsRoutes); // Request Site notification settings
+app.use('/api/v2/backup', backupRoutes); // Backup & restore system
 
 // Health check endpoint
 app.get('/api/v2/health', (req, res) => {
