@@ -717,6 +717,65 @@
             cursor: pointer;
         }
 
+        /* VOD Seek Bar */
+        .vod-controls {
+            display: none;
+            width: 100%;
+            margin-bottom: 12px;
+        }
+
+        .vod-controls.active {
+            display: block;
+        }
+
+        .seek-bar-container {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            width: 100%;
+        }
+
+        .time-display {
+            color: white;
+            font-size: 13px;
+            font-family: monospace;
+            min-width: 45px;
+            text-align: center;
+        }
+
+        .seek-bar {
+            flex: 1;
+            height: 6px;
+            -webkit-appearance: none;
+            background: rgba(255,255,255,0.3);
+            border-radius: 3px;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .seek-bar::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            background: var(--primary);
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .seek-bar::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            background: var(--primary);
+            border-radius: 50%;
+            cursor: pointer;
+            border: none;
+        }
+
+        .seek-bar:hover::-webkit-slider-thumb {
+            transform: scale(1.2);
+        }
+
         .spacer {
             flex: 1;
         }
@@ -1447,6 +1506,14 @@
                 <i class="fas fa-tv"></i>
                 Guide
             </a>
+            <a href="movies.html" id="moviesNavBtn" class="back-btn" style="background: #ec4899; color: #1a1a1a;">
+                <i class="fas fa-film"></i>
+                Movies
+            </a>
+            <a href="series.html" id="seriesNavBtn" class="back-btn" style="background: #06b6d4; color: #1a1a1a;">
+                <i class="fas fa-photo-film"></i>
+                TV Shows
+            </a>
             <div class="header-title" id="headerTitle">Web Player</div>
             <div class="header-actions">
                 <button class="btn-icon" onclick="addScreen()" title="Add Screen" id="addScreenBtn">
@@ -1478,6 +1545,16 @@
                         <i class="fas fa-spinner"></i>
                     </div>
                     <div class="controls-overlay" id="controlsOverlay" style="display: none;">
+                        <!-- VOD Seek Bar (hidden for live streams) -->
+                        <div class="vod-controls" id="vodControls">
+                            <div class="seek-bar-container">
+                                <span class="time-display" id="currentTime">0:00</span>
+                                <input type="range" class="seek-bar" id="seekBar" min="0" max="100" value="0"
+                                    oninput="onSeekInput(this.value)"
+                                    onchange="onSeekChange(this.value)">
+                                <span class="time-display" id="durationTime">0:00</span>
+                            </div>
+                        </div>
                         <div class="controls-bar">
                             <button class="ctrl-btn large" onclick="togglePlay()">
                                 <i class="fas fa-pause" id="playIcon"></i>
@@ -1667,6 +1744,8 @@
         let currentChannel = null;
         let expandedScreenIndex = -1; // Which screen is currently expanded (-1 = none)
         let expandedPlayer = null; // Player for expanded view
+        let isVodPlayback = false; // Track if VOD is currently playing
+        let vodChannel = null; // Store VOD channel info for PiP mode
 
         // Get auth token
         function getToken() {
@@ -1928,6 +2007,80 @@
 
         // Play channel
         function playChannel(channel) {
+            // Check if VOD is playing and user clicked a live channel (not VOD)
+            // Keep VOD in main player, open live channel in PiP
+            const mainVideo = document.getElementById('mainVideo');
+            const isVideoPlaying = mainVideo && !mainVideo.paused && mainVideo.currentTime > 0;
+            if (isVodPlayback && !isMultiview && !channel.isVod && (mainPlayer || isVideoPlaying)) {
+                if (document.pictureInPictureEnabled) {
+                    // Create a new video element for the live channel in PiP
+                    const pipVideo = document.createElement('video');
+                    pipVideo.id = 'pipLiveVideo';
+                    pipVideo.classList.add('pip-live-video');
+                    pipVideo.style.position = 'absolute';
+                    pipVideo.style.width = '1px';
+                    pipVideo.style.height = '1px';
+                    pipVideo.style.opacity = '0';
+                    pipVideo.style.pointerEvents = 'none';
+                    document.body.appendChild(pipVideo);
+
+                    // Play the live channel in the PiP video element
+                    const streamUrl = channel.url;
+                    const streamType = getStreamType(streamUrl);
+                    let pipPlayer = null;
+
+                    console.log(`Playing live channel in PiP: ${channel.name} (${streamType})`);
+
+                    const startPiP = () => {
+                        pipVideo.play().then(() => {
+                            pipVideo.requestPictureInPicture().then(() => {
+                                console.log('Live channel now in PiP mode');
+                            }).catch(e => {
+                                console.error('PiP request failed:', e);
+                                // Clean up on failure
+                                if (pipPlayer && pipPlayer.destroy) pipPlayer.destroy();
+                                pipVideo.remove();
+                            });
+                        }).catch(e => console.error('Play failed:', e));
+                    };
+
+                    // Setup player based on stream type
+                    if (streamType === 'hls' && Hls.isSupported()) {
+                        pipPlayer = new Hls({ enableWorker: true, lowLatencyMode: true });
+                        pipPlayer.loadSource(streamUrl);
+                        pipPlayer.attachMedia(pipVideo);
+                        pipPlayer.on(Hls.Events.MANIFEST_PARSED, startPiP);
+                    } else if (streamType === 'mpegts' && mpegts && mpegts.isSupported()) {
+                        pipPlayer = mpegts.createPlayer({ type: 'mpegts', url: streamUrl, isLive: true });
+                        pipPlayer.attachMediaElement(pipVideo);
+                        pipPlayer.load();
+                        pipVideo.onloadeddata = startPiP;
+                    } else {
+                        pipVideo.src = streamUrl;
+                        pipVideo.onloadeddata = startPiP;
+                    }
+
+                    // Store PiP player reference for cleanup
+                    window.currentPipPlayer = pipPlayer;
+                    window.currentPipVideo = pipVideo;
+
+                    console.log('VOD stays in main player, live channel opening in PiP');
+                    return;
+                } else {
+                    // PiP not available, use multiview as fallback
+                    console.log('PiP not supported, using multiview');
+                    addScreen();
+                    playInScreen(1, channel);
+                    return;
+                }
+            }
+
+            // If this is a VOD channel, mark it
+            if (channel.isVod) {
+                isVodPlayback = true;
+                vodChannel = channel;
+            }
+
             currentChannel = channel;
             document.getElementById('headerTitle').textContent = channel.name;
             document.getElementById('nowPlaying').textContent = channel.name;
@@ -1964,6 +2117,87 @@
             return 'unknown';
         }
 
+        // =====================================================
+        // VOD SEEK BAR FUNCTIONS
+        // =====================================================
+
+        let isSeeking = false; // Track if user is dragging seek bar
+
+        // Format seconds to mm:ss or hh:mm:ss
+        function formatTime(seconds) {
+            if (!seconds || isNaN(seconds) || !isFinite(seconds)) return '0:00';
+            const hrs = Math.floor(seconds / 3600);
+            const mins = Math.floor((seconds % 3600) / 60);
+            const secs = Math.floor(seconds % 60);
+            if (hrs > 0) {
+                return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+            }
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        // Update seek bar progress fill
+        function updateSeekBarFill(seekBar, percentage) {
+            const primaryColor = getComputedStyle(document.documentElement).getPropertyValue('--primary').trim() || '#8b5cf6';
+            seekBar.style.background = `linear-gradient(to right, ${primaryColor} ${percentage}%, rgba(255,255,255,0.3) ${percentage}%)`;
+        }
+
+        // Update seek bar position and time display
+        function updateSeekBar() {
+            const video = document.getElementById('mainVideo');
+            const seekBar = document.getElementById('seekBar');
+            const currentTimeEl = document.getElementById('currentTime');
+            const durationTimeEl = document.getElementById('durationTime');
+
+            if (!video || !seekBar || isSeeking) return;
+
+            const duration = video.duration;
+            const currentTime = video.currentTime;
+
+            if (duration && isFinite(duration)) {
+                seekBar.max = duration;
+                seekBar.value = currentTime;
+                currentTimeEl.textContent = formatTime(currentTime);
+                durationTimeEl.textContent = formatTime(duration);
+
+                // Update progress fill
+                const percentage = (currentTime / duration) * 100;
+                updateSeekBarFill(seekBar, percentage);
+            }
+        }
+
+        // Handle seek bar input (while dragging)
+        function onSeekInput(value) {
+            isSeeking = true;
+            const currentTimeEl = document.getElementById('currentTime');
+            const seekBar = document.getElementById('seekBar');
+            const video = document.getElementById('mainVideo');
+
+            currentTimeEl.textContent = formatTime(parseFloat(value));
+
+            // Update progress fill while dragging
+            if (seekBar && video && video.duration && isFinite(video.duration)) {
+                const percentage = (parseFloat(value) / video.duration) * 100;
+                updateSeekBarFill(seekBar, percentage);
+            }
+        }
+
+        // Handle seek bar change (when released)
+        function onSeekChange(value) {
+            const video = document.getElementById('mainVideo');
+            if (video) {
+                video.currentTime = parseFloat(value);
+            }
+            isSeeking = false;
+        }
+
+        // Show/hide VOD controls based on content type
+        function setVodControlsVisible(visible) {
+            const vodControls = document.getElementById('vodControls');
+            if (vodControls) {
+                vodControls.classList.toggle('active', visible);
+            }
+        }
+
         // Play in main player
         function playInMain(channel) {
             const video = document.getElementById('mainVideo');
@@ -1978,6 +2212,30 @@
 
             // Apply saved volume
             applySavedVolume(video);
+
+            // Show/hide VOD controls based on content type
+            if (channel.isVod) {
+                setVodControlsVisible(true);
+                video.ontimeupdate = updateSeekBar;
+                video.onloadedmetadata = () => {
+                    // Initialize seek bar with video duration
+                    updateSeekBar();
+                };
+                // Reset seek bar
+                const seekBar = document.getElementById('seekBar');
+                const currentTimeEl = document.getElementById('currentTime');
+                const durationTimeEl = document.getElementById('durationTime');
+                if (seekBar) {
+                    seekBar.value = 0;
+                    seekBar.max = 100;
+                }
+                if (currentTimeEl) currentTimeEl.textContent = '0:00';
+                if (durationTimeEl) durationTimeEl.textContent = '0:00';
+            } else {
+                setVodControlsVisible(false);
+                video.ontimeupdate = null;
+                video.onloadedmetadata = null;
+            }
 
             // Destroy existing player
             if (mainPlayer) {
@@ -2100,9 +2358,14 @@
 
             const grid = document.getElementById('multiviewGrid');
 
+            // Check if video is playing (for native video playback where mainPlayer may not be set)
+            const mainVideo = document.getElementById('mainVideo');
+            const isVideoPlaying = mainVideo && mainVideo.style.display !== 'none' && !mainVideo.paused;
+
             // If switching from single player to multiview, transfer the current video first
-            if (screens.length === 0 && currentChannel && mainPlayer) {
+            if (screens.length === 0 && currentChannel && (mainPlayer || isVideoPlaying)) {
                 isMultiview = true;
+                isVodPlayback = false; // Reset VOD flag when entering multiview
                 document.getElementById('singlePlayer').style.display = 'none';
                 document.getElementById('multiviewGrid').style.display = 'grid';
                 document.getElementById('layoutSelector').style.display = 'flex';
@@ -2897,18 +3160,74 @@
             }
         }
 
+        // Load VOD visibility settings and hide nav buttons if user doesn't have access
+        async function loadVodVisibility() {
+            try {
+                const response = await api('/portal/user/full');
+                if (response.success && response.user) {
+                    const moviesBtn = document.getElementById('moviesNavBtn');
+                    const seriesBtn = document.getElementById('seriesNavBtn');
+
+                    // Hide buttons if user doesn't have access (they show by default)
+                    if (!response.user.show_iptv_movies && moviesBtn) {
+                        moviesBtn.style.display = 'none';
+                    }
+                    if (!response.user.show_iptv_series && seriesBtn) {
+                        seriesBtn.style.display = 'none';
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to load VOD visibility settings:', error);
+            }
+        }
+
         // Initialize
         document.addEventListener('DOMContentLoaded', () => {
             loadChannels();
+            loadVodVisibility();
 
-            // Check for volume parameter in URL
+            // Check for URL parameters
             const params = new URLSearchParams(window.location.search);
+
+            // Volume parameter
             const volumeParam = params.get('volume');
             if (volumeParam) {
                 const volume = parseFloat(volumeParam);
                 if (!isNaN(volume) && volume >= 0 && volume <= 1) {
                     localStorage.setItem('iptv_volume', volume.toString());
                 }
+            }
+
+            // VOD/Series URL parameter - auto-play if provided
+            const vodUrl = params.get('url');
+            const vodName = params.get('name');
+            const vodType = params.get('type'); // 'vod' or 'series'
+
+            if (vodUrl) {
+                // Decode the URL and play it
+                const decodedUrl = decodeURIComponent(vodUrl);
+                const decodedName = vodName ? decodeURIComponent(vodName) : 'Video';
+
+                // Update header title
+                document.getElementById('headerTitle').textContent = decodedName;
+
+                // Mark as VOD playback
+                isVodPlayback = true;
+                vodChannel = {
+                    name: decodedName,
+                    url: decodedUrl,
+                    type: vodType || 'vod',
+                    stream_icon: null,
+                    isVod: true
+                };
+
+                // Play the video
+                setTimeout(() => {
+                    playChannel(vodChannel);
+                }, 500);
+
+                // Clean URL (remove query params for cleaner history)
+                window.history.replaceState({}, document.title, window.location.pathname);
             }
 
             // Handle fullscreen changes
@@ -2938,6 +3257,38 @@
                 // Also close mobile video on ESC
                 if (e.key === 'Escape' && document.getElementById('mobileFullscreenVideo').classList.contains('active')) {
                     closeMobileVideo();
+                }
+            });
+
+            // Handle PiP exit - clean up video when PiP is closed
+            document.addEventListener('leavepictureinpicture', (event) => {
+                console.log('PiP closed');
+                const pipVideo = event.target;
+
+                // Clean up live channel PiP
+                if (pipVideo && pipVideo.classList.contains('pip-live-video')) {
+                    // Destroy the player if it exists
+                    if (window.currentPipPlayer) {
+                        if (window.currentPipPlayer.destroy) window.currentPipPlayer.destroy();
+                        if (window.currentPipPlayer.unload) window.currentPipPlayer.unload();
+                        window.currentPipPlayer = null;
+                    }
+                    // Stop playback and remove the video element
+                    pipVideo.pause();
+                    pipVideo.src = '';
+                    pipVideo.load();
+                    pipVideo.remove();
+                    window.currentPipVideo = null;
+                    console.log('Cleaned up live channel PiP');
+                }
+
+                // Clean up VOD PiP (legacy, if we ever use it)
+                if (pipVideo && pipVideo.classList.contains('pip-video')) {
+                    pipVideo.pause();
+                    pipVideo.src = '';
+                    pipVideo.load();
+                    pipVideo.remove();
+                    console.log('Cleaned up VOD PiP video element');
                 }
             });
 

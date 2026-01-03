@@ -1760,6 +1760,16 @@
                 <i class="fas fa-tv"></i>
                 <span>TV Guide</span>
             </div>
+            <div class="header-nav" id="vodNavButtons" style="display: flex; gap: 8px; margin-left: 8px;">
+                <a href="movies.html" id="moviesNavBtn" class="back-btn" style="background: #ec4899; color: #1a1a1a;">
+                    <i class="fas fa-film"></i>
+                    <span>Movies</span>
+                </a>
+                <a href="series.html" id="seriesNavBtn" class="back-btn" style="background: #06b6d4; color: #1a1a1a;">
+                    <i class="fas fa-photo-film"></i>
+                    <span>TV Shows</span>
+                </a>
+            </div>
             <div class="search-box">
                 <div class="search-input-wrapper">
                     <i class="fas fa-search"></i>
@@ -2890,8 +2900,35 @@
             }
         }
 
+        // Load VOD visibility settings and hide nav buttons if user doesn't have access
+        async function loadVodVisibility() {
+            try {
+                const response = await api('/portal/user/full');
+                if (response.success && response.user) {
+                    const vodNavButtons = document.getElementById('vodNavButtons');
+                    const moviesBtn = document.getElementById('moviesNavBtn');
+                    const seriesBtn = document.getElementById('seriesNavBtn');
+
+                    const showMovies = response.user.show_iptv_movies;
+                    const showSeries = response.user.show_iptv_series;
+
+                    // Hide buttons if user doesn't have access (they show by default)
+                    if (!showMovies) moviesBtn.style.display = 'none';
+                    if (!showSeries) seriesBtn.style.display = 'none';
+
+                    // Hide the container if neither are enabled
+                    if (!showMovies && !showSeries) {
+                        vodNavButtons.style.display = 'none';
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to load VOD visibility settings:', error);
+            }
+        }
+
         document.addEventListener('DOMContentLoaded', () => {
             loadGuide();
+            loadVodVisibility();
             // Check after a short delay to ensure guide is loaded
             setTimeout(checkForContinuedPlayback, 100);
 

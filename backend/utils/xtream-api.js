@@ -174,7 +174,7 @@ async function getFullEPG(baseUrl, username, password, streamId) {
 }
 
 /**
- * Build stream URL for a channel
+ * Build stream URL for a live channel
  * @param {string} baseUrl - Panel base URL
  * @param {string} username - User's username
  * @param {string} password - User's password
@@ -185,6 +185,297 @@ async function getFullEPG(baseUrl, username, password, streamId) {
 function buildStreamUrl(baseUrl, username, password, streamId, extension = 'ts') {
     const cleanBaseUrl = baseUrl.replace(/\/+$/, '');
     return `${cleanBaseUrl}/live/${username}/${password}/${streamId}.${extension}`;
+}
+
+/**
+ * Build stream URL for a VOD movie
+ * @param {string} baseUrl - Panel base URL
+ * @param {string} username - User's username
+ * @param {string} password - User's password
+ * @param {string|number} streamId - Stream ID
+ * @param {string} extension - File extension (mp4, mkv, etc.)
+ * @returns {string} Full stream URL
+ */
+function buildVodStreamUrl(baseUrl, username, password, streamId, extension = 'mp4') {
+    const cleanBaseUrl = baseUrl.replace(/\/+$/, '');
+    return `${cleanBaseUrl}/movie/${username}/${password}/${streamId}.${extension}`;
+}
+
+/**
+ * Build stream URL for a series episode
+ * @param {string} baseUrl - Panel base URL
+ * @param {string} username - User's username
+ * @param {string} password - User's password
+ * @param {string|number} streamId - Episode stream ID
+ * @param {string} extension - File extension (mp4, mkv, etc.)
+ * @returns {string} Full stream URL
+ */
+function buildSeriesStreamUrl(baseUrl, username, password, streamId, extension = 'mp4') {
+    const cleanBaseUrl = baseUrl.replace(/\/+$/, '');
+    return `${cleanBaseUrl}/series/${username}/${password}/${streamId}.${extension}`;
+}
+
+// ============================================================================
+// VOD (Movies) API Methods
+// ============================================================================
+
+/**
+ * Get VOD (movie) categories
+ * @param {string} baseUrl - Panel base URL
+ * @param {string} username - Username
+ * @param {string} password - Password
+ * @returns {Promise<Array>} Array of category objects
+ */
+async function getVodCategories(baseUrl, username, password) {
+    const data = await xtreamRequest(baseUrl, username, password, 'get_vod_categories');
+
+    if (!Array.isArray(data)) {
+        console.warn('get_vod_categories did not return an array:', typeof data);
+        return [];
+    }
+
+    return data.map(cat => ({
+        category_id: String(cat.category_id),
+        category_name: cat.category_name || 'Unknown',
+        parent_id: cat.parent_id || 0
+    }));
+}
+
+/**
+ * Get VOD (movie) streams
+ * @param {string} baseUrl - Panel base URL
+ * @param {string} username - Username
+ * @param {string} password - Password
+ * @param {string|null} categoryId - Optional category ID to filter
+ * @returns {Promise<Array>} Array of movie objects
+ */
+async function getVodStreams(baseUrl, username, password, categoryId = null) {
+    const params = {};
+    if (categoryId) {
+        params.category_id = categoryId;
+    }
+
+    const data = await xtreamRequest(baseUrl, username, password, 'get_vod_streams', params);
+
+    if (!Array.isArray(data)) {
+        console.warn('get_vod_streams did not return an array:', typeof data);
+        return [];
+    }
+
+    return data.map(movie => ({
+        stream_id: movie.stream_id || movie.num,
+        name: movie.name || 'Unknown Movie',
+        stream_icon: movie.stream_icon || null,
+        category_id: String(movie.category_id || ''),
+        container_extension: movie.container_extension || 'mp4',
+        rating: movie.rating || null,
+        rating_5based: movie.rating_5based || null,
+        added: movie.added || null,
+        plot: movie.plot || null,
+        cast: movie.cast || null,
+        director: movie.director || null,
+        genre: movie.genre || null,
+        releaseDate: movie.releaseDate || movie.release_date || null,
+        year: movie.year || null,
+        duration: movie.duration || null,
+        duration_secs: movie.duration_secs || null,
+        tmdb_id: movie.tmdb_id || null
+    }));
+}
+
+/**
+ * Get detailed info for a specific VOD movie
+ * @param {string} baseUrl - Panel base URL
+ * @param {string} username - Username
+ * @param {string} password - Password
+ * @param {string|number} vodId - VOD stream ID
+ * @returns {Promise<Object>} Movie info with full details
+ */
+async function getVodInfo(baseUrl, username, password, vodId) {
+    const data = await xtreamRequest(baseUrl, username, password, 'get_vod_info', {
+        vod_id: vodId
+    });
+
+    if (!data || !data.info) {
+        return null;
+    }
+
+    const info = data.info;
+    const movieData = data.movie_data || {};
+
+    return {
+        info: {
+            tmdb_id: info.tmdb_id || null,
+            name: info.name || info.title || 'Unknown',
+            title: info.title || info.name || 'Unknown',
+            year: info.year || null,
+            cover: info.cover || info.movie_image || null,
+            cover_big: info.cover_big || info.cover || null,
+            plot: info.plot || info.description || null,
+            cast: info.cast || null,
+            director: info.director || null,
+            genre: info.genre || null,
+            releaseDate: info.releaseDate || info.release_date || null,
+            rating: info.rating || null,
+            rating_5based: info.rating_5based || null,
+            duration: info.duration || null,
+            duration_secs: info.duration_secs || null,
+            backdrop_path: info.backdrop_path || null,
+            youtube_trailer: info.youtube_trailer || null,
+            country: info.country || null
+        },
+        movie_data: {
+            stream_id: movieData.stream_id || null,
+            container_extension: movieData.container_extension || 'mp4',
+            added: movieData.added || null
+        }
+    };
+}
+
+// ============================================================================
+// Series (TV Shows) API Methods
+// ============================================================================
+
+/**
+ * Get series categories
+ * @param {string} baseUrl - Panel base URL
+ * @param {string} username - Username
+ * @param {string} password - Password
+ * @returns {Promise<Array>} Array of category objects
+ */
+async function getSeriesCategories(baseUrl, username, password) {
+    const data = await xtreamRequest(baseUrl, username, password, 'get_series_categories');
+
+    if (!Array.isArray(data)) {
+        console.warn('get_series_categories did not return an array:', typeof data);
+        return [];
+    }
+
+    return data.map(cat => ({
+        category_id: String(cat.category_id),
+        category_name: cat.category_name || 'Unknown',
+        parent_id: cat.parent_id || 0
+    }));
+}
+
+/**
+ * Get series list
+ * @param {string} baseUrl - Panel base URL
+ * @param {string} username - Username
+ * @param {string} password - Password
+ * @param {string|null} categoryId - Optional category ID to filter
+ * @returns {Promise<Array>} Array of series objects
+ */
+async function getSeries(baseUrl, username, password, categoryId = null) {
+    const params = {};
+    if (categoryId) {
+        params.category_id = categoryId;
+    }
+
+    const data = await xtreamRequest(baseUrl, username, password, 'get_series', params);
+
+    if (!Array.isArray(data)) {
+        console.warn('get_series did not return an array:', typeof data);
+        return [];
+    }
+
+    return data.map(series => ({
+        series_id: series.series_id || series.id,
+        name: series.name || series.title || 'Unknown Series',
+        cover: series.cover || null,
+        plot: series.plot || null,
+        cast: series.cast || null,
+        director: series.director || null,
+        genre: series.genre || null,
+        releaseDate: series.releaseDate || series.release_date || null,
+        last_modified: series.last_modified || null,
+        rating: series.rating || null,
+        rating_5based: series.rating_5based || null,
+        year: series.year || null,
+        category_id: String(series.category_id || ''),
+        backdrop_path: series.backdrop_path || null,
+        youtube_trailer: series.youtube_trailer || null,
+        episode_run_time: series.episode_run_time || null,
+        tmdb_id: series.tmdb_id || null
+    }));
+}
+
+/**
+ * Get detailed info for a specific series including seasons and episodes
+ * @param {string} baseUrl - Panel base URL
+ * @param {string} username - Username
+ * @param {string} password - Password
+ * @param {string|number} seriesId - Series ID
+ * @returns {Promise<Object>} Series info with seasons and episodes
+ */
+async function getSeriesInfo(baseUrl, username, password, seriesId) {
+    const data = await xtreamRequest(baseUrl, username, password, 'get_series_info', {
+        series_id: seriesId
+    });
+
+    if (!data) {
+        return null;
+    }
+
+    const info = data.info || {};
+    const episodes = data.episodes || {};
+    const seasons = data.seasons || [];
+
+    // Process episodes by season
+    const episodesBySeason = {};
+    for (const [seasonNum, seasonEpisodes] of Object.entries(episodes)) {
+        if (Array.isArray(seasonEpisodes)) {
+            episodesBySeason[seasonNum] = seasonEpisodes.map(ep => ({
+                id: ep.id,
+                episode_num: ep.episode_num || ep.episode_number,
+                title: ep.title || `Episode ${ep.episode_num}`,
+                container_extension: ep.container_extension || 'mp4',
+                info: {
+                    plot: ep.info?.plot || ep.plot || null,
+                    duration: ep.info?.duration || ep.duration || null,
+                    duration_secs: ep.info?.duration_secs || ep.duration_secs || null,
+                    movie_image: ep.info?.movie_image || ep.movie_image || null,
+                    rating: ep.info?.rating || ep.rating || null,
+                    releaseDate: ep.info?.releaseDate || ep.releaseDate || null
+                },
+                added: ep.added || null,
+                season: parseInt(seasonNum),
+                direct_source: ep.direct_source || null
+            }));
+        }
+    }
+
+    return {
+        info: {
+            name: info.name || info.title || 'Unknown',
+            title: info.title || info.name || 'Unknown',
+            year: info.year || null,
+            cover: info.cover || null,
+            cover_big: info.cover_big || info.cover || null,
+            plot: info.plot || null,
+            cast: info.cast || null,
+            director: info.director || null,
+            genre: info.genre || null,
+            releaseDate: info.releaseDate || info.release_date || null,
+            rating: info.rating || null,
+            rating_5based: info.rating_5based || null,
+            backdrop_path: info.backdrop_path || null,
+            youtube_trailer: info.youtube_trailer || null,
+            episode_run_time: info.episode_run_time || null,
+            category_id: info.category_id || null,
+            tmdb_id: info.tmdb_id || null
+        },
+        seasons: seasons.map(s => ({
+            season_number: s.season_number || s.season,
+            name: s.name || `Season ${s.season_number || s.season}`,
+            cover: s.cover || s.cover_big || null,
+            air_date: s.air_date || null,
+            episode_count: s.episode_count || (episodesBySeason[s.season_number || s.season]?.length || 0)
+        })),
+        episodes: episodesBySeason,
+        totalSeasons: Object.keys(episodesBySeason).length,
+        totalEpisodes: Object.values(episodesBySeason).reduce((sum, eps) => sum + eps.length, 0)
+    };
 }
 
 /**
@@ -367,16 +658,35 @@ async function getAllEPG(baseUrl, username, password) {
 }
 
 module.exports = {
+    // Core
     xtreamRequest,
     getServerInfo,
+    testConnection,
+
+    // Live TV
     getLiveCategories,
     getLiveStreams,
+    buildStreamUrl,
+
+    // VOD (Movies)
+    getVodCategories,
+    getVodStreams,
+    getVodInfo,
+    buildVodStreamUrl,
+
+    // Series (TV Shows)
+    getSeriesCategories,
+    getSeries,
+    getSeriesInfo,
+    buildSeriesStreamUrl,
+
+    // EPG
     getShortEPG,
     getFullEPG,
-    buildStreamUrl,
-    fetchFullGuideData,
-    testConnection,
     fetchXMLTV,
     getBatchShortEPG,
-    getAllEPG
+    getAllEPG,
+
+    // Guide Data
+    fetchFullGuideData
 };

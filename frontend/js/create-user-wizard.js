@@ -48,7 +48,9 @@ const CreateUserWizard = {
             duration_months: 1,
             expiration_date: '',
             notes: '',
-            create_iptv_editor: false
+            create_iptv_editor: false,
+            show_movies: true,
+            show_series: true
         }
     },
 
@@ -155,7 +157,9 @@ const CreateUserWizard = {
                 duration_months: 1,
                 expiration_date: oneMonthLater.toISOString().split('T')[0],
                 notes: '',
-                create_iptv_editor: false
+                create_iptv_editor: false,
+                show_movies: true,
+                show_series: true
             }
         };
 
@@ -875,6 +879,30 @@ const CreateUserWizard = {
                         placeholder="Notes specific to this IPTV subscription..."
                     >${Utils.escapeHtml(notes)}</textarea>
                     <small class="form-text">Max 500 characters</small>
+                </div>
+
+                <!-- VOD Visibility Settings -->
+                <div class="form-group">
+                    <label>VOD Access (Movies & TV Shows)</label>
+                    <div class="checkbox-group" style="display: flex; gap: 24px; margin-top: 8px;">
+                        <label class="checkbox-label" style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                            <input
+                                type="checkbox"
+                                id="wizard-iptv-show-movies"
+                                ${this.formData.iptv.show_movies ? 'checked' : ''}
+                            />
+                            <span>Show Movies</span>
+                        </label>
+                        <label class="checkbox-label" style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                            <input
+                                type="checkbox"
+                                id="wizard-iptv-show-series"
+                                ${this.formData.iptv.show_series ? 'checked' : ''}
+                            />
+                            <span>Show TV Shows</span>
+                        </label>
+                    </div>
+                    <small class="form-text">Control which VOD sections appear in the user's portal</small>
                 </div>
 
                 <!-- Subscription Plan & Expiration -->
@@ -1923,6 +1951,10 @@ const CreateUserWizard = {
         this.formData.iptv.expiration_date = document.getElementById('wizard-iptv-expiration')?.value || '';
 
         this.formData.iptv.create_iptv_editor = document.getElementById('wizard-create-iptv-editor')?.checked || false;
+
+        // VOD visibility settings
+        this.formData.iptv.show_movies = document.getElementById('wizard-iptv-show-movies')?.checked ?? true;
+        this.formData.iptv.show_series = document.getElementById('wizard-iptv-show-series')?.checked ?? true;
     },
 
     /**
@@ -1972,7 +2004,9 @@ const CreateUserWizard = {
                     iptv_duration_months: this.formData.iptv.duration_months,
                     iptv_expiration_date: this.formData.iptv.expiration_date,
                     iptv_notes: this.formData.iptv.notes,
-                    create_on_iptv_editor: this.formData.iptv.create_iptv_editor
+                    create_on_iptv_editor: this.formData.iptv.create_iptv_editor,
+                    show_iptv_movies: this.formData.iptv.show_movies,
+                    show_iptv_series: this.formData.iptv.show_series
                 })
             };
 

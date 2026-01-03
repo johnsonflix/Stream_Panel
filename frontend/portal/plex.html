@@ -1362,6 +1362,157 @@
             border-color: var(--error-color);
             background: rgba(239, 68, 68, 0.1);
         }
+
+        /* Request Media Hero Banner */
+        .request-media-banner {
+            position: relative;
+            background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4c1d95 100%);
+            border-radius: 12px;
+            margin-bottom: 24px;
+            overflow: hidden;
+            min-height: 120px;
+        }
+
+        /* Gradient overlay for text readability - lighter on right to show more image */
+        .request-media-banner::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(90deg, rgba(30, 27, 75, 0.95) 0%, rgba(30, 27, 75, 0.6) 35%, rgba(30, 27, 75, 0.2) 70%, rgba(30, 27, 75, 0.1) 100%);
+            z-index: 1;
+        }
+
+        .request-media-banner-bg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            overflow: hidden;
+            z-index: 0;
+        }
+
+        .request-media-banner-bg img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position: center center;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+        }
+
+        .request-media-banner-bg img.loaded {
+            opacity: 1;
+        }
+
+        .request-media-banner-content {
+            position: relative;
+            z-index: 2;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 24px;
+            gap: 20px;
+        }
+
+        .request-media-banner-info {
+            flex: 1;
+        }
+
+        .request-media-banner-icon {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            color: white;
+            margin-bottom: 10px;
+            box-shadow: 0 4px 12px rgba(124, 58, 237, 0.4);
+        }
+
+        .request-media-banner-title {
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 4px;
+            color: white;
+        }
+
+        .request-media-banner-subtitle {
+            font-size: 13px;
+            color: rgba(255, 255, 255, 0.7);
+            max-width: 350px;
+            line-height: 1.4;
+        }
+
+        .request-media-banner-actions {
+            display: flex;
+            gap: 10px;
+            flex-shrink: 0;
+        }
+
+        .request-media-banner-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 10px 18px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.2s;
+            cursor: pointer;
+            border: none;
+        }
+
+        .request-media-banner-btn.primary {
+            background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%);
+            color: white;
+            box-shadow: 0 4px 12px rgba(124, 58, 237, 0.4);
+        }
+
+        .request-media-banner-btn.primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(124, 58, 237, 0.5);
+        }
+
+        .request-media-banner-btn.secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
+        }
+
+        .request-media-banner-btn.secondary:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        @media (max-width: 768px) {
+            .request-media-banner-content {
+                flex-direction: column;
+                align-items: flex-start;
+                padding: 16px;
+            }
+
+            .request-media-banner-actions {
+                width: 100%;
+                flex-direction: column;
+            }
+
+            .request-media-banner-btn {
+                justify-content: center;
+                width: 100%;
+            }
+
+            .request-media-banner-subtitle {
+                max-width: 100%;
+            }
+        }
     </style>
 </head>
 <body>
@@ -1395,6 +1546,32 @@
     <main class="main-content">
         <!-- Announcements -->
         <section class="announcements-section" id="announcements"></section>
+
+        <!-- Discover & Request Hero Banner -->
+        <div class="request-media-banner" id="request-media-banner" style="display: none;">
+            <div class="request-media-banner-bg" id="request-media-banner-bg">
+                <!-- Dynamic poster images will be loaded here -->
+            </div>
+            <div class="request-media-banner-content">
+                <div class="request-media-banner-info">
+                    <div class="request-media-banner-icon">
+                        <i class="fas fa-compass"></i>
+                    </div>
+                    <h2 class="request-media-banner-title">Discover & Request</h2>
+                    <p class="request-media-banner-subtitle">Browse trending movies and TV shows. Request anything and we'll add it to your library.</p>
+                </div>
+                <div class="request-media-banner-actions">
+                    <a href="request2.html" class="request-media-banner-btn primary">
+                        <i class="fas fa-search"></i>
+                        Browse & Request
+                    </a>
+                    <a href="my-requests.html" class="request-media-banner-btn secondary">
+                        <i class="fas fa-list"></i>
+                        My Requests
+                    </a>
+                </div>
+            </div>
+        </div>
 
         <!-- Main Cards Grid -->
         <div class="cards-grid">
@@ -1539,6 +1716,34 @@
                 renderAccountDetails();
                 renderLibraries();
                 updateCancelButton();
+
+                // Show request site banner if user has access
+                if (userData.has_request_site_access) {
+                    document.getElementById('request-media-banner').style.display = '';
+                    loadRequestBannerBackground();
+                }
+            }
+        }
+
+        // Load trending backdrop for request banner
+        async function loadRequestBannerBackground() {
+            try {
+                const response = await fetch('/api/v2/request-site/trending/movies?page=1');
+                const data = await response.json();
+                if (data.success && data.results && data.results.length > 0) {
+                    // Pick a random movie with a backdrop
+                    const moviesWithBackdrop = data.results.filter(m => m.backdrop_path);
+                    if (moviesWithBackdrop.length > 0) {
+                        const randomMovie = moviesWithBackdrop[Math.floor(Math.random() * Math.min(5, moviesWithBackdrop.length))];
+                        const container = document.getElementById('request-media-banner-bg');
+                        const img = document.createElement('img');
+                        img.src = `https://image.tmdb.org/t/p/w1280${randomMovie.backdrop_path}`;
+                        img.onload = () => img.classList.add('loaded');
+                        container.appendChild(img);
+                    }
+                }
+            } catch (err) {
+                console.log('Could not load request banner background');
             }
         }
 

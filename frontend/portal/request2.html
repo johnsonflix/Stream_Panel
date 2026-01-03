@@ -1286,7 +1286,51 @@
         .season-modal-subtitle {
             font-size: 15px;
             color: #94a3b8;
-            margin: 0 0 20px 0;
+            margin: 0 0 12px 0;
+        }
+        .season-modal-usage {
+            display: flex;
+            gap: 12px 16px;
+            flex-wrap: wrap;
+            padding: 12px 16px;
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid #334155;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            font-size: 13px;
+        }
+        .season-modal-usage-title {
+            width: 100%;
+            font-size: 11px;
+            font-weight: 600;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 2px;
+        }
+        .season-modal-usage-title i {
+            margin-right: 6px;
+            color: #6366f1;
+        }
+        .season-modal-usage-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: #94a3b8;
+        }
+        .season-modal-usage-item i {
+            color: #6366f1;
+            font-size: 12px;
+        }
+        .season-modal-usage-value {
+            font-weight: 600;
+            color: #f8fafc;
+        }
+        .season-modal-usage-value.at-limit {
+            color: #ef4444;
+        }
+        .season-modal-usage-value.near-limit {
+            color: #f59e0b;
         }
         .season-modal-options {
             display: flex;
@@ -1340,8 +1384,25 @@
             flex-direction: column;
             gap: 10px;
             margin-bottom: 20px;
-            max-height: 300px;
+            max-height: 450px;
             overflow-y: auto;
+            /* Custom scrollbar */
+            scrollbar-width: thin;
+            scrollbar-color: #4a5568 #1e293b;
+        }
+        .season-checkbox-list::-webkit-scrollbar {
+            width: 8px;
+        }
+        .season-checkbox-list::-webkit-scrollbar-track {
+            background: #1e293b;
+            border-radius: 4px;
+        }
+        .season-checkbox-list::-webkit-scrollbar-thumb {
+            background: #4a5568;
+            border-radius: 4px;
+        }
+        .season-checkbox-list::-webkit-scrollbar-thumb:hover {
+            background: #5a6578;
         }
         .season-checkbox-item {
             display: flex;
@@ -7109,6 +7170,7 @@
             </div>
             <div class="season-modal-body">
                 <p class="season-modal-subtitle" id="season-modal-subtitle"></p>
+                <div class="season-modal-usage" id="season-modal-usage" style="display: none;"></div>
                 <div class="season-modal-options">
                     <button class="season-option-btn season-option-all" id="select-all-seasons-btn" onclick="selectAllSeasons()">
                         <i class="fas fa-list"></i>
@@ -7130,7 +7192,7 @@
                     <div class="season-checkbox-list" id="season-checkbox-list"></div>
                     <div class="season-modal-actions">
                         <button class="request-btn request-btn-primary" id="confirm-seasons-btn" onclick="confirmSeasonSelection()">
-                            <i class="fas fa-paper-plane"></i> Request Selected Seasons
+                            <i class="fas fa-paper-plane"></i> <span id="confirm-seasons-btn-text">Request All Seasons</span>
                         </button>
                         <button class="request-btn request-btn-secondary" onclick="closeSeasonModal()">
                             Cancel
@@ -8844,7 +8906,7 @@
 
                 if (data.results && data.results.length > 0) {
                     autocompleteDropdown.innerHTML = data.results.map(item => `
-                        <div class="autocomplete-item" onclick="selectAutocompleteItem(${item.id}, '${item.media_type}', '${escapeHtml(item.title)}')">
+                        <div class="autocomplete-item" onclick="selectAutocompleteItem(${item.id}, '${item.media_type}')">
                             ${item.posterUrl
                                 ? `<img class="autocomplete-poster" src="${item.posterUrl}" alt="${escapeHtml(item.title)}" loading="lazy">`
                                 : `<div class="autocomplete-poster-placeholder"><i class="fas fa-${item.media_type === 'movie' ? 'film' : 'tv'}"></i></div>`
@@ -8882,16 +8944,10 @@
         }
 
         // Select an autocomplete item - navigate to details page
-        function selectAutocompleteItem(id, mediaType, title) {
+        function selectAutocompleteItem(id, mediaType) {
             hideAutocomplete();
-            document.getElementById('search-input').value = title;
-
             // Navigate directly to the media details page
-            if (mediaType === 'movie') {
-                showMovieDetails(id);
-            } else {
-                showTvDetails(id);
-            }
+            openMediaModal(id, mediaType);
         }
 
         // Search within the current browse section (Movies or TV)
@@ -10791,14 +10847,75 @@
             // Set subtitle
             subtitle.textContent = currentMedia.name || currentMedia.title;
 
+            // Show usage info if user has limits
+            const usageDiv = document.getElementById('season-modal-usage');
+            if (usageDiv && userUsageData) {
+                const showData = is4k ? userUsageData.tvShows4k : userUsageData.tvShows;
+                const seasonData = is4k ? userUsageData.tvSeasons4k : userUsageData.tvSeasons;
+
+                const hasShowLimit = showData && !showData.unlimited;
+                const hasSeasonLimit = seasonData && !seasonData.unlimited;
+
+                if (hasShowLimit || hasSeasonLimit) {
+                    let html = '<div class="season-modal-usage-title"><i class="fas fa-chart-pie"></i> Your Request Limits</div>';
+
+                    if (hasShowLimit) {
+                        const remaining = Math.max(0, showData.limit - showData.used);
+                        const colorClass = remaining === 0 ? 'at-limit' : remaining <= 1 ? 'near-limit' : '';
+                        html += `
+                            <div class="season-modal-usage-item">
+                                <i class="fas fa-tv"></i>
+                                <span>Shows:</span>
+                                <span class="season-modal-usage-value ${colorClass}">${remaining} remaining</span>
+                                <span style="color: #64748b;">(${showData.used}/${showData.limit} per ${showData.days}d)</span>
+                            </div>
+                        `;
+                    }
+
+                    if (hasSeasonLimit) {
+                        const remaining = Math.max(0, seasonData.limit - seasonData.used);
+                        const colorClass = remaining === 0 ? 'at-limit' : remaining <= 2 ? 'near-limit' : '';
+                        html += `
+                            <div class="season-modal-usage-item">
+                                <i class="fas fa-layer-group"></i>
+                                <span>Seasons:</span>
+                                <span class="season-modal-usage-value ${colorClass}">${remaining} remaining</span>
+                                <span style="color: #64748b;">(${seasonData.used}/${seasonData.limit} per ${seasonData.days}d)</span>
+                            </div>
+                        `;
+                    }
+
+                    usageDiv.innerHTML = html;
+                    usageDiv.style.display = 'flex';
+                } else {
+                    usageDiv.style.display = 'none';
+                }
+            } else if (usageDiv) {
+                usageDiv.style.display = 'none';
+            }
+
             // Create season checkboxes
             const seasons = currentMedia.seasons?.filter(s => s.season_number > 0 && s.episode_count > 0) || [];
             checkboxList.innerHTML = seasons.map(season => `
-                <div class="season-checkbox-item" onclick="this.querySelector('input').click(); event.stopPropagation();">
+                <div class="season-checkbox-item" onclick="if(event.target.tagName !== 'INPUT' && event.target.tagName !== 'LABEL') this.querySelector('input').click();">
                     <input type="checkbox" id="season-${season.season_number}" value="${season.season_number}" checked>
                     <label for="season-${season.season_number}">Season ${season.season_number} (${season.episode_count} episode${season.episode_count > 1 ? 's' : ''})</label>
                 </div>
             `).join('');
+
+            // Add event listeners to update button text when checkboxes change
+            checkboxList.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
+                checkbox.addEventListener('change', updateSeasonButtonText);
+            });
+
+            // Hide the options buttons and show checkboxes directly
+            const options = document.querySelector('.season-modal-options');
+            const checkboxes = document.getElementById('season-checkboxes');
+            if (options) options.style.display = 'none';
+            if (checkboxes) checkboxes.style.display = 'block';
+
+            // Update button text (all are checked by default)
+            updateSeasonButtonText();
 
             // Show modal
             modal.classList.add('show');
@@ -10814,6 +10931,20 @@
             if (options) options.style.display = '';
         }
 
+        function updateSeasonButtonText() {
+            const checkboxes = document.querySelectorAll('#season-checkbox-list input[type="checkbox"]');
+            const checkedBoxes = document.querySelectorAll('#season-checkbox-list input[type="checkbox"]:checked');
+            const btnText = document.getElementById('confirm-seasons-btn-text');
+
+            if (btnText) {
+                if (checkedBoxes.length === checkboxes.length) {
+                    btnText.textContent = 'Request All Seasons';
+                } else {
+                    btnText.textContent = 'Request Selected Seasons';
+                }
+            }
+        }
+
         function showSeasonCheckboxes() {
             // Hide the option buttons
             const options = document.querySelector('.season-modal-options');
@@ -10822,6 +10953,9 @@
             // Show the season checkboxes
             const checkboxes = document.getElementById('season-checkboxes');
             checkboxes.style.display = 'block';
+
+            // Update button text (all are checked by default)
+            updateSeasonButtonText();
         }
 
         function showFullCrewModal() {

@@ -1,6 +1,6 @@
 {
-  "version": "1.5.30",
+  "version": "1.5.31",
   "name": "Stream Panel",
   "releaseDate": "2026-01-02",
-  "description": "Sign In As User feature for admin impersonation"
+  "description": "IPTV VOD Movies & Series support, VOD seek bar, PiP mode, hero cards, bugfixes"
 }

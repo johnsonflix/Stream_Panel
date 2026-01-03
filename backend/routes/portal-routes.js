@@ -688,6 +688,10 @@ router.get('/user/full', async (req, res) => {
                 iptv_editor_enabled: userData.iptv_editor_enabled === 1 && iptvEditorData !== null,
                 iptv_editor: iptvEditorData,
 
+                // IPTV VOD Visibility (defaults to true if not set)
+                show_iptv_movies: userData.show_iptv_movies !== 0,
+                show_iptv_series: userData.show_iptv_series !== 0,
+
                 // Request Site Access
                 // rs_has_access: 1 = explicitly enabled, 0/null/undefined = auto (follows plex_enabled)
                 // Use Number() to handle string/int type coercion from SQLite
@@ -3208,6 +3212,349 @@ router.get('/iptv/guide-channels', async (req, res) => {
         res.status(500).json({ success: false, message: error.message });
     }
 });
+
+// ============================================================================
+// VOD (Movies) API Routes
+// ============================================================================
+
+/**
+ * GET /api/v2/portal/iptv/vod/categories
+ * Get VOD (movie) categories for the current user
+ */
+router.get('/iptv/vod/categories', async (req, res) => {
+    try {
+        const user = req.portalUser;
+        const { getVodCategories } = require('../utils/xtream-api');
+
+        if (!user.iptv_enabled && !user.iptv_editor_enabled) {
+            return res.status(400).json({ success: false, message: 'IPTV service not enabled' });
+        }
+
+        // Get user credentials - use 'vod' type to prioritize panel (editor doesn't have VOD)
+        const creds = await getUserXtreamCredentials(user.user_id, 'vod');
+        if (!creds) {
+            return res.status(400).json({ success: false, message: 'Missing IPTV credentials' });
+        }
+
+        console.log(`[VOD DEBUG] User ${user.user_id} - baseUrl: ${creds.baseUrl}, username: ${creds.username}, source: ${creds.source}`);
+
+        const categories = await getVodCategories(creds.baseUrl, creds.username, creds.password);
+
+        res.json({
+            success: true,
+            categories,
+            total: categories.length
+        });
+    } catch (error) {
+        console.error('Error fetching VOD categories:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+/**
+ * GET /api/v2/portal/iptv/vod/movies
+ * Get VOD movies list, optionally filtered by category
+ */
+router.get('/iptv/vod/movies', async (req, res) => {
+    try {
+        const user = req.portalUser;
+        const { getVodStreams, buildVodStreamUrl } = require('../utils/xtream-api');
+        const categoryId = req.query.category_id || null;
+
+        if (!user.iptv_enabled && !user.iptv_editor_enabled) {
+            return res.status(400).json({ success: false, message: 'IPTV service not enabled' });
+        }
+
+        // Use 'vod' type to prioritize panel (editor doesn't have VOD)
+        const creds = await getUserXtreamCredentials(user.user_id, 'vod');
+        if (!creds) {
+            return res.status(400).json({ success: false, message: 'Missing IPTV credentials' });
+        }
+
+        const movies = await getVodStreams(creds.baseUrl, creds.username, creds.password, categoryId);
+
+        // Add stream URLs with user credentials
+        const moviesWithUrls = movies.map(movie => ({
+            ...movie,
+            url: buildVodStreamUrl(creds.baseUrl, creds.username, creds.password, movie.stream_id, movie.container_extension || 'mp4')
+        }));
+
+        res.json({
+            success: true,
+            movies: moviesWithUrls,
+            total: moviesWithUrls.length,
+            categoryId
+        });
+    } catch (error) {
+        console.error('Error fetching VOD movies:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+/**
+ * GET /api/v2/portal/iptv/vod/movie/:id
+ * Get detailed info for a specific movie
+ */
+router.get('/iptv/vod/movie/:id', async (req, res) => {
+    try {
+        const user = req.portalUser;
+        const { getVodInfo, buildVodStreamUrl } = require('../utils/xtream-api');
+        const movieId = req.params.id;
+
+        if (!user.iptv_enabled && !user.iptv_editor_enabled) {
+            return res.status(400).json({ success: false, message: 'IPTV service not enabled' });
+        }
+
+        // Use 'vod' type to prioritize panel (editor doesn't have VOD)
+        const creds = await getUserXtreamCredentials(user.user_id, 'vod');
+        if (!creds) {
+            return res.status(400).json({ success: false, message: 'Missing IPTV credentials' });
+        }
+
+        const movieInfo = await getVodInfo(creds.baseUrl, creds.username, creds.password, movieId);
+        if (!movieInfo) {
+            return res.status(404).json({ success: false, message: 'Movie not found' });
+        }
+
+        // Add stream URL
+        movieInfo.url = buildVodStreamUrl(
+            creds.baseUrl,
+            creds.username,
+            creds.password,
+            movieInfo.movie_data.stream_id || movieId,
+            movieInfo.movie_data.container_extension || 'mp4'
+        );
+
+        res.json({
+            success: true,
+            movie: movieInfo
+        });
+    } catch (error) {
+        console.error('Error fetching movie info:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// ============================================================================
+// Series (TV Shows) API Routes
+// ============================================================================
+
+/**
+ * GET /api/v2/portal/iptv/series/categories
+ * Get series categories for the current user
+ */
+router.get('/iptv/series/categories', async (req, res) => {
+    try {
+        const user = req.portalUser;
+        const { getSeriesCategories } = require('../utils/xtream-api');
+
+        if (!user.iptv_enabled && !user.iptv_editor_enabled) {
+            return res.status(400).json({ success: false, message: 'IPTV service not enabled' });
+        }
+
+        // Use 'series' type to prioritize panel (editor doesn't have VOD/Series)
+        const creds = await getUserXtreamCredentials(user.user_id, 'series');
+        if (!creds) {
+            return res.status(400).json({ success: false, message: 'Missing IPTV credentials' });
+        }
+
+        const categories = await getSeriesCategories(creds.baseUrl, creds.username, creds.password);
+
+        res.json({
+            success: true,
+            categories,
+            total: categories.length
+        });
+    } catch (error) {
+        console.error('Error fetching series categories:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+/**
+ * GET /api/v2/portal/iptv/series/list
+ * Get series list, optionally filtered by category
+ */
+router.get('/iptv/series/list', async (req, res) => {
+    try {
+        const user = req.portalUser;
+        const { getSeries } = require('../utils/xtream-api');
+        const categoryId = req.query.category_id || null;
+
+        if (!user.iptv_enabled && !user.iptv_editor_enabled) {
+            return res.status(400).json({ success: false, message: 'IPTV service not enabled' });
+        }
+
+        // Use 'series' type to prioritize panel (editor doesn't have VOD/Series)
+        const creds = await getUserXtreamCredentials(user.user_id, 'series');
+        if (!creds) {
+            return res.status(400).json({ success: false, message: 'Missing IPTV credentials' });
+        }
+
+        const series = await getSeries(creds.baseUrl, creds.username, creds.password, categoryId);
+
+        res.json({
+            success: true,
+            series,
+            total: series.length,
+            categoryId
+        });
+    } catch (error) {
+        console.error('Error fetching series list:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+/**
+ * GET /api/v2/portal/iptv/series/:id
+ * Get detailed info for a specific series including seasons and episodes
+ */
+router.get('/iptv/series/:id', async (req, res) => {
+    try {
+        const user = req.portalUser;
+        const { getSeriesInfo, buildSeriesStreamUrl } = require('../utils/xtream-api');
+        const seriesId = req.params.id;
+
+        if (!user.iptv_enabled && !user.iptv_editor_enabled) {
+            return res.status(400).json({ success: false, message: 'IPTV service not enabled' });
+        }
+
+        // Use 'series' type to prioritize panel (editor doesn't have VOD/Series)
+        const creds = await getUserXtreamCredentials(user.user_id, 'series');
+        if (!creds) {
+            return res.status(400).json({ success: false, message: 'Missing IPTV credentials' });
+        }
+
+        const seriesInfo = await getSeriesInfo(creds.baseUrl, creds.username, creds.password, seriesId);
+        if (!seriesInfo) {
+            return res.status(404).json({ success: false, message: 'Series not found' });
+        }
+
+        // Add stream URLs to all episodes
+        for (const seasonNum of Object.keys(seriesInfo.episodes)) {
+            seriesInfo.episodes[seasonNum] = seriesInfo.episodes[seasonNum].map(ep => ({
+                ...ep,
+                url: buildSeriesStreamUrl(creds.baseUrl, creds.username, creds.password, ep.id, ep.container_extension || 'mp4')
+            }));
+        }
+
+        res.json({
+            success: true,
+            series: seriesInfo
+        });
+    } catch (error) {
+        console.error('Error fetching series info:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+/**
+ * Helper function to get Xtream credentials for a user
+ * Handles both IPTV Editor and direct panel users
+ * @param {number} userId - User ID
+ * @param {string} contentType - Type of content: 'live', 'vod', or 'series'
+ *                               For 'vod' and 'series', prioritizes panel over editor since editor doesn't have VOD
+ */
+async function getUserXtreamCredentials(userId, contentType = 'live') {
+    // Get user data with IPTV credentials
+    const users = await query(`
+        SELECT u.*,
+               ieu.iptv_editor_playlist_id,
+               ieu.iptv_editor_username as editor_username,
+               ieu.iptv_editor_password as editor_password,
+               ip.provider_base_url as panel_provider_url,
+               ip.m3u_url as panel_m3u_url,
+               iep.provider_base_url as playlist_provider_url
+        FROM users u
+        LEFT JOIN iptv_editor_users ieu ON ieu.user_id = u.id
+        LEFT JOIN iptv_panels ip ON u.iptv_panel_id = ip.id
+        LEFT JOIN iptv_editor_playlists iep ON ieu.iptv_editor_playlist_id = iep.id
+        WHERE u.id = ?
+    `, [userId]);
+
+    if (users.length === 0) return null;
+
+    const userData = users[0];
+
+    // Parse M3U URL for panel credentials
+    function parseM3uCredentials(m3uUrl) {
+        if (!m3uUrl) return null;
+        try {
+            const url = new URL(m3uUrl);
+            const username = url.searchParams.get('username');
+            const password = url.searchParams.get('password');
+            if (username && password) {
+                return { baseUrl: url.origin, username, password };
+            }
+            const pathParts = url.pathname.split('/').filter(p => p);
+            if (pathParts.length >= 2) {
+                return { baseUrl: url.origin, username: pathParts[0], password: pathParts[1] };
+            }
+            return null;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    const m3uCreds = parseM3uCredentials(userData.panel_m3u_url);
+
+    const hasEditor = userData.iptv_editor_enabled === 1 && userData.iptv_editor_playlist_id && userData.editor_username;
+    const hasPanel = userData.iptv_enabled === 1 && userData.panel_provider_url && m3uCreds;
+
+    // For VOD and Series content, prioritize panel over editor
+    // IPTV Editor only handles live TV channels, not VOD content
+    const isVodContent = contentType === 'vod' || contentType === 'series';
+
+    if (isVodContent) {
+        // VOD/Series: Panel first, then fall back to editor
+        if (hasPanel) {
+            return {
+                baseUrl: userData.panel_provider_url,
+                username: m3uCreds.username,
+                password: m3uCreds.password,
+                source: 'panel'
+            };
+        } else if (hasEditor) {
+            // Fall back to editor playlist's upstream provider for VOD
+            const baseUrl = userData.playlist_provider_url;
+            if (baseUrl) {
+                return {
+                    baseUrl,
+                    username: userData.editor_username,
+                    password: userData.editor_password,
+                    source: 'editor-upstream'
+                };
+            }
+        }
+    } else {
+        // Live TV: Editor first (for filtered channels), then panel
+        if (hasEditor) {
+            // Get editor DNS setting
+            const editorDnsSettings = await query(`
+                SELECT setting_value FROM iptv_editor_settings WHERE setting_key = 'editor_dns'
+            `);
+            const baseUrl = (editorDnsSettings.length > 0 && editorDnsSettings[0].setting_value)
+                ? editorDnsSettings[0].setting_value
+                : userData.playlist_provider_url;
+
+            return {
+                baseUrl,
+                username: userData.editor_username,
+                password: userData.editor_password,
+                source: 'editor'
+            };
+        } else if (hasPanel) {
+            return {
+                baseUrl: userData.panel_provider_url,
+                username: m3uCreds.username,
+                password: m3uCreds.password,
+                source: 'panel'
+            };
+        }
+    }
+
+    return null;
+}
 
 /**
  * Reload source cache into memory after a database refresh

@@ -360,6 +360,8 @@ router.post('/', async (req, res) => {
             iptv_package_id, iptv_subscription_plan_id, iptv_channel_group_id, iptv_is_trial,
             iptv_duration_months, iptv_notes,
             iptv_send_welcome_email, iptv_welcome_email_template_id,
+            // IPTV VOD Visibility
+            show_iptv_movies, show_iptv_series,
             // IPTV Linked User
             iptv_is_linked_user, iptv_linked_panel_user_id, iptv_linked_editor_user_id,
             iptv_linked_editor_username, iptv_linked_editor_password, iptv_linked_editor_playlist_id,
@@ -577,6 +579,15 @@ router.post('/', async (req, res) => {
                     updates.push('iptv_editor_enabled = ?');
                     values.push(1);
                 }
+                // VOD visibility settings
+                if (show_iptv_movies !== undefined) {
+                    updates.push('show_iptv_movies = ?');
+                    values.push(show_iptv_movies ? 1 : 0);
+                }
+                if (show_iptv_series !== undefined) {
+                    updates.push('show_iptv_series = ?');
+                    values.push(show_iptv_series ? 1 : 0);
+                }
             }
 
             updates.push("updated_at = datetime('now')");
@@ -607,8 +618,9 @@ router.post('/', async (req, res) => {
                     plex_enabled, plex_package_id, plex_email, plex_expiration_date,
                     iptv_enabled, iptv_panel_id, iptv_username, iptv_password, iptv_email,
                     iptv_package_id, iptv_subscription_plan_id, iptv_channel_group_id, iptv_is_trial, iptv_duration_months, iptv_expiration_date, iptv_editor_enabled,
+                    show_iptv_movies, show_iptv_series,
                     rs_has_access, is_active, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
             `, [
                 name, email, validAccountType, notes || null, owner_id || null,
                 exclude_from_bulk_emails ? 1 : 0, bcc_owner_on_renewal ? 1 : 0, exclude_from_automated_emails ? 1 : 0,
@@ -616,6 +628,7 @@ router.post('/', async (req, res) => {
                 iptv_enabled ? 1 : 0, iptv_panel_id || null, iptv_username || null,
                 iptv_password || null, iptv_email || null,
                 validIPTVPackageId, validIPTVSubscriptionPlanId, iptv_channel_group_id || null, iptv_is_trial ? 1 : 0, iptv_duration_months || null, iptvExpirationDate, create_on_iptv_editor ? 1 : 0,
+                show_iptv_movies !== false ? 1 : 0, show_iptv_series !== false ? 1 : 0,
                 effectiveRsHasAccess, createdAt
             ]);
 
@@ -795,7 +808,7 @@ router.post('/', async (req, res) => {
                         username: iptv_username,
                         password: iptv_password,
                         packageData,
-                        bouquetIds,
+                        bouquet_ids: bouquetIds,
                         is_trial: iptv_is_trial || false,
                         notes: iptv_notes || '',
                         provider_base_url: providerBaseUrl,
@@ -994,6 +1007,9 @@ router.put('/:id', async (req, res) => {
             iptv_editor_password,
             iptv_editor_m3u_url,
             iptv_editor_epg_url,
+            // IPTV VOD Visibility
+            show_iptv_movies,
+            show_iptv_series,
             // Contact and Payment Fields
             telegram_username,
             whatsapp_username,
@@ -1170,6 +1186,15 @@ router.put('/:id', async (req, res) => {
         if (iptv_editor_epg_url !== undefined) {
             updates.push('iptv_editor_epg_url = ?');
             values.push(iptv_editor_epg_url);
+        }
+        // IPTV VOD Visibility
+        if (show_iptv_movies !== undefined) {
+            updates.push('show_iptv_movies = ?');
+            values.push(show_iptv_movies ? 1 : 0);
+        }
+        if (show_iptv_series !== undefined) {
+            updates.push('show_iptv_series = ?');
+            values.push(show_iptv_series ? 1 : 0);
         }
         if (telegram_username !== undefined) {
             updates.push('telegram_username = ?');
