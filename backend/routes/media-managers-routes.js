@@ -141,13 +141,17 @@ router.post('/', requireAdmin, async (req, res) => {
             return res.status(400).json({ error: 'Invalid type. Must be: sonarr, radarr, qbittorrent, sabnzbd, other_arr, or other' });
         }
 
+        // Only strip trailing slash for *arr tools (they don't need it)
+        // Keep trailing slash for "other" type tools (e.g., Docker, Portainer) where users know the exact URL they need
+        const normalizedUrl = type === 'other' ? url : url.replace(/\/$/, '');
+
         const result = await query(
             `INSERT INTO media_managers (name, type, url, api_key, username, password, connection_mode, is_enabled, display_order, icon_url, show_in_dropdown)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 name,
                 type,
-                url.replace(/\/$/, ''), // Remove trailing slash
+                normalizedUrl,
                 api_key || null,
                 username || null,
                 password || null,
@@ -176,6 +180,13 @@ router.put('/:id', requireAdmin, async (req, res) => {
             return res.status(404).json({ error: 'Media manager not found' });
         }
 
+        // Determine the effective type (new or existing)
+        const effectiveType = type || existing[0].type;
+        // Only strip trailing slash for *arr tools, keep it for "other" type
+        const normalizedUrl = url
+            ? (effectiveType === 'other' ? url : url.replace(/\/$/, ''))
+            : existing[0].url;
+
         await query(
             `UPDATE media_managers SET
                 name = ?,
@@ -193,8 +204,8 @@ router.put('/:id', requireAdmin, async (req, res) => {
              WHERE id = ?`,
             [
                 name || existing[0].name,
-                type || existing[0].type,
-                url ? url.replace(/\/$/, '') : existing[0].url,
+                effectiveType,
+                normalizedUrl,
                 api_key !== undefined ? api_key : existing[0].api_key,
                 username !== undefined ? username : existing[0].username,
                 password !== undefined ? password : existing[0].password,
