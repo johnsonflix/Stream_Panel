@@ -10,7 +10,7 @@
 
 const path = require('path');
 const Database = require('better-sqlite3');
-const { fetchFullGuideData, testConnection, fetchXMLTV } = require('../utils/xtream-api');
+const { fetchFullGuideData, testConnection, fetchXMLTV, getVodCategories, getVodStreams, getSeriesCategories, getSeries } = require('../utils/xtream-api');
 const { parseXMLTVFromString } = require('../utils/xmltv-parser');
 
 const DB_PATH = process.env.DB_PATH || path.join(__dirname, '..', 'subsapp_v2.db');
@@ -22,6 +22,50 @@ class GuideCacheRefreshJob {
         // CRITICAL: Set busy_timeout to wait for locks instead of failing immediately
         // This prevents SQLITE_BUSY errors when main app is also writing
         this.db.pragma('busy_timeout = 10000'); // Wait up to 10 seconds for locks
+    }
+
+    /**
+     * Fetch VOD (movies) and Series (TV shows) data
+     * @param {string} baseUrl - API base URL
+     * @param {string} username - API username
+     * @param {string} password - API password
+     * @returns {Promise<Object>} VOD data including categories, movies, and series
+     */
+    async fetchVodData(baseUrl, username, password) {
+        console.log(`   🎬 Fetching VOD data...`);
+
+        const vodData = {
+            vodCategories: [],
+            vodMovies: [],
+            seriesCategories: [],
+            series: []
+        };
+
+        // Fetch VOD (Movies)
+        try {
+            vodData.vodCategories = await getVodCategories(baseUrl, username, password);
+            console.log(`   ✅ Found ${vodData.vodCategories.length} VOD categories`);
+
+            vodData.vodMovies = await getVodStreams(baseUrl, username, password);
+            console.log(`   ✅ Found ${vodData.vodMovies.length} movies`);
+        } catch (vodError) {
+            console.warn(`   ⚠️ VOD fetch failed: ${vodError.message}`);
+            // Continue - VOD may not be available for this source
+        }
+
+        // Fetch Series (TV Shows)
+        try {
+            vodData.seriesCategories = await getSeriesCategories(baseUrl, username, password);
+            console.log(`   ✅ Found ${vodData.seriesCategories.length} series categories`);
+
+            vodData.series = await getSeries(baseUrl, username, password);
+            console.log(`   ✅ Found ${vodData.series.length} TV shows`);
+        } catch (seriesError) {
+            console.warn(`   ⚠️ Series fetch failed: ${seriesError.message}`);
+            // Continue - Series may not be available for this source
+        }
+
+        return vodData;
     }
 
     /**
@@ -81,45 +125,111 @@ class GuideCacheRefreshJob {
                 // Continue without EPG - channels will still work
             }
 
-            // Store in cache
-            const stmt = this.db.prepare(`
-                INSERT INTO guide_cache (source_type, source_id, categories_json, channels_json, total_categories, total_channels, epg_json, epg_channel_count, epg_program_count, epg_last_updated, last_updated)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
-                ON CONFLICT(source_type, source_id) DO UPDATE SET
-                    categories_json = excluded.categories_json,
-                    channels_json = excluded.channels_json,
-                    total_categories = excluded.total_categories,
-                    total_channels = excluded.total_channels,
-                    epg_json = excluded.epg_json,
-                    epg_channel_count = excluded.epg_channel_count,
-                    epg_program_count = excluded.epg_program_count,
-                    epg_last_updated = excluded.epg_last_updated,
-                    last_updated = datetime('now'),
-                    last_error = NULL
-            `);
+            // Fetch VOD data (movies and series)
+            const vodData = await this.fetchVodData(baseUrl, username, password);
 
-            stmt.run(
-                sourceType,
-                sourceId,
-                JSON.stringify(guideData.categories),
-                JSON.stringify(guideData.streams),
-                guideData.categories.length,
-                guideData.totalChannels,
-                epgData ? JSON.stringify(epgData) : null,
-                epgChannelCount,
-                epgProgramCount
-            );
+            // Check if VOD columns exist before trying to insert
+            const columns = this.db.pragma('table_info(guide_cache)');
+            const columnNames = columns.map(c => c.name);
+            const hasVodColumns = columnNames.includes('vod_categories_json');
+
+            // Store in cache
+            if (hasVodColumns) {
+                // Use extended schema with VOD columns
+                const stmt = this.db.prepare(`
+                    INSERT INTO guide_cache (
+                        source_type, source_id,
+                        categories_json, channels_json, total_categories, total_channels,
+                        epg_json, epg_channel_count, epg_program_count, epg_last_updated,
+                        vod_categories_json, vod_movies_json, vod_movies_count,
+                        series_categories_json, series_json, series_count, vod_last_updated,
+                        last_updated
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+                    ON CONFLICT(source_type, source_id) DO UPDATE SET
+                        categories_json = excluded.categories_json,
+                        channels_json = excluded.channels_json,
+                        total_categories = excluded.total_categories,
+                        total_channels = excluded.total_channels,
+                        epg_json = excluded.epg_json,
+                        epg_channel_count = excluded.epg_channel_count,
+                        epg_program_count = excluded.epg_program_count,
+                        epg_last_updated = excluded.epg_last_updated,
+                        vod_categories_json = excluded.vod_categories_json,
+                        vod_movies_json = excluded.vod_movies_json,
+                        vod_movies_count = excluded.vod_movies_count,
+                        series_categories_json = excluded.series_categories_json,
+                        series_json = excluded.series_json,
+                        series_count = excluded.series_count,
+                        vod_last_updated = excluded.vod_last_updated,
+                        last_updated = datetime('now'),
+                        last_error = NULL
+                `);
+
+                stmt.run(
+                    sourceType,
+                    sourceId,
+                    JSON.stringify(guideData.categories),
+                    JSON.stringify(guideData.streams),
+                    guideData.categories.length,
+                    guideData.totalChannels,
+                    epgData ? JSON.stringify(epgData) : null,
+                    epgChannelCount,
+                    epgProgramCount,
+                    vodData.vodCategories.length > 0 ? JSON.stringify(vodData.vodCategories) : null,
+                    vodData.vodMovies.length > 0 ? JSON.stringify(vodData.vodMovies) : null,
+                    vodData.vodMovies.length,
+                    vodData.seriesCategories.length > 0 ? JSON.stringify(vodData.seriesCategories) : null,
+                    vodData.series.length > 0 ? JSON.stringify(vodData.series) : null,
+                    vodData.series.length
+                );
+            } else {
+                // Fallback: Use original schema without VOD columns (migration not run yet)
+                console.log(`   ⚠️ VOD cache columns not found - run migration add-vod-cache-columns.js`);
+                const stmt = this.db.prepare(`
+                    INSERT INTO guide_cache (source_type, source_id, categories_json, channels_json, total_categories, total_channels, epg_json, epg_channel_count, epg_program_count, epg_last_updated, last_updated)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+                    ON CONFLICT(source_type, source_id) DO UPDATE SET
+                        categories_json = excluded.categories_json,
+                        channels_json = excluded.channels_json,
+                        total_categories = excluded.total_categories,
+                        total_channels = excluded.total_channels,
+                        epg_json = excluded.epg_json,
+                        epg_channel_count = excluded.epg_channel_count,
+                        epg_program_count = excluded.epg_program_count,
+                        epg_last_updated = excluded.epg_last_updated,
+                        last_updated = datetime('now'),
+                        last_error = NULL
+                `);
+
+                stmt.run(
+                    sourceType,
+                    sourceId,
+                    JSON.stringify(guideData.categories),
+                    JSON.stringify(guideData.streams),
+                    guideData.categories.length,
+                    guideData.totalChannels,
+                    epgData ? JSON.stringify(epgData) : null,
+                    epgChannelCount,
+                    epgProgramCount
+                );
+            }
 
             console.log(`   ✅ Cached ${guideData.categories.length} categories, ${guideData.totalChannels} channels`);
             if (epgData) {
                 console.log(`   ✅ Cached ${epgProgramCount} EPG programs (${EPG_DAYS_TO_CACHE} days)`);
+            }
+            if (vodData.vodMovies.length > 0) {
+                console.log(`   ✅ Cached ${vodData.vodMovies.length} movies, ${vodData.series.length} TV shows`);
             }
 
             return {
                 success: true,
                 categories: guideData.categories.length,
                 channels: guideData.totalChannels,
-                epgPrograms: epgProgramCount
+                epgPrograms: epgProgramCount,
+                movies: vodData.vodMovies.length,
+                series: vodData.series.length
             };
 
         } catch (error) {
@@ -483,7 +593,15 @@ class GuideCacheRefreshJob {
             totalCategories: cache.total_categories,
             totalChannels: cache.total_channels,
             lastUpdated: cache.last_updated,
-            lastError: cache.last_error
+            lastError: cache.last_error,
+            // VOD data (if available)
+            vodCategories: cache.vod_categories_json ? JSON.parse(cache.vod_categories_json) : [],
+            vodMovies: cache.vod_movies_json ? JSON.parse(cache.vod_movies_json) : [],
+            vodMoviesCount: cache.vod_movies_count || 0,
+            seriesCategories: cache.series_categories_json ? JSON.parse(cache.series_categories_json) : [],
+            series: cache.series_json ? JSON.parse(cache.series_json) : [],
+            seriesCount: cache.series_count || 0,
+            vodLastUpdated: cache.vod_last_updated
         };
     }
 

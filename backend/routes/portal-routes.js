@@ -260,7 +260,8 @@ async function verifyPortalSession(req, res, next) {
 
         const sessions = await query(`
             SELECT ps.*, u.id as user_id, u.name, u.email,
-                   u.plex_enabled, u.iptv_enabled, u.iptv_editor_enabled
+                   u.plex_enabled, u.iptv_enabled, u.iptv_editor_enabled,
+                   u.iptv_panel_id
             FROM portal_sessions ps
             JOIN users u ON ps.user_id = u.id
             WHERE ps.token = ?
@@ -3247,7 +3248,14 @@ router.get('/iptv/vod/categories', async (req, res) => {
         });
     } catch (error) {
         console.error('Error fetching VOD categories:', error);
-        res.status(500).json({ success: false, message: error.message });
+        // Provide more helpful error message
+        let message = error.message;
+        if (error.message.includes('403')) {
+            message = 'VOD access denied - your IPTV subscription may not include Movies/TV Shows, or credentials are invalid';
+        } else if (error.message.includes('401')) {
+            message = 'IPTV authentication failed - credentials may be invalid or expired';
+        }
+        res.status(500).json({ success: false, message });
     }
 });
 
@@ -3287,7 +3295,11 @@ router.get('/iptv/vod/movies', async (req, res) => {
         });
     } catch (error) {
         console.error('Error fetching VOD movies:', error);
-        res.status(500).json({ success: false, message: error.message });
+        let message = error.message;
+        if (error.message.includes('403')) {
+            message = 'VOD access denied - your IPTV subscription may not include Movies/TV Shows, or credentials are invalid';
+        }
+        res.status(500).json({ success: false, message });
     }
 });
 
@@ -3444,6 +3456,827 @@ router.get('/iptv/series/:id', async (req, res) => {
         });
     } catch (error) {
         console.error('Error fetching series info:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// ============================================================================
+// Cached VOD API Routes (Fast - uses pre-cached data)
+// ============================================================================
+
+/**
+ * GET /api/v2/portal/iptv/vod/cached/home
+ * Get VOD home page data with TMDB-powered lists (Trending, Popular, etc.)
+ * Uses cached VOD data + TMDB API for real trending/popular lists
+ */
+router.get('/iptv/vod/cached/home', async (req, res) => {
+    try {
+        const user = req.portalUser;
+        const { buildVodStreamUrl } = require('../utils/xtream-api');
+        const TMDBService = require('../services/tmdb-service');
+        const tmdb = new TMDBService();
+
+        if (!user.iptv_enabled && !user.iptv_editor_enabled) {
+            return res.status(400).json({ success: false, message: 'IPTV service not enabled' });
+        }
+
+        // Get user's panel ID to find cached data
+        const panelId = user.iptv_panel_id;
+        if (!panelId) {
+            return res.status(400).json({ success: false, message: 'No IPTV panel assigned' });
+        }
+
+        // Get cached VOD data
+        const cache = await query(`
+            SELECT vod_categories_json, vod_movies_json, vod_movies_count, vod_last_updated
+            FROM guide_cache
+            WHERE source_type = 'panel' AND source_id = ?
+        `, [panelId]);
+
+        if (!cache.length || !cache[0].vod_movies_json) {
+            return res.json({
+                success: true,
+                cached: false,
+                message: 'VOD cache not available yet',
+                sections: []
+            });
+        }
+
+        const vodMovies = JSON.parse(cache[0].vod_movies_json);
+        const vodCategories = cache[0].vod_categories_json ? JSON.parse(cache[0].vod_categories_json) : [];
+
+        // Get user credentials for stream URLs
+        const creds = await getUserXtreamCredentials(user.user_id, 'vod');
+        if (!creds) {
+            return res.status(400).json({ success: false, message: 'Missing IPTV credentials' });
+        }
+
+        // Helper to add stream URLs to movies
+        const addStreamUrls = (movies) => movies.map(movie => ({
+            ...movie,
+            url: buildVodStreamUrl(creds.baseUrl, creds.username, creds.password, movie.stream_id, movie.container_extension || 'mp4')
+        }));
+
+        // Build lookup maps for VOD movies by TMDB ID (Xtream Codes uses 'tmdb' field)
+        const vodByTmdbId = new Map();
+        const vodByName = new Map(); // Fallback for matching by name
+        const vodByNameWithYear = new Map(); // Match with year
+        const vodByNameNoYear = new Map(); // Match without year
+
+        vodMovies.forEach(m => {
+            // Xtream Codes stores TMDB ID in 'tmdb' field (sometimes as string)
+            const tmdbId = m.tmdb || m.tmdb_id;
+            if (tmdbId) {
+                vodByTmdbId.set(String(tmdbId), m);
+            }
+            // Index by multiple name variations for flexible matching
+            if (m.name) {
+                const normalizedName = m.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+                vodByName.set(normalizedName, m);
+
+                // Also index without year suffix (e.g., "Barbie (2023)" -> "barbie")
+                const nameWithoutYear = m.name.replace(/\s*\(\d{4}\)\s*$/, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                vodByNameNoYear.set(nameWithoutYear, m);
+
+                // Index with year for precise matching
+                const year = m.year || m.releaseDate?.substring(0, 4);
+                if (year) {
+                    vodByNameWithYear.set(`${nameWithoutYear}_${year}`, m);
+                }
+            }
+        });
+
+        // Helper to match TMDB results against VOD library
+        const matchTmdbToVod = (tmdbResults) => {
+            const matched = [];
+            const matchedIds = new Set();
+
+            for (const tmdbMovie of tmdbResults) {
+                let vodMovie = null;
+
+                // Try TMDB ID match first (most reliable)
+                vodMovie = vodByTmdbId.get(String(tmdbMovie.id));
+
+                // Fallback 1: Try exact normalized title match
+                if (!vodMovie && tmdbMovie.title) {
+                    const normalizedTitle = tmdbMovie.title.toLowerCase().replace(/[^a-z0-9]/g, '');
+                    vodMovie = vodByName.get(normalizedTitle);
+                }
+
+                // Fallback 2: Try title without year (VOD often has "Barbie (2023)", TMDB has "Barbie")
+                if (!vodMovie && tmdbMovie.title) {
+                    const normalizedTitle = tmdbMovie.title.toLowerCase().replace(/[^a-z0-9]/g, '');
+                    vodMovie = vodByNameNoYear.get(normalizedTitle);
+                }
+
+                // Fallback 3: Try title + year combination
+                if (!vodMovie && tmdbMovie.title && tmdbMovie.release_date) {
+                    const normalizedTitle = tmdbMovie.title.toLowerCase().replace(/[^a-z0-9]/g, '');
+                    const year = tmdbMovie.release_date.substring(0, 4);
+                    vodMovie = vodByNameWithYear.get(`${normalizedTitle}_${year}`);
+                }
+
+                if (vodMovie && !matchedIds.has(vodMovie.stream_id)) {
+                    matched.push(vodMovie);
+                    matchedIds.add(vodMovie.stream_id);
+                }
+            }
+            return matched;
+        };
+
+        // Build home page sections using real TMDB lists
+        const sections = [];
+        const usedStreamIds = new Set();
+
+        // Fetch TMDB lists in parallel for speed
+        const [trendingData, popularData, topRatedData] = await Promise.all([
+            tmdb.getTrending('movie', 'week').catch(() => ({ results: [] })),
+            tmdb.getPopularMovies().catch(() => ({ results: [] })),
+            tmdb.getTopRatedMovies().catch(() => ({ results: [] }))
+        ]);
+
+        // 1. TRENDING THIS WEEK - From TMDB trending list
+        const trendingMatches = matchTmdbToVod(trendingData.results || [])
+            .filter(m => !usedStreamIds.has(m.stream_id))
+            .slice(0, 20);
+        if (trendingMatches.length > 0) {
+            trendingMatches.forEach(m => usedStreamIds.add(m.stream_id));
+            sections.push({
+                id: 'trending',
+                title: 'Trending This Week',
+                icon: 'fire',
+                movies: addStreamUrls(trendingMatches)
+            });
+        }
+
+        // 2. POPULAR - From TMDB popular list
+        const popularMatches = matchTmdbToVod(popularData.results || [])
+            .filter(m => !usedStreamIds.has(m.stream_id))
+            .slice(0, 20);
+        if (popularMatches.length > 0) {
+            popularMatches.forEach(m => usedStreamIds.add(m.stream_id));
+            sections.push({
+                id: 'popular',
+                title: 'Popular',
+                icon: 'star',
+                movies: addStreamUrls(popularMatches)
+            });
+        }
+
+        // 3. TOP RATED - From TMDB top rated list
+        const topRatedMatches = matchTmdbToVod(topRatedData.results || [])
+            .filter(m => !usedStreamIds.has(m.stream_id))
+            .slice(0, 20);
+        if (topRatedMatches.length > 0) {
+            topRatedMatches.forEach(m => usedStreamIds.add(m.stream_id));
+            sections.push({
+                id: 'top-rated',
+                title: 'Top Rated',
+                icon: 'award',
+                movies: addStreamUrls(topRatedMatches)
+            });
+        }
+
+        // 4. RECENTLY ADDED - Sorted by added timestamp (when added to panel)
+        const recentlyAdded = [...vodMovies]
+            .filter(m => !usedStreamIds.has(m.stream_id))
+            .filter(m => m.added)
+            .sort((a, b) => (parseInt(b.added) || 0) - (parseInt(a.added) || 0))
+            .slice(0, 20);
+        if (recentlyAdded.length > 0) {
+            recentlyAdded.forEach(m => usedStreamIds.add(m.stream_id));
+            sections.push({
+                id: 'recently-added',
+                title: 'Recently Added',
+                icon: 'clock',
+                movies: addStreamUrls(recentlyAdded)
+            });
+        }
+
+        // TMDB Genre ID mapping (standard TMDB genre IDs)
+        const tmdbGenreMap = {
+            'action': 28,
+            'adventure': 12,
+            'animation': 16,
+            'comedy': 35,
+            'crime': 80,
+            'documentary': 99,
+            'drama': 18,
+            'family': 10751,
+            'fantasy': 14,
+            'history': 36,
+            'horror': 27,
+            'music': 10402,
+            'mystery': 9648,
+            'romance': 10749,
+            'science fiction': 878,
+            'sci-fi': 878,
+            'scifi': 878,
+            'tv movie': 10770,
+            'thriller': 53,
+            'war': 10752,
+            'western': 37
+        };
+
+        // Helper to find TMDB genre ID from category name
+        const findTmdbGenreId = (categoryName) => {
+            const normalized = categoryName.toLowerCase().trim();
+            // Try exact match first
+            if (tmdbGenreMap[normalized]) return tmdbGenreMap[normalized];
+            // Try partial match
+            for (const [genreName, genreId] of Object.entries(tmdbGenreMap)) {
+                if (normalized.includes(genreName) || genreName.includes(normalized)) {
+                    return genreId;
+                }
+            }
+            return null;
+        };
+
+        // Add category-based sections using TMDB discover (sorted by popularity)
+        const moviesByCategory = {};
+        vodMovies.forEach(m => {
+            const catId = m.category_id || 'uncategorized';
+            if (!moviesByCategory[catId]) moviesByCategory[catId] = [];
+            moviesByCategory[catId].push(m);
+        });
+
+        // Get top categories by movie count
+        const categoryMovieCounts = Object.entries(moviesByCategory)
+            .map(([catId, movies]) => ({ catId, count: movies.length }))
+            .sort((a, b) => b.count - a.count)
+            .slice(0, 8); // Get more categories since we'll filter some
+
+        // Fetch TMDB discover data for each category in parallel
+        const categoryPromises = categoryMovieCounts.map(async ({ catId }) => {
+            const category = vodCategories.find(c => c.category_id === catId);
+            if (!category || moviesByCategory[catId].length < 5) return null;
+
+            const tmdbGenreId = findTmdbGenreId(category.category_name);
+
+            if (tmdbGenreId) {
+                // Fetch TMDB popular movies for this genre (5 pages = 100 movies for better matching)
+                try {
+                    const pages = await Promise.all([
+                        tmdb.discoverMovies({ genres: tmdbGenreId, page: 1 }).catch(() => ({ results: [] })),
+                        tmdb.discoverMovies({ genres: tmdbGenreId, page: 2 }).catch(() => ({ results: [] })),
+                        tmdb.discoverMovies({ genres: tmdbGenreId, page: 3 }).catch(() => ({ results: [] })),
+                        tmdb.discoverMovies({ genres: tmdbGenreId, page: 4 }).catch(() => ({ results: [] })),
+                        tmdb.discoverMovies({ genres: tmdbGenreId, page: 5 }).catch(() => ({ results: [] }))
+                    ]);
+
+                    const tmdbResults = pages.flatMap(p => p.results || []);
+                    const matchedMovies = matchTmdbToVod(tmdbResults)
+                        .filter(m => !usedStreamIds.has(m.stream_id))
+                        .slice(0, 20);
+
+                    if (matchedMovies.length >= 3) {
+                        matchedMovies.forEach(m => usedStreamIds.add(m.stream_id));
+                        return {
+                            id: `category-${catId}`,
+                            title: category.category_name,
+                            icon: 'folder',
+                            categoryId: catId,
+                            movies: addStreamUrls(matchedMovies)
+                        };
+                    }
+                } catch (err) {
+                    console.error(`Failed to fetch TMDB genre ${category.category_name}:`, err.message);
+                }
+            }
+
+            // Fallback: No TMDB match or no results - skip this category
+            // (We only want TMDB-sourced content for quality)
+            return null;
+        });
+
+        const categoryResults = await Promise.all(categoryPromises);
+        categoryResults.filter(Boolean).slice(0, 6).forEach(section => sections.push(section));
+
+        res.json({
+            success: true,
+            cached: true,
+            lastUpdated: cache[0].vod_last_updated,
+            totalMovies: cache[0].vod_movies_count,
+            totalCategories: vodCategories.length,
+            sections
+        });
+
+    } catch (error) {
+        console.error('Error fetching cached VOD home:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+/**
+ * GET /api/v2/portal/iptv/vod/cached/movies
+ * Get all cached movies (faster than live API)
+ */
+router.get('/iptv/vod/cached/movies', async (req, res) => {
+    try {
+        const user = req.portalUser;
+        const { buildVodStreamUrl } = require('../utils/xtream-api');
+        const categoryId = req.query.category_id || null;
+
+        if (!user.iptv_enabled && !user.iptv_editor_enabled) {
+            return res.status(400).json({ success: false, message: 'IPTV service not enabled' });
+        }
+
+        const panelId = user.iptv_panel_id;
+        if (!panelId) {
+            return res.status(400).json({ success: false, message: 'No IPTV panel assigned' });
+        }
+
+        // Get cached VOD data
+        const cache = await query(`
+            SELECT vod_movies_json, vod_last_updated
+            FROM guide_cache
+            WHERE source_type = 'panel' AND source_id = ?
+        `, [panelId]);
+
+        if (!cache.length || !cache[0].vod_movies_json) {
+            // Fallback to live API
+            return res.json({ success: true, cached: false, movies: [], message: 'Cache not available' });
+        }
+
+        let movies = JSON.parse(cache[0].vod_movies_json);
+
+        // Filter by category if specified
+        if (categoryId) {
+            movies = movies.filter(m => m.category_id === categoryId);
+        }
+
+        // Get user credentials for stream URLs
+        const creds = await getUserXtreamCredentials(user.user_id, 'vod');
+        if (!creds) {
+            return res.status(400).json({ success: false, message: 'Missing IPTV credentials' });
+        }
+
+        // Add stream URLs
+        const moviesWithUrls = movies.map(movie => ({
+            ...movie,
+            url: buildVodStreamUrl(creds.baseUrl, creds.username, creds.password, movie.stream_id, movie.container_extension || 'mp4')
+        }));
+
+        res.json({
+            success: true,
+            cached: true,
+            lastUpdated: cache[0].vod_last_updated,
+            movies: moviesWithUrls,
+            total: moviesWithUrls.length,
+            categoryId
+        });
+
+    } catch (error) {
+        console.error('Error fetching cached movies:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+/**
+ * GET /api/v2/portal/iptv/vod/cached/categories
+ * Get cached VOD categories
+ */
+router.get('/iptv/vod/cached/categories', async (req, res) => {
+    try {
+        const user = req.portalUser;
+
+        if (!user.iptv_enabled && !user.iptv_editor_enabled) {
+            return res.status(400).json({ success: false, message: 'IPTV service not enabled' });
+        }
+
+        const panelId = user.iptv_panel_id;
+        if (!panelId) {
+            return res.status(400).json({ success: false, message: 'No IPTV panel assigned' });
+        }
+
+        const cache = await query(`
+            SELECT vod_categories_json, vod_movies_json, vod_last_updated
+            FROM guide_cache
+            WHERE source_type = 'panel' AND source_id = ?
+        `, [panelId]);
+
+        if (!cache.length || !cache[0].vod_categories_json) {
+            return res.json({ success: true, cached: false, categories: [] });
+        }
+
+        const categories = JSON.parse(cache[0].vod_categories_json);
+        const movies = cache[0].vod_movies_json ? JSON.parse(cache[0].vod_movies_json) : [];
+
+        // Count movies per category
+        const moviesByCategory = {};
+        movies.forEach(m => {
+            const catId = m.category_id || 'uncategorized';
+            moviesByCategory[catId] = (moviesByCategory[catId] || 0) + 1;
+        });
+
+        // Add movie counts to categories
+        const categoriesWithCounts = categories.map(cat => ({
+            ...cat,
+            movie_count: moviesByCategory[cat.category_id] || 0
+        }));
+
+        res.json({
+            success: true,
+            cached: true,
+            lastUpdated: cache[0].vod_last_updated,
+            categories: categoriesWithCounts,
+            total: categoriesWithCounts.length
+        });
+
+    } catch (error) {
+        console.error('Error fetching cached categories:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+/**
+ * GET /api/v2/portal/iptv/series/cached/categories
+ * Get cached series categories
+ */
+router.get('/iptv/series/cached/categories', async (req, res) => {
+    try {
+        const user = req.portalUser;
+
+        if (!user.iptv_enabled && !user.iptv_editor_enabled) {
+            return res.status(400).json({ success: false, message: 'IPTV service not enabled' });
+        }
+
+        const panelId = user.iptv_panel_id;
+        if (!panelId) {
+            return res.status(400).json({ success: false, message: 'No IPTV panel assigned' });
+        }
+
+        const cache = await query(`
+            SELECT series_categories_json, series_json, vod_last_updated
+            FROM guide_cache
+            WHERE source_type = 'panel' AND source_id = ?
+        `, [panelId]);
+
+        if (!cache.length || !cache[0].series_categories_json) {
+            return res.json({ success: true, cached: false, categories: [] });
+        }
+
+        const categories = JSON.parse(cache[0].series_categories_json);
+        const seriesList = cache[0].series_json ? JSON.parse(cache[0].series_json) : [];
+
+        // Count series per category
+        const seriesByCategory = {};
+        seriesList.forEach(s => {
+            const catId = s.category_id || 'uncategorized';
+            seriesByCategory[catId] = (seriesByCategory[catId] || 0) + 1;
+        });
+
+        // Add series counts to categories
+        const categoriesWithCounts = categories.map(cat => ({
+            ...cat,
+            count: seriesByCategory[cat.category_id] || 0
+        }));
+
+        res.json({
+            success: true,
+            cached: true,
+            lastUpdated: cache[0].vod_last_updated,
+            categories: categoriesWithCounts,
+            total: categoriesWithCounts.length
+        });
+
+    } catch (error) {
+        console.error('Error fetching cached series categories:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+/**
+ * GET /api/v2/portal/iptv/series/cached/home
+ * Get Series home page data with TMDB-powered lists (Trending, Popular, etc.)
+ * Uses cached Series data + TMDB API for real trending/popular lists
+ */
+router.get('/iptv/series/cached/home', async (req, res) => {
+    try {
+        const user = req.portalUser;
+        const TMDBService = require('../services/tmdb-service');
+        const tmdb = new TMDBService();
+
+        if (!user.iptv_enabled && !user.iptv_editor_enabled) {
+            return res.status(400).json({ success: false, message: 'IPTV service not enabled' });
+        }
+
+        const panelId = user.iptv_panel_id;
+        if (!panelId) {
+            return res.status(400).json({ success: false, message: 'No IPTV panel assigned' });
+        }
+
+        const cache = await query(`
+            SELECT series_categories_json, series_json, series_count, vod_last_updated
+            FROM guide_cache
+            WHERE source_type = 'panel' AND source_id = ?
+        `, [panelId]);
+
+        if (!cache.length || !cache[0].series_json) {
+            return res.json({
+                success: true,
+                cached: false,
+                message: 'Series cache not available yet',
+                sections: []
+            });
+        }
+
+        const seriesList = JSON.parse(cache[0].series_json);
+        const seriesCategories = cache[0].series_categories_json ? JSON.parse(cache[0].series_categories_json) : [];
+
+        // Build lookup maps for series by TMDB ID (Xtream Codes uses 'tmdb' field)
+        const seriesByTmdbId = new Map();
+        const seriesByName = new Map(); // Fallback for matching by name
+        const seriesByNameWithYear = new Map(); // Match with year
+        const seriesByNameNoYear = new Map(); // Match without year
+
+        seriesList.forEach(s => {
+            // Xtream Codes stores TMDB ID in 'tmdb' field (sometimes as string)
+            const tmdbId = s.tmdb || s.tmdb_id;
+            if (tmdbId) {
+                seriesByTmdbId.set(String(tmdbId), s);
+            }
+            // Index by multiple name variations for flexible matching
+            if (s.name) {
+                const normalizedName = s.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+                seriesByName.set(normalizedName, s);
+
+                // Also index without year suffix (e.g., "Breaking Bad (2008)" -> "breakingbad")
+                const nameWithoutYear = s.name.replace(/\s*\(\d{4}\)\s*$/, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                seriesByNameNoYear.set(nameWithoutYear, s);
+
+                // Index with year for precise matching
+                const year = s.year || s.releaseDate?.substring(0, 4);
+                if (year) {
+                    seriesByNameWithYear.set(`${nameWithoutYear}_${year}`, s);
+                }
+            }
+        });
+
+        // Helper to match TMDB results against series library
+        const matchTmdbToSeries = (tmdbResults) => {
+            const matched = [];
+            const matchedIds = new Set();
+
+            for (const tmdbShow of tmdbResults) {
+                let show = null;
+                const tmdbTitle = tmdbShow.name || tmdbShow.title; // TMDB TV uses 'name'
+
+                // Try TMDB ID match first (most reliable)
+                show = seriesByTmdbId.get(String(tmdbShow.id));
+
+                // Fallback 1: Try exact normalized title match
+                if (!show && tmdbTitle) {
+                    const normalizedTitle = tmdbTitle.toLowerCase().replace(/[^a-z0-9]/g, '');
+                    show = seriesByName.get(normalizedTitle);
+                }
+
+                // Fallback 2: Try title without year
+                if (!show && tmdbTitle) {
+                    const normalizedTitle = tmdbTitle.toLowerCase().replace(/[^a-z0-9]/g, '');
+                    show = seriesByNameNoYear.get(normalizedTitle);
+                }
+
+                // Fallback 3: Try title + year combination
+                if (!show && tmdbTitle && tmdbShow.first_air_date) {
+                    const normalizedTitle = tmdbTitle.toLowerCase().replace(/[^a-z0-9]/g, '');
+                    const year = tmdbShow.first_air_date.substring(0, 4);
+                    show = seriesByNameWithYear.get(`${normalizedTitle}_${year}`);
+                }
+
+                if (show && !matchedIds.has(show.series_id)) {
+                    matched.push(show);
+                    matchedIds.add(show.series_id);
+                }
+            }
+            return matched;
+        };
+
+        // Build home page sections using real TMDB lists
+        const sections = [];
+        const usedSeriesIds = new Set();
+
+        // Fetch TMDB TV lists in parallel for speed
+        const [trendingData, popularData, topRatedData] = await Promise.all([
+            tmdb.getTrending('tv', 'week').catch(() => ({ results: [] })),
+            tmdb.getPopularTv().catch(() => ({ results: [] })),
+            tmdb.getTopRatedTv().catch(() => ({ results: [] }))
+        ]);
+
+        // 1. TRENDING THIS WEEK - From TMDB trending list
+        const trendingMatches = matchTmdbToSeries(trendingData.results || [])
+            .filter(s => !usedSeriesIds.has(s.series_id))
+            .slice(0, 20);
+        if (trendingMatches.length > 0) {
+            trendingMatches.forEach(s => usedSeriesIds.add(s.series_id));
+            sections.push({
+                id: 'trending',
+                title: 'Trending This Week',
+                icon: 'fire',
+                series: trendingMatches
+            });
+        }
+
+        // 2. POPULAR - From TMDB popular list
+        const popularMatches = matchTmdbToSeries(popularData.results || [])
+            .filter(s => !usedSeriesIds.has(s.series_id))
+            .slice(0, 20);
+        if (popularMatches.length > 0) {
+            popularMatches.forEach(s => usedSeriesIds.add(s.series_id));
+            sections.push({
+                id: 'popular',
+                title: 'Popular',
+                icon: 'star',
+                series: popularMatches
+            });
+        }
+
+        // 3. TOP RATED - From TMDB top rated list
+        const topRatedMatches = matchTmdbToSeries(topRatedData.results || [])
+            .filter(s => !usedSeriesIds.has(s.series_id))
+            .slice(0, 20);
+        if (topRatedMatches.length > 0) {
+            topRatedMatches.forEach(s => usedSeriesIds.add(s.series_id));
+            sections.push({
+                id: 'top-rated',
+                title: 'Top Rated',
+                icon: 'award',
+                series: topRatedMatches
+            });
+        }
+
+        // 4. RECENTLY ADDED - Sorted by last_modified timestamp (when added/updated on panel)
+        const recentlyAdded = [...seriesList]
+            .filter(s => !usedSeriesIds.has(s.series_id))
+            .filter(s => s.last_modified)
+            .sort((a, b) => (parseInt(b.last_modified) || 0) - (parseInt(a.last_modified) || 0))
+            .slice(0, 20);
+        if (recentlyAdded.length > 0) {
+            recentlyAdded.forEach(s => usedSeriesIds.add(s.series_id));
+            sections.push({
+                id: 'recently-added',
+                title: 'Recently Added',
+                icon: 'clock',
+                series: recentlyAdded
+            });
+        }
+
+        // TMDB TV Genre ID mapping (standard TMDB genre IDs for TV)
+        const tmdbTvGenreMap = {
+            'action': 10759, // Action & Adventure
+            'action & adventure': 10759,
+            'adventure': 10759,
+            'animation': 16,
+            'comedy': 35,
+            'crime': 80,
+            'documentary': 99,
+            'drama': 18,
+            'family': 10751,
+            'kids': 10762,
+            'mystery': 9648,
+            'news': 10763,
+            'reality': 10764,
+            'sci-fi': 10765, // Sci-Fi & Fantasy
+            'sci-fi & fantasy': 10765,
+            'science fiction': 10765,
+            'fantasy': 10765,
+            'soap': 10766,
+            'talk': 10767,
+            'war': 10768, // War & Politics
+            'war & politics': 10768,
+            'western': 37
+        };
+
+        // Helper to find TMDB TV genre ID from category name
+        const findTmdbTvGenreId = (categoryName) => {
+            const normalized = categoryName.toLowerCase().trim();
+            if (tmdbTvGenreMap[normalized]) return tmdbTvGenreMap[normalized];
+            for (const [genreName, genreId] of Object.entries(tmdbTvGenreMap)) {
+                if (normalized.includes(genreName) || genreName.includes(normalized)) {
+                    return genreId;
+                }
+            }
+            return null;
+        };
+
+        // Category-based sections using TMDB discover (sorted by popularity)
+        const seriesByCategory = {};
+        seriesList.forEach(s => {
+            const catId = s.category_id || 'uncategorized';
+            if (!seriesByCategory[catId]) seriesByCategory[catId] = [];
+            seriesByCategory[catId].push(s);
+        });
+
+        const categorySeriesCounts = Object.entries(seriesByCategory)
+            .map(([catId, series]) => ({ catId, count: series.length }))
+            .sort((a, b) => b.count - a.count)
+            .slice(0, 8); // Get more categories since we'll filter some
+
+        // Fetch TMDB discover data for each category in parallel
+        const categoryPromises = categorySeriesCounts.map(async ({ catId }) => {
+            const category = seriesCategories.find(c => c.category_id === catId);
+            if (!category || seriesByCategory[catId].length < 5) return null;
+
+            const tmdbGenreId = findTmdbTvGenreId(category.category_name);
+
+            if (tmdbGenreId) {
+                // Fetch TMDB popular TV shows for this genre (5 pages = 100 shows for better matching)
+                try {
+                    const pages = await Promise.all([
+                        tmdb.discoverTv({ genres: tmdbGenreId, page: 1 }).catch(() => ({ results: [] })),
+                        tmdb.discoverTv({ genres: tmdbGenreId, page: 2 }).catch(() => ({ results: [] })),
+                        tmdb.discoverTv({ genres: tmdbGenreId, page: 3 }).catch(() => ({ results: [] })),
+                        tmdb.discoverTv({ genres: tmdbGenreId, page: 4 }).catch(() => ({ results: [] })),
+                        tmdb.discoverTv({ genres: tmdbGenreId, page: 5 }).catch(() => ({ results: [] }))
+                    ]);
+
+                    const tmdbResults = pages.flatMap(p => p.results || []);
+                    const matchedSeries = matchTmdbToSeries(tmdbResults)
+                        .filter(s => !usedSeriesIds.has(s.series_id))
+                        .slice(0, 20);
+
+                    if (matchedSeries.length >= 3) {
+                        matchedSeries.forEach(s => usedSeriesIds.add(s.series_id));
+                        return {
+                            id: `category-${catId}`,
+                            title: category.category_name,
+                            icon: 'folder',
+                            categoryId: catId,
+                            series: matchedSeries
+                        };
+                    }
+                } catch (err) {
+                    console.error(`Failed to fetch TMDB TV genre ${category.category_name}:`, err.message);
+                }
+            }
+
+            // Fallback: No TMDB match or no results - skip this category
+            return null;
+        });
+
+        const categoryResults = await Promise.all(categoryPromises);
+        categoryResults.filter(Boolean).slice(0, 6).forEach(section => sections.push(section));
+
+        res.json({
+            success: true,
+            cached: true,
+            lastUpdated: cache[0].vod_last_updated,
+            totalSeries: cache[0].series_count,
+            totalCategories: seriesCategories.length,
+            sections
+        });
+
+    } catch (error) {
+        console.error('Error fetching cached series home:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+/**
+ * GET /api/v2/portal/iptv/series/cached/list
+ * Get all cached series
+ */
+router.get('/iptv/series/cached/list', async (req, res) => {
+    try {
+        const user = req.portalUser;
+        const categoryId = req.query.category_id || null;
+
+        if (!user.iptv_enabled && !user.iptv_editor_enabled) {
+            return res.status(400).json({ success: false, message: 'IPTV service not enabled' });
+        }
+
+        const panelId = user.iptv_panel_id;
+        if (!panelId) {
+            return res.status(400).json({ success: false, message: 'No IPTV panel assigned' });
+        }
+
+        const cache = await query(`
+            SELECT series_json, vod_last_updated
+            FROM guide_cache
+            WHERE source_type = 'panel' AND source_id = ?
+        `, [panelId]);
+
+        if (!cache.length || !cache[0].series_json) {
+            return res.json({ success: true, cached: false, series: [] });
+        }
+
+        let seriesList = JSON.parse(cache[0].series_json);
+
+        if (categoryId) {
+            seriesList = seriesList.filter(s => s.category_id === categoryId);
+        }
+
+        res.json({
+            success: true,
+            cached: true,
+            lastUpdated: cache[0].vod_last_updated,
+            series: seriesList,
+            total: seriesList.length,
+            categoryId
+        });
+
+    } catch (error) {
+        console.error('Error fetching cached series:', error);
         res.status(500).json({ success: false, message: error.message });
     }
 });

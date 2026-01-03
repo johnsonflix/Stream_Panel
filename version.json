@@ -1,6 +1,6 @@
 {
-  "version": "1.5.42",
+  "version": "1.5.43",
   "name": "Stream Panel",
   "releaseDate": "2026-01-03",
-  "description": "Fix portal showing 'No server access' for users with assigned libraries"
+  "description": "VOD content caching with TMDB-powered home page, hide Plex donation expiration dates"
 }

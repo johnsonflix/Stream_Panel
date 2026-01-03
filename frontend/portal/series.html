@@ -659,6 +659,134 @@
             color: var(--text-tertiary);
         }
 
+        /* Home Sections - Horizontal Scrolling Netflix-style */
+        .home-sections {
+            padding: 24px;
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        .section-row {
+            margin-bottom: 32px;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+            padding: 0 4px;
+        }
+
+        .section-header h3 {
+            font-size: 18px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section-header h3 i {
+            color: var(--series-color);
+        }
+
+        .section-header .view-all {
+            color: var(--series-color);
+            font-size: 13px;
+            cursor: pointer;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            transition: color 0.2s;
+        }
+
+        .section-header .view-all:hover {
+            color: #0891b2;
+        }
+
+        .section-scroll {
+            display: flex;
+            gap: 16px;
+            overflow-x: auto;
+            padding: 8px 4px 16px;
+            scroll-behavior: smooth;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: thin;
+            scrollbar-color: var(--bg-tertiary) var(--bg-secondary);
+        }
+
+        .section-scroll::-webkit-scrollbar {
+            height: 8px;
+        }
+
+        .section-scroll::-webkit-scrollbar-track {
+            background: var(--bg-secondary);
+            border-radius: 4px;
+        }
+
+        .section-scroll::-webkit-scrollbar-thumb {
+            background: var(--bg-tertiary);
+            border-radius: 4px;
+        }
+
+        .section-scroll::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+
+        .section-card {
+            flex: 0 0 160px;
+            background: var(--card-bg);
+            border-radius: 12px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .section-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.4);
+        }
+
+        .section-card .series-poster {
+            aspect-ratio: 2/3;
+            background: var(--bg-tertiary);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .section-card .series-poster img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.3s;
+        }
+
+        .section-card:hover .series-poster img {
+            transform: scale(1.05);
+        }
+
+        .section-card .series-info {
+            padding: 10px;
+        }
+
+        .section-card .series-title {
+            font-size: 13px;
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-bottom: 4px;
+        }
+
+        .section-card .series-meta {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 11px;
+            color: var(--text-tertiary);
+        }
+
         /* Mobile Responsive */
         @media (max-width: 768px) {
             .categories-sidebar { display: none; }
@@ -809,6 +937,9 @@
         let searchTimeout = null;
         let currentSeriesData = null;
         let currentSeason = null;
+        let homeSections = [];
+        let isHomeView = true;
+        let cachedDataAvailable = false;
 
         // DOM Elements
         const categoriesList = document.getElementById('categoriesList');
@@ -856,23 +987,40 @@
         // Load categories
         async function loadCategories() {
             try {
-                const data = await apiRequest('/iptv/series/categories');
+                // Try cached categories first
+                let data;
+                try {
+                    data = await apiRequest('/iptv/series/cached/categories');
+                    if (data && data.categories) {
+                        cachedDataAvailable = true;
+                    }
+                } catch (e) {
+                    // Fall back to live API
+                    data = await apiRequest('/iptv/series/categories');
+                }
                 if (!data) return;
 
                 categories = data.categories || [];
 
+                // Start with Home option
                 let html = `
-                    <div class="category-item active" data-category-id="">
+                    <div class="category-item active" data-category-id="home">
+                        <i class="fas fa-home"></i>
+                        <span class="category-name">Home</span>
+                    </div>
+                    <div class="category-item" data-category-id="">
                         <i class="fas fa-photo-film"></i>
                         <span class="category-name">All TV Shows</span>
                     </div>
                 `;
 
                 categories.forEach(cat => {
+                    const count = cat.count || cat.num_series || '';
                     html += `
                         <div class="category-item" data-category-id="${cat.category_id}">
                             <i class="fas fa-folder"></i>
                             <span class="category-name">${escapeHtml(cat.category_name)}</span>
+                            ${count ? `<span class="category-count">${count}</span>` : ''}
                         </div>
                     `;
                 });
@@ -901,23 +1049,55 @@
             categoriesList.querySelectorAll('.category-item').forEach(i => i.classList.remove('active'));
             item.classList.add('active');
 
-            const categoryId = item.dataset.categoryId || null;
-            currentCategoryId = categoryId;
+            const categoryId = item.dataset.categoryId;
             currentCategoryEl.textContent = item.querySelector('.category-name').textContent;
 
             allSeries = [];
             filteredSeries = [];
             displayedSeries = [];
             currentPage = 0;
-            seriesGrid.innerHTML = '';
+            // Clear grid if it exists (may have been replaced by home sections)
+            const existingGrid = document.getElementById('seriesGrid');
+            if (existingGrid) existingGrid.innerHTML = '';
             searchInput.value = '';
 
-            await loadSeries(categoryId);
+            // Handle Home view
+            if (categoryId === 'home') {
+                isHomeView = true;
+                currentCategoryId = null;
+                await loadHomePage();
+                return;
+            }
+
+            isHomeView = false;
+            currentCategoryId = categoryId || null;
+
+            // Show the grid view
+            document.getElementById('seriesContainer').innerHTML = `
+                <div class="loading" id="seriesLoading">
+                    <i class="fas fa-spinner"></i>
+                    <span>Loading TV shows...</span>
+                </div>
+                <div class="series-grid" id="seriesGrid"></div>
+                <div class="load-more-trigger" id="loadMoreTrigger"></div>
+            `;
+
+            // Set up infinite scroll observer for the new element
+            const newTrigger = document.getElementById('loadMoreTrigger');
+            if (newTrigger) {
+                observer.observe(newTrigger);
+            }
+
+            await loadSeries(categoryId || null);
         }
 
         // Load series
         async function loadSeries(categoryId = null) {
-            seriesLoading.style.display = 'flex';
+            // Get fresh DOM references (elements may have been recreated)
+            const loadingEl = document.getElementById('seriesLoading');
+            const gridEl = document.getElementById('seriesGrid');
+
+            if (loadingEl) loadingEl.style.display = 'flex';
 
             try {
                 const endpoint = categoryId
@@ -937,26 +1117,185 @@
             } catch (error) {
                 console.error('Failed to load series:', error);
                 const is403 = error.message && error.message.includes('403');
-                seriesGrid.innerHTML = `
+                const currentGrid = document.getElementById('seriesGrid');
+                if (currentGrid) {
+                    currentGrid.innerHTML = `
+                        <div class="empty-state">
+                            <i class="fas fa-${is403 ? 'lock' : 'exclamation-circle'}"></i>
+                            <h3>${is403 ? 'VOD Not Available' : 'Failed to load TV shows'}</h3>
+                            <p>${is403 ? 'Your IPTV subscription may not include TV Series access. Contact your provider to upgrade your package.' : error.message}</p>
+                        </div>
+                    `;
+                }
+            } finally {
+                const loadingElFinal = document.getElementById('seriesLoading');
+                if (loadingElFinal) loadingElFinal.style.display = 'none';
+            }
+        }
+
+        // Load home page with sections
+        async function loadHomePage() {
+            const container = document.getElementById('seriesContainer');
+            container.innerHTML = `
+                <div class="loading">
+                    <i class="fas fa-spinner"></i>
+                    <span>Loading home...</span>
+                </div>
+            `;
+
+            try {
+                const data = await apiRequest('/iptv/series/cached/home');
+                if (!data) return;
+
+                homeSections = data.sections || [];
+                cachedDataAvailable = true;
+
+                seriesCount.textContent = `${data.totalSeries || 0} shows available`;
+
+                renderHomeSections();
+
+            } catch (error) {
+                console.error('Failed to load home page:', error);
+                // Fall back to loading all series in grid view
+                container.innerHTML = `
+                    <div class="loading" id="seriesLoading">
+                        <i class="fas fa-spinner"></i>
+                        <span>Loading TV shows...</span>
+                    </div>
+                    <div class="series-grid" id="seriesGrid"></div>
+                    <div class="load-more-trigger" id="loadMoreTrigger"></div>
+                `;
+                isHomeView = false;
+
+                // Set up infinite scroll observer
+                const newTrigger = document.getElementById('loadMoreTrigger');
+                if (newTrigger) {
+                    observer.observe(newTrigger);
+                }
+
+                await loadSeries();
+            }
+        }
+
+        // Render home sections (horizontal scrolling rows)
+        function renderHomeSections() {
+            const container = document.getElementById('seriesContainer');
+
+            if (!homeSections || homeSections.length === 0) {
+                container.innerHTML = `
                     <div class="empty-state">
-                        <i class="fas fa-${is403 ? 'lock' : 'exclamation-circle'}"></i>
-                        <h3>${is403 ? 'VOD Not Available' : 'Failed to load TV shows'}</h3>
-                        <p>${is403 ? 'Your IPTV subscription may not include TV Series access. Contact your provider to upgrade your package.' : error.message}</p>
+                        <i class="fas fa-photo-film"></i>
+                        <h3>No TV shows available</h3>
+                        <p>Content will appear here once the cache is populated</p>
                     </div>
                 `;
-            } finally {
-                seriesLoading.style.display = 'none';
+                return;
             }
+
+            let html = '<div class="home-sections">';
+
+            homeSections.forEach(section => {
+                // Handle both 'items' and 'series' property names from backend
+                const sectionItems = section.items || section.series || [];
+                if (sectionItems.length === 0) return;
+
+                const icon = section.icon || (section.id === 'recently-added' ? 'clock' :
+                             section.id === 'top-rated' ? 'star' :
+                             section.id === 'popular' ? 'fire' : 'folder');
+
+                html += `
+                    <div class="section-row">
+                        <div class="section-header">
+                            <h3><i class="fas fa-${icon}"></i> ${escapeHtml(section.title)}</h3>
+                            ${section.categoryId ? `
+                                <a class="view-all" onclick="viewCategory('${section.categoryId}', '${escapeHtml(section.title)}')">
+                                    View All <i class="fas fa-chevron-right"></i>
+                                </a>
+                            ` : ''}
+                        </div>
+                        <div class="section-scroll">
+                `;
+
+                sectionItems.forEach(series => {
+                    const posterUrl = series.cover || '';
+                    const year = series.year || series.releaseDate?.substring(0, 4) || '';
+                    const rating = series.rating_5based || (series.rating ? (parseFloat(series.rating) / 2).toFixed(1) : '');
+
+                    html += `
+                        <div class="section-card" onclick='openSeriesDetail(${JSON.stringify(series).replace(/'/g, "\\'")})'>
+                            <div class="series-poster">
+                                ${posterUrl
+                                    ? `<img src="${posterUrl}" alt="${escapeHtml(series.name)}" loading="lazy" onerror="this.style.display='none'">`
+                                    : `<div class="series-poster-placeholder" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center"><i class="fas fa-photo-film" style="font-size:32px;color:var(--text-tertiary)"></i></div>`
+                                }
+                            </div>
+                            <div class="series-info">
+                                <div class="series-title" title="${escapeHtml(series.name)}">${escapeHtml(series.name)}</div>
+                                <div class="series-meta">
+                                    ${year ? `<span>${year}</span>` : ''}
+                                    ${rating ? `<span><i class="fas fa-star" style="color:var(--warning-color)"></i> ${rating}</span>` : ''}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                html += `
+                        </div>
+                    </div>
+                `;
+            });
+
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        // View category from home section
+        function viewCategory(categoryId, categoryName) {
+            // Find and click the category in the sidebar
+            const categoryItems = categoriesList.querySelectorAll('.category-item');
+            for (const item of categoryItems) {
+                if (item.dataset.categoryId === categoryId) {
+                    selectCategory(item);
+                    return;
+                }
+            }
+
+            // If not found in sidebar, load directly
+            isHomeView = false;
+            currentCategoryId = categoryId;
+            currentCategoryEl.textContent = categoryName || 'Category';
+
+            document.getElementById('seriesContainer').innerHTML = `
+                <div class="loading" id="seriesLoading">
+                    <i class="fas fa-spinner"></i>
+                    <span>Loading TV shows...</span>
+                </div>
+                <div class="series-grid" id="seriesGrid"></div>
+                <div class="load-more-trigger" id="loadMoreTrigger"></div>
+            `;
+
+            // Set up infinite scroll observer
+            const newTrigger = document.getElementById('loadMoreTrigger');
+            if (newTrigger) {
+                observer.observe(newTrigger);
+            }
+
+            loadSeries(categoryId);
         }
 
         // Render series with pagination
         function renderSeries() {
+            // Get fresh DOM reference
+            const gridEl = document.getElementById('seriesGrid');
+            if (!gridEl) return;
+
             const start = currentPage * ITEMS_PER_PAGE;
             const end = start + ITEMS_PER_PAGE;
             const seriesToRender = filteredSeries.slice(start, end);
 
             if (currentPage === 0 && seriesToRender.length === 0) {
-                seriesGrid.innerHTML = `
+                gridEl.innerHTML = `
                     <div class="empty-state">
                         <i class="fas fa-photo-film"></i>
                         <h3>No TV shows found</h3>
@@ -969,7 +1308,7 @@
             seriesToRender.forEach(series => {
                 displayedSeries.push(series);
                 const card = createSeriesCard(series);
-                seriesGrid.appendChild(card);
+                gridEl.appendChild(card);
             });
 
             currentPage++;
@@ -1199,6 +1538,27 @@
         function searchSeries(query) {
             query = query.toLowerCase().trim();
 
+            // If in home view and searching, switch to grid view
+            if (isHomeView && query) {
+                isHomeView = false;
+                // Load all series first if not loaded
+                if (allSeries.length === 0) {
+                    loadSeries().then(() => searchSeries(query));
+                    return;
+                }
+                // Switch to grid view
+                document.getElementById('seriesContainer').innerHTML = `
+                    <div class="loading" id="seriesLoading" style="display:none">
+                        <i class="fas fa-spinner"></i>
+                        <span>Loading TV shows...</span>
+                    </div>
+                    <div class="series-grid" id="seriesGrid"></div>
+                    <div class="load-more-trigger" id="loadMoreTrigger"></div>
+                `;
+                const newTrigger = document.getElementById('loadMoreTrigger');
+                if (newTrigger) observer.observe(newTrigger);
+            }
+
             if (!query) {
                 filteredSeries = [...allSeries];
             } else {
@@ -1212,7 +1572,8 @@
 
             currentPage = 0;
             displayedSeries = [];
-            seriesGrid.innerHTML = '';
+            const gridEl = document.getElementById('seriesGrid');
+            if (gridEl) gridEl.innerHTML = '';
             seriesCount.textContent = `${filteredSeries.length} shows`;
             renderSeries();
         }
@@ -1227,7 +1588,7 @@
 
         // Intersection Observer for infinite scroll
         const observer = new IntersectionObserver((entries) => {
-            if (entries[0].isIntersecting && !isLoading && displayedSeries.length < filteredSeries.length) {
+            if (entries[0].isIntersecting && !isLoading && !isHomeView && displayedSeries.length < filteredSeries.length) {
                 renderSeries();
             }
         }, { rootMargin: '200px' });
@@ -1240,7 +1601,11 @@
 
         document.getElementById('refreshBtn').addEventListener('click', () => {
             loadCategories();
-            loadSeries(currentCategoryId);
+            if (isHomeView) {
+                loadHomePage();
+            } else {
+                loadSeries(currentCategoryId);
+            }
         });
 
         // Close modal on outside click
@@ -1276,9 +1641,8 @@
                 // Allow access on error (fail open for UX)
             }
 
-            observer.observe(loadMoreTrigger);
             await loadCategories();
-            await loadSeries();
+            await loadHomePage();
         }
 
         init();

@@ -3102,7 +3102,7 @@
                                     <span class="detail-label">Libraries</span>
                                     <span class="detail-value">${totalLibraries}</span>
                                 </div>
-                                ${user.plex_expiration_date ? `
+                                ${user.plex_expiration_date && user.plex_price_type !== 'donation' && user.plex_price_type !== 'free' ? `
                                 <div class="detail-row">
                                     <span class="detail-label">Expires</span>
                                     ${expirationDisplay}

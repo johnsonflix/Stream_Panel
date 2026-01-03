@@ -255,6 +255,98 @@
             gap: 24px;
         }
 
+        /* Home Page Sections */
+        .home-sections {
+            display: flex;
+            flex-direction: column;
+            gap: 32px;
+        }
+
+        .section-row {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 4px;
+        }
+
+        .section-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .section-title i {
+            color: var(--movies-color);
+            font-size: 16px;
+        }
+
+        .section-view-all {
+            font-size: 13px;
+            color: var(--text-tertiary);
+            cursor: pointer;
+            transition: color 0.2s;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .section-view-all:hover {
+            color: var(--movies-color);
+        }
+
+        .section-scroll {
+            display: flex;
+            gap: 16px;
+            overflow-x: auto;
+            padding: 8px 4px 16px;
+            scroll-behavior: smooth;
+            scrollbar-width: thin;
+            scrollbar-color: var(--bg-tertiary) var(--bg-secondary);
+        }
+
+        .section-scroll::-webkit-scrollbar {
+            height: 8px;
+        }
+
+        .section-scroll::-webkit-scrollbar-track {
+            background: var(--bg-secondary);
+            border-radius: 4px;
+        }
+
+        .section-scroll::-webkit-scrollbar-thumb {
+            background: var(--bg-tertiary);
+            border-radius: 4px;
+        }
+
+        .section-scroll::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+
+        .section-scroll .movie-card {
+            flex: 0 0 160px;
+            width: 160px;
+        }
+
+        @media (max-width: 768px) {
+            .section-scroll .movie-card {
+                flex: 0 0 130px;
+                width: 130px;
+            }
+            .section-title {
+                font-size: 16px;
+            }
+        }
+
         .movie-card {
             background: var(--card-bg);
             border-radius: 12px;
@@ -740,6 +832,9 @@
         let isLoading = false;
         let searchTimeout = null;
         let currentMovieUrl = null;
+        let homeSections = [];
+        let isHomeView = true;
+        let cachedDataAvailable = false;
 
         // DOM Elements
         const categoriesList = document.getElementById('categoriesList');
@@ -784,29 +879,43 @@
             return data;
         }
 
-        // Load categories
+        // Load categories - try cached first
         async function loadCategories() {
             try {
-                const data = await apiRequest('/iptv/vod/categories');
+                // Try cached categories first (faster)
+                let data;
+                try {
+                    data = await apiRequest('/iptv/vod/cached/categories');
+                    if (data && data.cached) {
+                        cachedDataAvailable = true;
+                    }
+                } catch (e) {
+                    // Fall back to live API
+                    data = await apiRequest('/iptv/vod/categories');
+                }
+
                 if (!data) return;
 
                 categories = data.categories || [];
 
-                // Add "All Movies" option
-                const allOption = { category_id: null, category_name: 'All Movies' };
-
+                // Build sidebar with Home option
                 let html = `
-                    <div class="category-item active" data-category-id="">
+                    <div class="category-item${isHomeView ? ' active' : ''}" data-category-id="home">
+                        <i class="fas fa-home"></i>
+                        <span class="category-name">Home</span>
+                    </div>
+                    <div class="category-item${!isHomeView && !currentCategoryId ? ' active' : ''}" data-category-id="">
                         <i class="fas fa-film"></i>
                         <span class="category-name">All Movies</span>
                     </div>
                 `;
 
                 categories.forEach(cat => {
+                    const count = cat.movie_count ? ` (${cat.movie_count})` : '';
                     html += `
-                        <div class="category-item" data-category-id="${cat.category_id}">
+                        <div class="category-item${currentCategoryId === cat.category_id ? ' active' : ''}" data-category-id="${cat.category_id}">
                             <i class="fas fa-folder"></i>
-                            <span class="category-name">${escapeHtml(cat.category_name)}</span>
+                            <span class="category-name">${escapeHtml(cat.category_name)}${count}</span>
                         </div>
                     `;
                 });
@@ -836,24 +945,198 @@
             categoriesList.querySelectorAll('.category-item').forEach(i => i.classList.remove('active'));
             item.classList.add('active');
 
-            const categoryId = item.dataset.categoryId || null;
-            currentCategoryId = categoryId;
+            const categoryId = item.dataset.categoryId;
+            searchInput.value = '';
+
+            // Handle "Home" selection
+            if (categoryId === 'home') {
+                isHomeView = true;
+                currentCategoryId = null;
+                currentCategoryEl.textContent = 'Home';
+                await loadHomePage();
+                return;
+            }
+
+            // Regular category or "All Movies"
+            isHomeView = false;
+            currentCategoryId = categoryId || null;
             currentCategoryEl.textContent = item.querySelector('.category-name').textContent;
+
+            // Restore grid structure (may have been replaced by home sections)
+            const container = document.getElementById('moviesContainer');
+            container.innerHTML = `
+                <div class="loading" id="moviesLoading">
+                    <i class="fas fa-spinner"></i>
+                    <span>Loading movies...</span>
+                </div>
+                <div class="movies-grid" id="moviesGrid"></div>
+                <div class="load-more-trigger" id="loadMoreTrigger"></div>
+            `;
+
+            // Re-attach infinite scroll observer
+            const newTrigger = document.getElementById('loadMoreTrigger');
+            if (newTrigger) {
+                observer.observe(newTrigger);
+            }
 
             // Clear and reload movies
             allMovies = [];
             filteredMovies = [];
             displayedMovies = [];
             currentPage = 0;
-            moviesGrid.innerHTML = '';
-            searchInput.value = '';
 
-            await loadMovies(categoryId);
+            await loadMovies(currentCategoryId);
+        }
+
+        // Load Home Page with sections (cached data)
+        async function loadHomePage() {
+            const container = document.getElementById('moviesContainer');
+            container.innerHTML = `
+                <div class="loading">
+                    <i class="fas fa-spinner"></i>
+                    <span>Loading home...</span>
+                </div>
+            `;
+
+            try {
+                const data = await apiRequest('/iptv/vod/cached/home');
+
+                if (!data || !data.cached || !data.sections || data.sections.length === 0) {
+                    // No cached data, fall back to regular grid view
+                    isHomeView = false;
+                    currentCategoryEl.textContent = 'All Movies';
+                    // Restore grid structure
+                    container.innerHTML = `
+                        <div class="loading" id="moviesLoading">
+                            <i class="fas fa-spinner"></i>
+                            <span>Loading movies...</span>
+                        </div>
+                        <div class="movies-grid" id="moviesGrid"></div>
+                        <div class="load-more-trigger" id="loadMoreTrigger"></div>
+                    `;
+                    const newTrigger = document.getElementById('loadMoreTrigger');
+                    if (newTrigger) observer.observe(newTrigger);
+                    await loadMovies();
+                    return;
+                }
+
+                homeSections = data.sections;
+                movieCount.textContent = `${data.totalMovies || 0} movies`;
+
+                // Render home sections
+                renderHomeSections();
+
+            } catch (error) {
+                console.error('Failed to load home page:', error);
+                // Fall back to regular grid view
+                isHomeView = false;
+                currentCategoryEl.textContent = 'All Movies';
+                container.innerHTML = `
+                    <div class="loading" id="moviesLoading">
+                        <i class="fas fa-spinner"></i>
+                        <span>Loading movies...</span>
+                    </div>
+                    <div class="movies-grid" id="moviesGrid"></div>
+                    <div class="load-more-trigger" id="loadMoreTrigger"></div>
+                `;
+                const newTrigger = document.getElementById('loadMoreTrigger');
+                if (newTrigger) observer.observe(newTrigger);
+                await loadMovies();
+            }
+        }
+
+        // Render home page sections (horizontal scrolling rows)
+        function renderHomeSections() {
+            const container = document.getElementById('moviesContainer');
+
+            if (!homeSections || homeSections.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-film"></i>
+                        <h3>No movies available</h3>
+                        <p>Movies will appear here once the cache is updated</p>
+                    </div>
+                `;
+                return;
+            }
+
+            const iconMap = {
+                'clock': 'fa-clock',
+                'star': 'fa-star',
+                'fire': 'fa-fire',
+                'folder': 'fa-folder',
+                'calendar': 'fa-calendar',
+                'award': 'fa-award'
+            };
+
+            let html = '<div class="home-sections">';
+
+            homeSections.forEach(section => {
+                if (!section.movies || section.movies.length === 0) return;
+
+                const iconClass = iconMap[section.icon] || 'fa-film';
+
+                html += `
+                    <div class="section-row">
+                        <div class="section-header">
+                            <div class="section-title">
+                                <i class="fas ${iconClass}"></i>
+                                ${escapeHtml(section.title)}
+                            </div>
+                            ${section.categoryId ? `<span class="section-view-all" onclick="viewCategory('${section.categoryId}')">View All <i class="fas fa-chevron-right"></i></span>` : ''}
+                        </div>
+                        <div class="section-scroll">
+                `;
+
+                section.movies.forEach(movie => {
+                    const posterUrl = movie.stream_icon || '';
+                    const year = movie.year || movie.releaseDate?.substring(0, 4) || '';
+                    const rating = movie.rating_5based || (movie.rating ? (parseFloat(movie.rating) / 2).toFixed(1) : '');
+
+                    html += `
+                        <div class="movie-card" onclick='openMovieDetail(${JSON.stringify(movie).replace(/'/g, "\\'")})'>
+                            <div class="movie-poster">
+                                ${posterUrl
+                                    ? `<img src="${posterUrl}" alt="${escapeHtml(movie.name)}" loading="lazy" onerror="this.style.display='none'">`
+                                    : `<div class="movie-poster-placeholder"><i class="fas fa-film"></i></div>`
+                                }
+                            </div>
+                            <div class="movie-info">
+                                <div class="movie-title" title="${escapeHtml(movie.name)}">${escapeHtml(movie.name)}</div>
+                                <div class="movie-meta">
+                                    ${year ? `<span class="movie-year">${year}</span>` : ''}
+                                    ${rating ? `<span class="movie-rating"><i class="fas fa-star"></i> ${rating}</span>` : ''}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                html += `
+                        </div>
+                    </div>
+                `;
+            });
+
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        // Navigate to a specific category from home page
+        function viewCategory(categoryId) {
+            const categoryItem = categoriesList.querySelector(`[data-category-id="${categoryId}"]`);
+            if (categoryItem) {
+                selectCategory(categoryItem);
+            }
         }
 
         // Load movies
         async function loadMovies(categoryId = null) {
-            moviesLoading.style.display = 'flex';
+            // Get fresh DOM references (elements may have been recreated)
+            const loadingEl = document.getElementById('moviesLoading');
+            const gridEl = document.getElementById('moviesGrid');
+
+            if (loadingEl) loadingEl.style.display = 'flex';
 
             try {
                 const endpoint = categoryId
@@ -873,26 +1156,34 @@
             } catch (error) {
                 console.error('Failed to load movies:', error);
                 const is403 = error.message && error.message.includes('403');
-                moviesGrid.innerHTML = `
-                    <div class="empty-state">
-                        <i class="fas fa-${is403 ? 'lock' : 'exclamation-circle'}"></i>
-                        <h3>${is403 ? 'VOD Not Available' : 'Failed to load movies'}</h3>
-                        <p>${is403 ? 'Your IPTV subscription may not include Movies access. Contact your provider to upgrade your package.' : error.message}</p>
-                    </div>
-                `;
+                const currentGrid = document.getElementById('moviesGrid');
+                if (currentGrid) {
+                    currentGrid.innerHTML = `
+                        <div class="empty-state">
+                            <i class="fas fa-${is403 ? 'lock' : 'exclamation-circle'}"></i>
+                            <h3>${is403 ? 'VOD Not Available' : 'Failed to load movies'}</h3>
+                            <p>${is403 ? 'Your IPTV subscription may not include Movies access. Contact your provider to upgrade your package.' : error.message}</p>
+                        </div>
+                    `;
+                }
             } finally {
-                moviesLoading.style.display = 'none';
+                const loadingElFinal = document.getElementById('moviesLoading');
+                if (loadingElFinal) loadingElFinal.style.display = 'none';
             }
         }
 
         // Render movies with pagination
         function renderMovies() {
+            // Get fresh reference to grid (may have been recreated)
+            const gridEl = document.getElementById('moviesGrid');
+            if (!gridEl) return;
+
             const start = currentPage * ITEMS_PER_PAGE;
             const end = start + ITEMS_PER_PAGE;
             const moviesToRender = filteredMovies.slice(start, end);
 
             if (currentPage === 0 && moviesToRender.length === 0) {
-                moviesGrid.innerHTML = `
+                gridEl.innerHTML = `
                     <div class="empty-state">
                         <i class="fas fa-film"></i>
                         <h3>No movies found</h3>
@@ -905,7 +1196,7 @@
             moviesToRender.forEach(movie => {
                 displayedMovies.push(movie);
                 const card = createMovieCard(movie);
-                moviesGrid.appendChild(card);
+                gridEl.appendChild(card);
             });
 
             currentPage++;
@@ -1052,7 +1343,8 @@
             // Reset and re-render
             currentPage = 0;
             displayedMovies = [];
-            moviesGrid.innerHTML = '';
+            const gridEl = document.getElementById('moviesGrid');
+            if (gridEl) gridEl.innerHTML = '';
             movieCount.textContent = `${filteredMovies.length} movies`;
             renderMovies();
         }
@@ -1118,7 +1410,8 @@
 
             observer.observe(loadMoreTrigger);
             await loadCategories();
-            await loadMovies();
+            // Load home page by default (uses cached data for fast loading)
+            await loadHomePage();
         }
 
         init();

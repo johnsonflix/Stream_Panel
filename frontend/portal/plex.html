@@ -1783,7 +1783,7 @@
                     <span class="detail-label">Plex Email</span>
                     <span class="detail-value">${userData.plex_email || 'Not set'}</span>
                 </div>
-                ${userData.plex_expiration_date ? `
+                ${userData.plex_expiration_date && userData.plex_price_type !== 'donation' && userData.plex_price_type !== 'free' ? `
                 <div class="detail-row">
                     <span class="detail-label">Expires</span>
                     <span class="detail-value">${expirationDisplay}</span>
