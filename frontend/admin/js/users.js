@@ -37,7 +37,10 @@ const Users = {
         active: false,
         column: null,
         startX: 0,
-        startWidth: 0
+        startWidth: 0,
+        col: null,
+        th: null,
+        handle: null
     },
 
     /**
@@ -111,9 +114,9 @@ const Users = {
         // Add resize handles to all th elements
         const headers = table.querySelectorAll('thead th');
         headers.forEach((th, index) => {
-            // Skip checkbox and actions columns for resize handles
+            // Skip only checkbox column for resize handles
             const colKey = this.getColumnKeyFromIndex(index);
-            if (colKey === 'checkbox' || colKey === 'actions') return;
+            if (colKey === 'checkbox') return;
 
             // Add resize handle
             const handle = document.createElement('div');
@@ -148,12 +151,28 @@ const Users = {
         e.preventDefault();
         e.stopPropagation();
 
+        const table = document.querySelector('.users-desktop-view table');
+        if (!table) return;
+
+        // Find the col element for this column
+        const col = table.querySelector(`colgroup col[data-column="${columnKey}"]`);
+        if (!col) return;
+
+        // Lock all column widths via colgroup before resizing
+        const allCols = table.querySelectorAll('colgroup col');
+        const allHeaders = table.querySelectorAll('thead th');
+        allCols.forEach((c, index) => {
+            const currentWidth = allHeaders[index] ? allHeaders[index].offsetWidth : 100;
+            c.style.width = `${currentWidth}px`;
+        });
+
         this._resizing.active = true;
         this._resizing.column = columnKey;
         this._resizing.startX = e.pageX;
         this._resizing.startWidth = th.offsetWidth;
         this._resizing.handle = handle;
         this._resizing.th = th;
+        this._resizing.col = col;
 
         // Add visual feedback
         handle.classList.add('resizing');
@@ -170,11 +189,10 @@ const Users = {
         const diff = e.pageX - this._resizing.startX;
         const newWidth = Math.max(60, this._resizing.startWidth + diff); // Min 60px
 
-        // Update the th element directly (stored in _resizing)
-        const th = this._resizing.th;
-        if (th) {
-            th.style.width = `${newWidth}px`;
-            th.style.minWidth = `${newWidth}px`;
+        // Update the col element width - this is the key to independent column sizing
+        const col = this._resizing.col;
+        if (col) {
+            col.style.width = `${newWidth}px`;
         }
     },
 
@@ -184,10 +202,10 @@ const Users = {
     endColumnResize() {
         if (!this._resizing.active) return;
 
-        // Save final width
-        const th = this._resizing.th;
-        if (th) {
-            const finalWidth = th.offsetWidth;
+        // Save final width from the col element
+        const col = this._resizing.col;
+        if (col) {
+            const finalWidth = parseInt(col.style.width) || this._resizing.th.offsetWidth;
             this.userPreferences.columnWidths[this._resizing.column] = finalWidth;
             this.savePreferences();
         }
@@ -202,6 +220,7 @@ const Users = {
         this._resizing.column = null;
         this._resizing.handle = null;
         this._resizing.th = null;
+        this._resizing.col = null;
         document.body.style.cursor = '';
         document.body.style.userSelect = '';
     },
@@ -217,13 +236,12 @@ const Users = {
             col => this.userPreferences.columnsVisible[col]
         );
 
-        visibleColumns.forEach((colKey, index) => {
+        visibleColumns.forEach((colKey) => {
             const width = this.userPreferences.columnWidths[colKey];
             if (width) {
-                const th = table.querySelectorAll('thead th')[index];
-                if (th) {
-                    th.style.width = `${width}px`;
-                    th.style.minWidth = `${width}px`;
+                const col = table.querySelector(`colgroup col[data-column="${colKey}"]`);
+                if (col) {
+                    col.style.width = `${width}px`;
                 }
             }
         });
@@ -734,11 +752,19 @@ const Users = {
             return `<tr>${cells}</tr>`;
         }).join('');
 
+        // Build colgroup for column width control
+        const colgroup = visibleColumns.map(col => {
+            const width = this.userPreferences.columnWidths[col];
+            const style = width ? `width: ${width}px;` : '';
+            return `<col data-column="${col}" style="${style}">`;
+        }).join('');
+
         return `
             ${this.renderBulkActionsBar()}
             <div class="users-desktop-view" style="padding: 1.5rem; display: block;">
                 <div class="table-container">
                     <table>
+                        <colgroup>${colgroup}</colgroup>
                         <thead>
                             <tr>${headers}</tr>
                         </thead>

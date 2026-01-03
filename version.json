@@ -1,6 +1,6 @@
 {
-  "version": "1.5.37",
+  "version": "1.5.38",
   "name": "Stream Panel",
   "releaseDate": "2026-01-03",
-  "description": "Fix column resize - allow columns narrower than content"
+  "description": "Portal Plex service card fix, column resize improvements"
 }

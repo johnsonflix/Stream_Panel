@@ -733,15 +733,20 @@ tbody tr:hover {
 
 .users-desktop-view table {
     table-layout: fixed;
-    width: 100%;
+    width: max-content;
+    min-width: 100%;
 }
 
 .users-desktop-view th,
 .users-desktop-view td {
+    white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    white-space: nowrap;
-    max-width: 0; /* Forces text-overflow to work with table-layout: fixed */
+}
+
+/* Colgroup columns for resize control */
+.users-desktop-view colgroup col {
+    /* Default width, overridden by JS */
 }
 
 .column-resize-handle {

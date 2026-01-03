@@ -134,6 +134,16 @@ function sanitizeUserForPortal(user) {
         plex_enabled: user.plex_enabled,
         iptv_enabled: user.iptv_enabled,
         iptv_editor_enabled: user.iptv_editor_enabled,
+        // Service expiration dates
+        plex_expiration_date: user.plex_expiration_date,
+        iptv_expiration_date: user.iptv_expiration_date,
+        // Cancellation fields
+        plex_cancelled: user.plex_cancelled,
+        plex_cancelled_at: user.plex_cancelled_at,
+        plex_scheduled_deletion: user.plex_scheduled_deletion,
+        iptv_cancelled: user.iptv_cancelled,
+        iptv_cancelled_at: user.iptv_cancelled_at,
+        iptv_scheduled_deletion: user.iptv_scheduled_deletion,
         // IPTV credentials
         iptv_username: user.iptv_username,
         iptv_password: user.iptv_password,
