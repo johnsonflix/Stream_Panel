@@ -742,6 +742,7 @@ tbody tr:hover {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    min-width: 0;  /* Allow columns to shrink below content width */
 }
 
 /* Colgroup columns for resize control */
