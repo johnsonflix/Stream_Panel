@@ -133,15 +133,28 @@ function isInsertQuery(sql) {
 
 /**
  * Add RETURNING id to INSERT queries if not already present
- * Skip for ON CONFLICT queries (UPSERT) as they may not have an id column
+ * Skip for ON CONFLICT queries (UPSERT) and junction tables without id columns
  */
 function addReturningId(sql) {
     const upperSql = sql.trim().toUpperCase();
-    // Only add RETURNING id for simple INSERTs, not for UPSERT (ON CONFLICT) queries
-    // Some tables use non-id primary keys
+
+    // Junction tables that don't have an 'id' column (use composite primary keys)
+    const tablesWithoutId = [
+        'TAG_PLEX_SERVERS',
+        'TAG_IPTV_PANELS',
+        'USER_TAGS',
+        'DASHBOARD_CACHED_STATS',
+        'IPTV_EDITOR_SETTINGS'
+    ];
+
+    // Check if this is an INSERT into a table without id
+    const isJunctionTable = tablesWithoutId.some(table => upperSql.includes(`INTO ${table}`));
+
+    // Only add RETURNING id for simple INSERTs, not for UPSERT or junction tables
     if (upperSql.startsWith('INSERT') &&
         !upperSql.includes('RETURNING') &&
-        !upperSql.includes('ON CONFLICT')) {
+        !upperSql.includes('ON CONFLICT') &&
+        !isJunctionTable) {
         // Remove trailing semicolon if present
         let modifiedSql = sql.trim();
         if (modifiedSql.endsWith(';')) {
