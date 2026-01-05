@@ -1,0 +1,2729 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#0f172a">
+    <title>Plex Service - User Portal</title>
+    <link rel="apple-touch-icon" href="/assets/favicon.png">
+    <link rel="icon" type="image/png" href="/assets/favicon.png">
+    <link rel="manifest" href="/api/v2/public/manifest.json">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        :root {
+            --bg-primary: #0f172a;
+            --bg-secondary: #1e293b;
+            --bg-tertiary: #334155;
+            --card-bg: #1e293b;
+            --border-color: #334155;
+            --text-primary: #f8fafc;
+            --text-secondary: #cbd5e1;
+            --text-tertiary: #94a3b8;
+            --primary-color: #3b82f6;
+            --primary-color-hover: #2563eb;
+            --error-color: #ef4444;
+            --success-color: #22c55e;
+            --warning-color: #f59e0b;
+            --plex-color: #e5a00d;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+
+        /* Header */
+        .header {
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            padding: 16px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .back-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: var(--bg-tertiary);
+            border: none;
+            border-radius: 6px;
+            color: var(--text-secondary);
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-decoration: none;
+        }
+
+        .back-btn:hover {
+            background: var(--border-color);
+            color: var(--text-primary);
+        }
+
+        .page-title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .page-title i {
+            font-size: 24px;
+            color: var(--plex-color);
+        }
+
+        .page-title h1 {
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 12px;
+        }
+
+        .btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-decoration: none;
+        }
+
+        .btn-primary {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-color-hover);
+        }
+
+        .btn-danger {
+            background: rgba(239, 68, 68, 0.2);
+            color: var(--error-color);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+
+        .btn-danger:hover {
+            background: rgba(239, 68, 68, 0.3);
+        }
+
+        .btn-plex {
+            background: var(--plex-color);
+            color: #000;
+        }
+
+        .btn-plex:hover {
+            background: #c68c0b;
+        }
+
+        .btn-secondary {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .btn-secondary:hover {
+            background: var(--border-color);
+        }
+
+        /* Main Content */
+        .main-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        /* Announcements */
+        .announcements-section {
+            margin-bottom: 24px;
+        }
+
+        .announcement {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            background: rgba(229, 160, 13, 0.1);
+            border: 1px solid rgba(229, 160, 13, 0.3);
+        }
+
+        .announcement-icon {
+            font-size: 20px;
+            color: var(--plex-color);
+        }
+
+        .announcement-content {
+            flex: 1;
+        }
+
+        .announcement-title {
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .announcement-message {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        /* Cards Grid */
+        .cards-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 24px;
+            margin-bottom: 24px;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 24px;
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 20px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .card-header i {
+            font-size: 20px;
+            color: var(--plex-color);
+        }
+
+        .card-header h2 {
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        /* Account Details */
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .detail-row:last-child {
+            border-bottom: none;
+        }
+
+        .detail-label {
+            color: var(--text-tertiary);
+            font-size: 14px;
+        }
+
+        .detail-value {
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .status-active {
+            background: rgba(34, 197, 94, 0.2);
+            color: var(--success-color);
+        }
+
+        .status-cancelling {
+            background: rgba(245, 158, 11, 0.2);
+            color: var(--warning-color);
+        }
+
+        .status-expired {
+            background: rgba(239, 68, 68, 0.2);
+            color: var(--error-color);
+        }
+
+        /* Libraries */
+        .libraries-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 12px;
+        }
+
+        .library-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 12px;
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            font-size: 13px;
+        }
+
+        .library-item i {
+            color: var(--plex-color);
+        }
+
+        .library-item.expandable {
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .library-item.expandable:hover {
+            background: var(--border-color);
+            transform: translateY(-1px);
+        }
+
+        .library-item .expand-icon {
+            margin-left: auto;
+            font-size: 10px;
+            transition: transform 0.2s;
+        }
+
+        .library-item.expanded .expand-icon {
+            transform: rotate(180deg);
+        }
+
+        .library-stats {
+            display: none;
+            grid-column: 1 / -1;
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            padding: 16px;
+            margin-top: -8px;
+        }
+
+        .library-stats.visible {
+            display: block;
+        }
+
+        .library-stats-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .library-stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+            gap: 12px;
+        }
+
+        .stat-item {
+            text-align: center;
+            padding: 12px;
+            background: rgba(229, 160, 13, 0.1);
+            border-radius: 8px;
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: 600;
+            color: var(--plex-color);
+        }
+
+        .stat-label {
+            font-size: 11px;
+            color: var(--text-tertiary);
+            margin-top: 4px;
+        }
+
+        /* Watch Stats Section */
+        .watch-stats-section {
+            margin-top: 24px;
+        }
+
+        .watch-stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+        }
+
+        @media (max-width: 1200px) {
+            .watch-stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 600px) {
+            .watch-stats-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .watch-stat-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 14px;
+        }
+
+        .watch-stat-card.popular-movies {
+            background: linear-gradient(135deg, rgba(236, 72, 153, 0.1) 0%, rgba(239, 68, 68, 0.1) 100%);
+            border-color: rgba(236, 72, 153, 0.3);
+        }
+
+        .watch-stat-card.watched-movies {
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(239, 68, 68, 0.1) 100%);
+            border-color: rgba(245, 158, 11, 0.3);
+        }
+
+        .watch-stat-card.popular-shows {
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%);
+            border-color: rgba(59, 130, 246, 0.3);
+        }
+
+        .watch-stat-card.watched-shows {
+            background: linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(168, 85, 247, 0.1) 100%);
+            border-color: rgba(139, 92, 246, 0.3);
+        }
+
+        .watch-stat-header {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 10px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .watch-stat-header.pink { color: #ec4899; }
+        .watch-stat-header.orange { color: #f59e0b; }
+        .watch-stat-header.blue { color: #3b82f6; }
+        .watch-stat-header.purple { color: #8b5cf6; }
+
+        .watch-stat-top-item {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .watch-stat-poster {
+            width: 40px;
+            height: 60px;
+            object-fit: cover;
+            border-radius: 4px;
+            flex-shrink: 0;
+        }
+
+        .watch-stat-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .watch-stat-title {
+            font-weight: 600;
+            font-size: 12px;
+            margin-bottom: 2px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .watch-stat-year {
+            font-size: 11px;
+            color: var(--text-tertiary);
+        }
+
+        .watch-stat-counts {
+            margin-top: 4px;
+            font-size: 11px;
+            color: var(--text-secondary);
+        }
+
+        .watch-stat-list {
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            padding-top: 6px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .watch-stat-list-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 3px 0;
+            font-size: 11px;
+            color: var(--text-secondary);
+        }
+
+        .watch-stat-list-item span:first-child {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            flex: 1;
+            margin-right: 8px;
+        }
+
+        /* Quick Actions */
+        .quick-actions {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+        }
+
+        .action-card {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+            padding: 24px;
+            background: var(--bg-tertiary);
+            border-radius: 12px;
+            text-decoration: none;
+            color: var(--text-primary);
+            transition: all 0.2s;
+            cursor: pointer;
+            border: 1px solid transparent;
+        }
+
+        .action-card:hover {
+            background: var(--border-color);
+            border-color: var(--plex-color);
+        }
+
+        .action-card.disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .action-card.disabled:hover {
+            background: var(--bg-tertiary);
+            border-color: transparent;
+        }
+
+        .action-icon {
+            width: 48px;
+            height: 48px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(229, 160, 13, 0.2);
+            border-radius: 12px;
+            font-size: 24px;
+        }
+
+        /* Remove background when icon is an image (transparent PNGs) */
+        .action-icon:has(img) {
+            background: transparent;
+        }
+
+        .action-name {
+            font-weight: 500;
+        }
+
+        .action-desc {
+            font-size: 12px;
+            color: var(--text-tertiary);
+            text-align: center;
+        }
+
+        /* Guides Section */
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .section-header i {
+            font-size: 20px;
+            color: var(--plex-color);
+        }
+
+        .section-header h2 {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .guides-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 16px;
+        }
+
+        .guide-card {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+            padding: 20px;
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            text-decoration: none;
+            color: var(--text-primary);
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+
+        .guide-card:hover {
+            border-color: var(--primary-color);
+            transform: translateY(-2px);
+        }
+
+        .guide-icon {
+            font-size: 32px;
+        }
+
+        .guide-title {
+            font-weight: 500;
+            text-align: center;
+        }
+
+        .guide-desc {
+            font-size: 12px;
+            color: var(--text-tertiary);
+            text-align: center;
+        }
+
+        /* Collapsible Sections */
+        .collapsible-section {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .collapsible-header {
+            cursor: pointer;
+            padding: 16px 20px;
+            margin-bottom: 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background 0.2s;
+        }
+
+        .collapsible-header:hover {
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .collapse-icon {
+            color: var(--text-tertiary);
+            transition: transform 0.3s ease;
+        }
+
+        .collapsible-section.collapsed .collapse-icon {
+            transform: rotate(-90deg);
+        }
+
+        .collapsible-content {
+            padding: 0 20px 20px;
+            transition: max-height 0.3s ease, padding 0.3s ease, opacity 0.2s ease;
+            overflow: hidden;
+        }
+
+        .collapsible-section.collapsed .collapsible-content {
+            max-height: 0 !important;
+            padding-top: 0;
+            padding-bottom: 0;
+            opacity: 0;
+        }
+
+        /* Apps Grid - Dynamic Layout */
+        .apps-categories-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+        }
+
+        .app-category {
+            background: var(--bg-tertiary);
+            border-radius: 10px;
+            padding: 16px;
+        }
+
+        .app-category-header {
+            font-size: 13px;
+            color: var(--text-tertiary);
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 500;
+        }
+
+        .app-category-items {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .app-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 14px 16px;
+            min-height: 70px;
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            text-decoration: none;
+            color: var(--text-primary);
+            transition: all 0.2s;
+        }
+
+        .app-item:hover {
+            border-color: var(--plex-color);
+            transform: translateX(4px);
+        }
+
+        .app-item-icon {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .app-item-icon img {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            object-fit: contain;
+        }
+
+        .app-item-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .app-item-name {
+            font-weight: 500;
+            font-size: 14px;
+            margin-bottom: 2px;
+        }
+
+        .app-item-desc {
+            font-size: 12px;
+            color: var(--text-tertiary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .app-item-action {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 6px;
+            font-size: 12px;
+            color: var(--text-tertiary);
+        }
+
+        .app-item-links {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            align-items: flex-end;
+        }
+
+        .app-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            color: var(--primary-color);
+            font-size: 12px;
+            text-decoration: none;
+            white-space: nowrap;
+            padding: 4px 8px;
+            background: rgba(59, 130, 246, 0.1);
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+
+        .app-link:hover {
+            background: rgba(59, 130, 246, 0.2);
+            text-decoration: none;
+        }
+
+        .downloader-code {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: var(--primary-color);
+            color: white;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .downloader-code:hover {
+            background: var(--primary-color-hover);
+        }
+
+        /* Modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal {
+            background: var(--card-bg);
+            border-radius: 16px;
+            max-width: 800px;
+            width: 100%;
+            max-height: 90vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .modal-title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            color: var(--text-tertiary);
+            font-size: 20px;
+            cursor: pointer;
+            padding: 8px;
+        }
+
+        .modal-close:hover {
+            color: var(--text-primary);
+        }
+
+        .modal-body {
+            padding: 24px;
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        .modal-body h1, .modal-body h2, .modal-body h3 {
+            color: var(--text-primary);
+            margin-top: 20px;
+            margin-bottom: 12px;
+        }
+
+        .modal-body h1:first-child, .modal-body h2:first-child {
+            margin-top: 0;
+        }
+
+        .modal-body p {
+            color: var(--text-secondary);
+            line-height: 1.6;
+            margin-bottom: 12px;
+        }
+
+        .modal-body ul, .modal-body ol {
+            color: var(--text-secondary);
+            padding-left: 24px;
+            margin-bottom: 12px;
+        }
+
+        .modal-body li {
+            margin-bottom: 8px;
+        }
+
+        .modal-body code {
+            background: var(--bg-tertiary);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+
+        .modal-body pre {
+            background: var(--bg-tertiary);
+            padding: 16px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin-bottom: 12px;
+        }
+
+        .modal-body img {
+            max-width: 100%;
+            border-radius: 8px;
+            margin: 12px 0;
+        }
+
+        /* Loading */
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 60px;
+            color: var(--text-tertiary);
+        }
+
+        .loading i {
+            font-size: 32px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .header {
+                flex-direction: column;
+                gap: 16px;
+                align-items: flex-start;
+            }
+
+            .header-actions {
+                width: 100%;
+                flex-wrap: wrap;
+            }
+
+            .header-actions .btn {
+                flex: 1;
+                justify-content: center;
+            }
+
+            .cards-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .quick-actions {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .guides-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
+        /* Modal Styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s;
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .modal {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            width: 90%;
+            max-width: 500px;
+            transform: scale(0.9);
+            transition: transform 0.3s;
+        }
+
+        .modal-overlay.active .modal {
+            transform: scale(1);
+        }
+
+        /* Guide Modal - wider for content display */
+        #guideModal .modal {
+            max-width: 900px;
+            width: 90%;
+            max-height: 90vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #guideModal .modal-header {
+            flex-shrink: 0;
+        }
+
+        #guideModal .modal-body {
+            overflow-y: auto;
+            flex: 1;
+            min-height: 0;
+            max-height: calc(90vh - 80px);
+            /* Dark mode scrollbar */
+            scrollbar-width: thin;
+            scrollbar-color: var(--border-color) var(--bg-secondary);
+        }
+
+        #guideModal .modal-body::-webkit-scrollbar {
+            width: 8px;
+        }
+        #guideModal .modal-body::-webkit-scrollbar-track {
+            background: var(--bg-secondary);
+            border-radius: 4px;
+        }
+        #guideModal .modal-body::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 4px;
+        }
+        #guideModal .modal-body::-webkit-scrollbar-thumb:hover {
+            background: var(--text-tertiary);
+        }
+
+        /* Isolate guide content from affecting rest of page */
+        #guideModal .modal-body {
+            contain: content;
+        }
+
+        /* Ensure guide markdown content doesn't leak styles */
+        #guideModalContent h1,
+        #guideModalContent h2,
+        #guideModalContent h3,
+        #guideModalContent h4,
+        #guideModalContent h5,
+        #guideModalContent h6 {
+            position: static;
+            font-size: revert;
+        }
+
+        #guideModalContent h1 { font-size: 1.8em; margin: 0.5em 0; }
+        #guideModalContent h2 { font-size: 1.5em; margin: 0.5em 0; }
+        #guideModalContent h3 { font-size: 1.3em; margin: 0.5em 0; }
+        #guideModalContent p { margin: 0.8em 0; }
+        #guideModalContent img {
+            max-width: 300px !important;
+            max-height: 300px !important;
+            width: auto !important;
+            height: auto !important;
+            position: static !important;
+            display: block;
+            margin: 1em auto;
+            object-fit: contain !important;
+        }
+        #guideModalContent a { color: var(--primary-color); }
+        #guideModalContent ul, #guideModalContent ol { margin: 0.8em 0; padding-left: 1.5em; }
+        #guideModalContent li { margin: 0.3em 0; }
+        #guideModalContent code { background: var(--bg-tertiary); padding: 2px 6px; border-radius: 4px; }
+        #guideModalContent pre { background: var(--bg-tertiary); padding: 12px; border-radius: 8px; overflow-x: auto; }
+        /* Force all guide content elements to be static positioned */
+        #guideModalContent * {
+            position: static !important;
+            max-width: 100%;
+        }
+
+        /* Guide-specific layout styles */
+        #guideModalContent .guide-header {
+            text-align: center;
+            margin-bottom: 1.5em;
+            padding-bottom: 1em;
+            border-bottom: 1px solid var(--border-color);
+        }
+        #guideModalContent .guide-header img {
+            max-width: 80px !important;
+            max-height: 80px !important;
+            margin: 0 auto 0.5em auto;
+        }
+        #guideModalContent .guide-header h1 {
+            font-size: 1.6em;
+            margin: 0.3em 0;
+        }
+        #guideModalContent .guide-header p {
+            color: var(--text-secondary);
+            margin: 0.3em 0;
+        }
+
+        /* Table of contents */
+        #guideModalContent .toc-section {
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            padding: 1em;
+            margin: 1em 0;
+        }
+        #guideModalContent .toc-section h3 {
+            margin-top: 0;
+            font-size: 1.1em;
+        }
+        #guideModalContent .toc-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 0.5em;
+        }
+        #guideModalContent .toc-grid a {
+            display: block;
+            padding: 0.4em 0.6em;
+            background: var(--bg-secondary);
+            border-radius: 4px;
+            text-decoration: none;
+        }
+
+        /* Feature grids */
+        #guideModalContent .feature-grid,
+        #guideModalContent .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 1em;
+            margin: 1em 0;
+        }
+        #guideModalContent .feature-card,
+        #guideModalContent .feature {
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            padding: 1em;
+            text-align: center;
+        }
+        #guideModalContent .feature-card .icon,
+        #guideModalContent .feature .icon {
+            font-size: 2em;
+            margin-bottom: 0.3em;
+        }
+        #guideModalContent .feature-card h4,
+        #guideModalContent .feature h4 {
+            margin: 0.3em 0;
+            font-size: 1em;
+        }
+        #guideModalContent .feature-card p,
+        #guideModalContent .feature p {
+            font-size: 0.85em;
+            color: var(--text-secondary);
+            margin: 0.3em 0;
+        }
+
+        /* Alert boxes */
+        #guideModalContent .warning-box,
+        #guideModalContent .info-box,
+        #guideModalContent .success-box,
+        #guideModalContent .note-box {
+            padding: 1em;
+            border-radius: 8px;
+            margin: 1em 0;
+        }
+        #guideModalContent .warning-box {
+            background: rgba(234, 179, 8, 0.15);
+            border-left: 4px solid #eab308;
+        }
+        #guideModalContent .info-box {
+            background: rgba(59, 130, 246, 0.15);
+            border-left: 4px solid #3b82f6;
+        }
+        #guideModalContent .success-box {
+            background: rgba(34, 197, 94, 0.15);
+            border-left: 4px solid #22c55e;
+        }
+        #guideModalContent .note-box {
+            background: rgba(139, 92, 246, 0.15);
+            border-left: 4px solid #8b5cf6;
+        }
+
+        /* Step sections */
+        #guideModalContent .step,
+        #guideModalContent .step-content {
+            margin: 1.5em 0;
+            padding: 1em;
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+        }
+        #guideModalContent .step h3,
+        #guideModalContent .step-content h3 {
+            display: flex;
+            align-items: center;
+            gap: 0.5em;
+            margin-top: 0;
+        }
+        #guideModalContent .step-number {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 28px;
+            background: var(--primary-color);
+            color: white;
+            border-radius: 50%;
+            font-weight: bold;
+            font-size: 0.9em;
+        }
+
+        /* Two column layouts */
+        #guideModalContent .two-column,
+        #guideModalContent .columns {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1em;
+        }
+
+        /* Requirements/lists sections */
+        #guideModalContent .requirements {
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            padding: 1em;
+            margin: 1em 0;
+        }
+
+        /* Download buttons */
+        #guideModalContent .download-btn,
+        #guideModalContent .button,
+        #guideModalContent .btn {
+            display: inline-block;
+            padding: 0.6em 1.2em;
+            background: var(--primary-color);
+            color: white !important;
+            border-radius: 6px;
+            text-decoration: none;
+            margin: 0.3em;
+        }
+        #guideModalContent .download-buttons,
+        #guideModalContent .button-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5em;
+            margin: 1em 0;
+        }
+
+        .modal-header {
+            padding: 20px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h3 {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 24px;
+            cursor: pointer;
+            padding: 0;
+            line-height: 1;
+        }
+
+        .modal-close:hover {
+            color: var(--text-primary);
+        }
+
+        .modal-body {
+            padding: 20px;
+        }
+
+        .modal-body .form-group {
+            margin-bottom: 16px;
+        }
+
+        .modal-body .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: var(--text-secondary);
+        }
+
+        .modal-body .form-group input,
+        .modal-body .form-group select,
+        .modal-body .form-group textarea {
+            width: 100%;
+            padding: 12px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 14px;
+        }
+
+        .modal-body .form-group textarea {
+            min-height: 120px;
+            resize: vertical;
+        }
+
+        .modal-footer {
+            padding: 16px 20px;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+        }
+
+        .modal-footer .action-btn {
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s;
+        }
+
+        .modal-footer .action-btn.secondary {
+            background: var(--bg-tertiary);
+            color: var(--text-secondary);
+        }
+
+        .modal-footer .action-btn.secondary:hover {
+            background: var(--border-color);
+        }
+
+        .modal-footer .action-btn.primary {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .modal-footer .action-btn.primary:hover {
+            background: var(--primary-color-hover);
+        }
+
+        /* Toast */
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            padding: 16px 24px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 14px;
+            z-index: 2000;
+            transform: translateY(100px);
+            opacity: 0;
+            transition: all 0.3s;
+        }
+
+        .toast.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        .toast.success {
+            border-color: var(--success-color);
+            background: rgba(34, 197, 94, 0.1);
+        }
+
+        .toast.error {
+            border-color: var(--error-color);
+            background: rgba(239, 68, 68, 0.1);
+        }
+
+        /* Request Media Hero Banner */
+        .request-media-banner {
+            position: relative;
+            background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4c1d95 100%);
+            border-radius: 12px;
+            margin-bottom: 24px;
+            overflow: hidden;
+            min-height: 120px;
+        }
+
+        /* Gradient overlay for text readability - lighter on right to show more image */
+        .request-media-banner::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(90deg, rgba(30, 27, 75, 0.95) 0%, rgba(30, 27, 75, 0.6) 35%, rgba(30, 27, 75, 0.2) 70%, rgba(30, 27, 75, 0.1) 100%);
+            z-index: 1;
+        }
+
+        .request-media-banner-bg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            overflow: hidden;
+            z-index: 0;
+        }
+
+        .request-media-banner-bg img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position: center center;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+        }
+
+        .request-media-banner-bg img.loaded {
+            opacity: 1;
+        }
+
+        .request-media-banner-content {
+            position: relative;
+            z-index: 2;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 24px;
+            gap: 20px;
+        }
+
+        .request-media-banner-info {
+            flex: 1;
+        }
+
+        .request-media-banner-icon {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            color: white;
+            margin-bottom: 10px;
+            box-shadow: 0 4px 12px rgba(124, 58, 237, 0.4);
+        }
+
+        .request-media-banner-title {
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 4px;
+            color: white;
+        }
+
+        .request-media-banner-subtitle {
+            font-size: 13px;
+            color: rgba(255, 255, 255, 0.7);
+            max-width: 350px;
+            line-height: 1.4;
+        }
+
+        .request-media-banner-actions {
+            display: flex;
+            gap: 10px;
+            flex-shrink: 0;
+        }
+
+        .request-media-banner-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 10px 18px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.2s;
+            cursor: pointer;
+            border: none;
+        }
+
+        .request-media-banner-btn.primary {
+            background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%);
+            color: white;
+            box-shadow: 0 4px 12px rgba(124, 58, 237, 0.4);
+        }
+
+        .request-media-banner-btn.primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(124, 58, 237, 0.5);
+        }
+
+        .request-media-banner-btn.secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
+        }
+
+        .request-media-banner-btn.secondary:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        @media (max-width: 768px) {
+            .request-media-banner-content {
+                flex-direction: column;
+                align-items: flex-start;
+                padding: 16px;
+            }
+
+            .request-media-banner-actions {
+                width: 100%;
+                flex-direction: column;
+            }
+
+            .request-media-banner-btn {
+                justify-content: center;
+                width: 100%;
+            }
+
+            .request-media-banner-subtitle {
+                max-width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="header-left">
+            <a href="index.html" class="back-btn">
+                <i class="fas fa-arrow-left"></i>
+                Back to Dashboard
+            </a>
+            <div class="page-title">
+                <i class="fas fa-film"></i>
+                <h1>Plex Service</h1>
+            </div>
+        </div>
+        <div class="header-actions">
+            <button class="btn btn-primary" onclick="showRenewModal()">
+                <i class="fas fa-sync-alt"></i>
+                Renew Subscription
+            </button>
+            <a href="#" class="btn btn-secondary" id="contactSupportBtn" onclick="contactSupport()">
+                <i class="fas fa-headset"></i>
+                Contact Support
+            </a>
+            <button class="btn btn-secondary" onclick="logout()">
+                <i class="fas fa-sign-out-alt"></i>
+                Logout
+            </button>
+        </div>
+    </header>
+
+    <main class="main-content">
+        <!-- Announcements -->
+        <section class="announcements-section" id="announcements"></section>
+
+        <!-- Discover & Request Hero Banner -->
+        <div class="request-media-banner" id="request-media-banner" style="display: none;">
+            <div class="request-media-banner-bg" id="request-media-banner-bg">
+                <!-- Dynamic poster images will be loaded here -->
+            </div>
+            <div class="request-media-banner-content">
+                <div class="request-media-banner-info">
+                    <div class="request-media-banner-icon">
+                        <i class="fas fa-compass"></i>
+                    </div>
+                    <h2 class="request-media-banner-title">Discover & Request</h2>
+                    <p class="request-media-banner-subtitle">Browse trending movies and TV shows. Request anything and we'll add it to your library.</p>
+                </div>
+                <div class="request-media-banner-actions">
+                    <a href="request2.html" class="request-media-banner-btn primary">
+                        <i class="fas fa-search"></i>
+                        Browse & Request
+                    </a>
+                    <a href="my-requests.html" class="request-media-banner-btn secondary">
+                        <i class="fas fa-list"></i>
+                        My Requests
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Cards Grid -->
+        <div class="cards-grid">
+            <!-- Account Details -->
+            <div class="card">
+                <div class="card-header">
+                    <i class="fas fa-user-circle"></i>
+                    <h2>Account Details</h2>
+                </div>
+                <div id="accountDetails">
+                    <div class="loading"><i class="fas fa-spinner"></i></div>
+                </div>
+            </div>
+
+            <!-- Libraries -->
+            <div class="card">
+                <div class="card-header">
+                    <i class="fas fa-folder"></i>
+                    <h2>Your Libraries</h2>
+                </div>
+                <div id="libraries">
+                    <div class="loading"><i class="fas fa-spinner"></i></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="card" style="margin-bottom: 24px;">
+            <div class="card-header">
+                <i class="fas fa-bolt"></i>
+                <h2>Quick Actions</h2>
+            </div>
+            <div class="quick-actions" id="quickActions">
+                <div class="loading"><i class="fas fa-spinner"></i></div>
+            </div>
+        </div>
+
+        <!-- Recommended Apps -->
+        <section id="appsSection" class="collapsible-section" style="margin-bottom: 24px; display: none;">
+            <div class="section-header collapsible-header" onclick="toggleSection('apps')">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <i class="fas fa-mobile-alt"></i>
+                    <h2>Recommended Apps</h2>
+                </div>
+                <i class="fas fa-chevron-down collapse-icon" id="appsCollapseIcon"></i>
+            </div>
+            <div class="collapsible-content" id="appsContent">
+                <div id="appsContainer">
+                    <div class="loading"><i class="fas fa-spinner"></i></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Setup Guides -->
+        <section id="guidesSection" class="collapsible-section" style="margin-bottom: 24px;">
+            <div class="section-header collapsible-header" onclick="toggleSection('guides')">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <i class="fas fa-book-open"></i>
+                    <h2>Setup Guides</h2>
+                </div>
+                <i class="fas fa-chevron-down collapse-icon" id="guidesCollapseIcon"></i>
+            </div>
+            <div class="collapsible-content" id="guidesContent">
+                <div class="guides-grid" id="guides">
+                    <div class="loading"><i class="fas fa-spinner"></i></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Watch Stats -->
+        <section class="watch-stats-section">
+            <div class="section-header">
+                <i class="fas fa-chart-bar"></i>
+                <h2>What's Popular</h2>
+            </div>
+            <div class="watch-stats-grid" id="watchStats">
+                <div class="loading"><i class="fas fa-spinner"></i></div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Guide Modal -->
+    <div class="modal-overlay" id="guideModal">
+        <div class="modal">
+            <div class="modal-header">
+                <div class="modal-title">
+                    <span id="guideModalIcon"></span>
+                    <span id="guideModalTitle"></span>
+                </div>
+                <button class="modal-close" onclick="closeGuideModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body" id="guideModalContent"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '/api/v2';
+        let userData = null;
+        let quickActionsData = null;
+        let watchStatsData = null;
+        let libraryStatsData = {};
+        let appsData = null;
+
+        // Get auth token
+        function getToken() {
+            return localStorage.getItem('portal_token');
+        }
+
+        // API helper
+        async function api(endpoint, options = {}) {
+            const token = getToken();
+            if (!token) {
+                window.location.href = '/login.html';
+                return;
+            }
+
+            const response = await fetch(`${API_BASE}${endpoint}`, {
+                ...options,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                    ...options.headers
+                }
+            });
+
+            if (response.status === 401) {
+                localStorage.removeItem('portal_token');
+                window.location.href = '/login.html';
+                return;
+            }
+
+            return response.json();
+        }
+
+        // Load user data
+        async function loadUserData() {
+            const result = await api('/portal/user/full');
+            if (result.success) {
+                userData = result.user;
+                renderAccountDetails();
+                renderLibraries();
+                updateCancelButton();
+
+                // Show request site banner if user has access
+                if (userData.has_request_site_access) {
+                    document.getElementById('request-media-banner').style.display = '';
+                    loadRequestBannerBackground();
+                }
+            }
+        }
+
+        // Load trending backdrop for request banner
+        async function loadRequestBannerBackground() {
+            try {
+                const response = await fetch('/api/v2/request-site/trending/movies?page=1');
+                const data = await response.json();
+                if (data.success && data.results && data.results.length > 0) {
+                    // Pick a random movie with a backdrop
+                    const moviesWithBackdrop = data.results.filter(m => m.backdrop_path);
+                    if (moviesWithBackdrop.length > 0) {
+                        const randomMovie = moviesWithBackdrop[Math.floor(Math.random() * Math.min(5, moviesWithBackdrop.length))];
+                        const container = document.getElementById('request-media-banner-bg');
+                        const img = document.createElement('img');
+                        img.src = `https://image.tmdb.org/t/p/w1280${randomMovie.backdrop_path}`;
+                        img.onload = () => img.classList.add('loaded');
+                        container.appendChild(img);
+                    }
+                }
+            } catch (err) {
+                console.log('Could not load request banner background');
+            }
+        }
+
+        // Render account details
+        function renderAccountDetails() {
+            const container = document.getElementById('accountDetails');
+            if (!userData.plex_enabled) {
+                container.innerHTML = '<p style="color: var(--text-tertiary);">Plex service not enabled</p>';
+                return;
+            }
+
+            let statusClass = 'status-active';
+            let statusText = 'Active';
+
+            if (userData.plex_cancelled) {
+                statusClass = 'status-cancelling';
+                statusText = 'Cancelling';
+            } else if (userData.account_status === 'expired') {
+                statusClass = 'status-expired';
+                statusText = 'Expired';
+            }
+
+            const expirationDisplay = userData.plex_expiration_date
+                ? new Date(userData.plex_expiration_date).toLocaleDateString()
+                : 'No expiration';
+
+            container.innerHTML = `
+                <div class="detail-row">
+                    <span class="detail-label">Status</span>
+                    <span class="status-badge ${statusClass}">${statusText}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Plex Username</span>
+                    <span class="detail-value">${userData.plex_username || 'Not set'}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Plex Email</span>
+                    <span class="detail-value">${userData.plex_email || 'Not set'}</span>
+                </div>
+                ${userData.plex_expiration_date && userData.plex_price_type !== 'donation' && userData.plex_price_type !== 'free' ? `
+                <div class="detail-row">
+                    <span class="detail-label">Expires</span>
+                    <span class="detail-value">${expirationDisplay}</span>
+                </div>
+                ` : ''}
+                ${userData.plex_cancelled ? `
+                <div class="detail-row">
+                    <span class="detail-label">Removal Date</span>
+                    <span class="detail-value" style="color: var(--error-color);">
+                        ${new Date(userData.plex_scheduled_deletion).toLocaleDateString()}
+                    </span>
+                </div>
+                ` : ''}
+            `;
+        }
+
+        // Render libraries
+        function renderLibraries() {
+            const container = document.getElementById('libraries');
+            if (!userData.plex_servers || userData.plex_servers.length === 0) {
+                container.innerHTML = '<p style="color: var(--text-tertiary);">No server access</p>';
+                return;
+            }
+
+            const allLibraries = userData.plex_servers.flatMap(s => {
+                return (s.libraries || []).map(lib => ({
+                    ...lib,
+                    serverName: s.name,
+                    serverId: s.id
+                }));
+            });
+
+            if (allLibraries.length === 0) {
+                container.innerHTML = '<p style="color: var(--text-tertiary);">No libraries available</p>';
+                return;
+            }
+
+            const libraryIcons = {
+                'movie': 'fa-film',
+                'show': 'fa-tv',
+                'artist': 'fa-music',
+                'photo': 'fa-images',
+                'default': 'fa-folder'
+            };
+
+            container.innerHTML = `
+                <div class="libraries-grid" id="librariesGrid">
+                    ${allLibraries.map((lib, index) => {
+                        return `
+                        <div class="library-item expandable" onclick="toggleLibrary(${index})" data-lib-index="${index}">
+                            <i class="fas ${libraryIcons[lib.type] || libraryIcons.default}"></i>
+                            <span>${lib.title || lib.name}</span>
+                            <i class="fas fa-chevron-down expand-icon" style="margin-left: auto;"></i>
+                        </div>
+                        <div class="library-stats" id="libStats-${index}">
+                            <div class="library-stats-header">
+                                <i class="fas ${libraryIcons[lib.type] || libraryIcons.default}" style="color: var(--plex-color);"></i>
+                                <span style="font-weight: 600;">${lib.title || lib.name}</span>
+                                <span style="color: var(--text-tertiary); font-size: 12px; margin-left: auto;">${lib.serverName || ''}</span>
+                            </div>
+                            <div class="library-stats-grid" id="libStatsContent-${index}">
+                                <div class="loading" style="grid-column: 1/-1;"><i class="fas fa-spinner"></i></div>
+                            </div>
+                        </div>
+                    `}).join('')}
+                </div>
+            `;
+
+            // Store library info for later use
+            window.allLibraries = allLibraries;
+        }
+
+        // Toggle library expansion
+        async function toggleLibrary(index) {
+            const item = document.querySelector(`[data-lib-index="${index}"]`);
+            const stats = document.getElementById(`libStats-${index}`);
+            const content = document.getElementById(`libStatsContent-${index}`);
+
+            if (item.classList.contains('expanded')) {
+                item.classList.remove('expanded');
+                stats.classList.remove('visible');
+            } else {
+                // Close other open libraries
+                document.querySelectorAll('.library-item.expanded').forEach(el => {
+                    el.classList.remove('expanded');
+                });
+                document.querySelectorAll('.library-stats.visible').forEach(el => {
+                    el.classList.remove('visible');
+                });
+
+                item.classList.add('expanded');
+                stats.classList.add('visible');
+
+                // Load stats if not already loaded
+                const lib = window.allLibraries[index];
+                if (!libraryStatsData[index]) {
+                    await loadLibraryStats(lib, index, content);
+                }
+            }
+        }
+
+        // Load library stats
+        async function loadLibraryStats(lib, index, container) {
+            try {
+                const type = lib.type || 'default';
+                libraryStatsData[index] = { type, title: lib.title || lib.name };
+
+                let statsHTML = '';
+
+                // TV Shows: show detailed breakdown
+                if (type === 'show') {
+                    const showCount = lib.showCount !== undefined ? lib.showCount : (lib.count || '-');
+                    const seasonCount = lib.seasonCount !== undefined ? lib.seasonCount : null;
+                    const episodeCount = lib.episodeCount !== undefined ? lib.episodeCount : null;
+
+                    statsHTML = `
+                        <div class="stat-item">
+                            <div class="stat-value">${typeof showCount === 'number' ? showCount.toLocaleString() : showCount}</div>
+                            <div class="stat-label">Shows</div>
+                        </div>
+                        ${seasonCount !== null ? `
+                        <div class="stat-item">
+                            <div class="stat-value">${seasonCount.toLocaleString()}</div>
+                            <div class="stat-label">Seasons</div>
+                        </div>
+                        ` : ''}
+                        ${episodeCount !== null ? `
+                        <div class="stat-item">
+                            <div class="stat-value">${episodeCount.toLocaleString()}</div>
+                            <div class="stat-label">Episodes</div>
+                        </div>
+                        ` : ''}
+                    `;
+                }
+                // Music: show artists and albums
+                else if (type === 'artist') {
+                    const artistCount = lib.artistCount !== undefined ? lib.artistCount : (lib.count || '-');
+                    const albumCount = lib.albumCount !== undefined ? lib.albumCount : null;
+
+                    statsHTML = `
+                        <div class="stat-item">
+                            <div class="stat-value">${typeof artistCount === 'number' ? artistCount.toLocaleString() : artistCount}</div>
+                            <div class="stat-label">Artists</div>
+                        </div>
+                        ${albumCount !== null ? `
+                        <div class="stat-item">
+                            <div class="stat-value">${albumCount.toLocaleString()}</div>
+                            <div class="stat-label">Albums</div>
+                        </div>
+                        ` : ''}
+                    `;
+                }
+                // Movies/Photos/Other
+                else {
+                    const itemCount = lib.count !== undefined ? lib.count : (lib.item_count || '-');
+                    const label = type === 'movie' ? 'Movies' : type === 'photo' ? 'Photos' : 'Items';
+
+                    statsHTML = `
+                        <div class="stat-item">
+                            <div class="stat-value">${typeof itemCount === 'number' ? itemCount.toLocaleString() : itemCount}</div>
+                            <div class="stat-label">${label}</div>
+                        </div>
+                    `;
+                }
+
+                container.innerHTML = statsHTML;
+            } catch (error) {
+                container.innerHTML = '<p style="color: var(--text-tertiary);">Unable to load stats</p>';
+            }
+        }
+
+        // Format duration helper
+        function formatDuration(ms) {
+            const hours = Math.floor(ms / 3600000);
+            if (hours > 24) {
+                const days = Math.floor(hours / 24);
+                return `${days}d`;
+            }
+            return `${hours}h`;
+        }
+
+        // Format bytes helper
+        function formatBytes(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+            if (bytes < 1073741824) return (bytes / 1048576).toFixed(1) + ' MB';
+            return (bytes / 1073741824).toFixed(1) + ' GB';
+        }
+
+        // Load quick actions
+        async function loadQuickActions() {
+            const result = await api('/portal/quick-actions');
+            if (result.success) {
+                quickActionsData = result.actions.plex || [];
+                renderQuickActions();
+            }
+        }
+
+        // Render quick actions
+        function renderQuickActions() {
+            const container = document.getElementById('quickActions');
+
+            // Default actions if none configured
+            const defaultActions = [
+                {
+                    name: 'Open Plex',
+                    description: 'Launch Plex Web App',
+                    icon: '🎬',
+                    action_type: 'dynamic',
+                    dynamic_field: 'plex_server_url',
+                    resolved_url: userData?.plex_servers?.[0]?.url || null
+                },
+                {
+                    name: 'Request Content',
+                    description: 'Request movies and shows',
+                    icon: '📝',
+                    action_type: 'dynamic',
+                    dynamic_field: 'request_site_url',
+                    resolved_url: userData?.plex_servers?.find(s => s.request_site_url)?.request_site_url || null
+                }
+            ];
+
+            const actions = quickActionsData.length > 0 ? quickActionsData : defaultActions;
+
+            container.innerHTML = actions.map(action => {
+                // Frontend fallback: resolve URLs from userData if backend didn't provide them
+                let url = action.resolved_url || action.url;
+                if (!url && userData?.plex_servers?.length > 0) {
+                    if (action.action_type === 'plex_web' || (action.action_type === 'dynamic' && action.dynamic_field === 'plex_server_url')) {
+                        url = userData.plex_servers[0]?.url || null;
+                    } else if (action.action_type === 'request_site' || (action.action_type === 'dynamic' && action.dynamic_field === 'request_site_url')) {
+                        const serverWithRequest = userData.plex_servers.find(s => s.request_site_url);
+                        url = serverWithRequest?.request_site_url || null;
+                    }
+                }
+
+                // Auto-resolve types (dynamic, plex_web, request_site, tv_guide, web_player) need a resolved URL
+                const autoResolveTypes = ['dynamic', 'plex_web', 'request_site', 'tv_guide', 'web_player'];
+                const isDisabled = autoResolveTypes.includes(action.action_type) && !url;
+
+                // Render icon - support icon_url (uploaded image) or icon (emoji)
+                let iconHtml;
+                if (action.icon_url) {
+                    iconHtml = `<img src="${action.icon_url}" alt="" style="width: 32px; height: 32px; object-fit: contain;">`;
+                } else {
+                    iconHtml = action.icon || '⚡';
+                }
+
+                return `
+                    <div class="action-card ${isDisabled ? 'disabled' : ''}"
+                         onclick="${isDisabled ? '' : `openAction('${url}')`}">
+                        <div class="action-icon">${iconHtml}</div>
+                        <span class="action-name">${action.name}</span>
+                        <span class="action-desc">${isDisabled ? 'Not configured' : action.description}</span>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Open action URL
+        function openAction(url) {
+            if (url) {
+                window.open(url, '_blank');
+            }
+        }
+
+        // Load guides
+        async function loadGuides() {
+            const result = await api('/portal/guides');
+            if (result.success) {
+                // Backend already filters guides by user's services - render all returned guides
+                renderGuides(result.guides || []);
+            }
+        }
+
+        // Render guides
+        function renderGuides(guides) {
+            const container = document.getElementById('guides');
+            if (!guides || guides.length === 0) {
+                container.innerHTML = '<p style="color: var(--text-tertiary);">No guides available</p>';
+                return;
+            }
+
+            container.innerHTML = guides.map(guide => {
+                // Support icon_url (uploaded image) or icon (emoji)
+                let iconHtml;
+                if (guide.icon_url) {
+                    iconHtml = `<img src="${guide.icon_url}" alt="" style="width: 32px; height: 32px; object-fit: contain;">`;
+                } else {
+                    iconHtml = guide.icon || '📖';
+                }
+
+                return `
+                    <div class="guide-card" onclick="openGuide('${guide.slug}')">
+                        <span class="guide-icon">${iconHtml}</span>
+                        <span class="guide-title">${guide.title}</span>
+                        <span class="guide-desc">${guide.short_description || ''}</span>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Load apps
+        async function loadApps() {
+            try {
+                const result = await api('/portal/apps');
+                if (result.success) {
+                    appsData = result.apps;
+                    renderApps();
+                }
+            } catch (error) {
+                console.error('Failed to load apps:', error);
+            }
+        }
+
+        // Render apps
+        function renderApps() {
+            const section = document.getElementById('appsSection');
+            const container = document.getElementById('appsContainer');
+
+            // Filter to only Plex apps with valid names
+            const filterPlexApps = (apps) => (apps || []).filter(a =>
+                (a.service_type === 'plex' || a.service_type === 'both') && a.name && a.name.trim()
+            );
+
+            // Flatten all categories (filtered for Plex)
+            const allApps = [
+                ...filterPlexApps(appsData?.tv),
+                ...filterPlexApps(appsData?.mobile),
+                ...filterPlexApps(appsData?.desktop),
+                ...filterPlexApps(appsData?.web)
+            ];
+
+            if (allApps.length === 0) {
+                section.style.display = 'none';
+                return;
+            }
+
+            section.style.display = 'block';
+
+            // Group apps by platform category (filtered for Plex)
+            const categories = [
+                { key: 'tv', label: 'TV & Streaming', icon: 'fa-tv', apps: filterPlexApps(appsData?.tv) },
+                { key: 'mobile', label: 'Mobile', icon: 'fa-mobile-alt', apps: filterPlexApps(appsData?.mobile) },
+                { key: 'desktop', label: 'Desktop', icon: 'fa-desktop', apps: filterPlexApps(appsData?.desktop) },
+                { key: 'web', label: 'Web', icon: 'fa-globe', apps: filterPlexApps(appsData?.web) }
+            ].filter(cat => cat.apps.length > 0);
+
+            // Use dynamic grid layout
+            container.innerHTML = `
+                <div class="apps-categories-grid">
+                    ${categories.map(cat => `
+                        <div class="app-category">
+                            <div class="app-category-header">
+                                <i class="fas ${cat.icon}"></i>
+                                ${cat.label}
+                            </div>
+                            <div class="app-category-items">
+                                ${cat.apps.map(app => renderAppCard(app)).join('')}
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        // Render single app card (handles all app types)
+        function renderAppCard(app) {
+            // Render icon - support icon_url (uploaded image) or icon (emoji)
+            let iconHtml;
+            if (app.icon_url) {
+                iconHtml = `<img src="${app.icon_url}" alt="">`;
+            } else {
+                iconHtml = `<span style="font-size: 24px;">${app.icon || '📱'}</span>`;
+            }
+
+            // Determine the action element and URL
+            let actionHtml = '';
+            let appUrl = '#';
+            let isClickable = false;
+
+            switch (app.app_type) {
+                case 'downloader_code':
+                    if (app.downloader_code) {
+                        actionHtml = `
+                            <span class="downloader-code" onclick="event.preventDefault(); event.stopPropagation(); copyToClipboard('${app.downloader_code}')">
+                                Code: ${app.downloader_code}
+                                <i class="fas fa-copy"></i>
+                            </span>
+                        `;
+                    }
+                    break;
+
+                case 'play_store':
+                    if (app.store_url_android) {
+                        appUrl = app.store_url_android;
+                        isClickable = true;
+                    }
+                    break;
+
+                case 'apk':
+                    if (app.apk_url) {
+                        appUrl = app.apk_url;
+                        isClickable = true;
+                    }
+                    break;
+
+                case 'roku_store':
+                    if (app.store_url_roku) {
+                        appUrl = app.store_url_roku;
+                        isClickable = true;
+                    }
+                    break;
+
+                case 'appletv_store':
+                    if (app.store_url_appletv) {
+                        appUrl = app.store_url_appletv;
+                        isClickable = true;
+                    }
+                    break;
+
+                case 'mobile_store':
+                case 'store_link':
+                    const links = [];
+                    if (app.store_url_android) links.push(`<a href="${app.store_url_android}" target="_blank" class="app-link" onclick="event.stopPropagation()"><i class="fab fa-android"></i> Android</a>`);
+                    if (app.store_url_ios) links.push(`<a href="${app.store_url_ios}" target="_blank" class="app-link" onclick="event.stopPropagation()"><i class="fab fa-apple"></i> iOS</a>`);
+                    if (links.length > 0) {
+                        actionHtml = `<div class="app-item-links">${links.join('')}</div>`;
+                    }
+                    break;
+
+                case 'windows_store':
+                    if (app.store_url_windows) {
+                        appUrl = app.store_url_windows;
+                        isClickable = true;
+                    }
+                    break;
+
+                case 'windows_download':
+                case 'mac_download':
+                case 'direct_url':
+                    if (app.direct_url) {
+                        appUrl = app.direct_url;
+                        isClickable = true;
+                    }
+                    break;
+
+                case 'mac_store':
+                    if (app.store_url_mac) {
+                        appUrl = app.store_url_mac;
+                        isClickable = true;
+                    }
+                    break;
+
+                case 'web_player':
+                    if (app.web_player_url) {
+                        appUrl = app.web_player_url;
+                        isClickable = true;
+                    }
+                    break;
+
+                default:
+                    if (app.direct_url) {
+                        appUrl = app.direct_url;
+                        isClickable = true;
+                    }
+            }
+
+            // If we have custom action HTML (like downloader code or multiple links), show that
+            // Otherwise show external link icon if clickable
+            if (!actionHtml && isClickable) {
+                actionHtml = `<i class="fas fa-external-link-alt" style="color: var(--text-tertiary); font-size: 12px;"></i>`;
+            }
+
+            // Use div instead of <a> when we have nested links to avoid invalid HTML
+            const hasNestedLinks = actionHtml.includes('class="app-link"') || actionHtml.includes('class="downloader-code"');
+
+            if (hasNestedLinks) {
+                // Use div container with onclick for navigation if needed
+                return `
+                    <div class="app-item" ${isClickable ? `onclick="window.open('${appUrl}', '_blank')" style="cursor: pointer;"` : ''}>
+                        <div class="app-item-icon">${iconHtml}</div>
+                        <div class="app-item-info">
+                            <div class="app-item-name">${app.name}</div>
+                            ${app.description ? `<div class="app-item-desc">${app.description}</div>` : ''}
+                        </div>
+                        <div class="app-item-action">${actionHtml}</div>
+                    </div>
+                `;
+            } else {
+                // Use anchor tag for simple clickable cards
+                return `
+                    <a href="${appUrl}" target="_blank" class="app-item">
+                        <div class="app-item-icon">${iconHtml}</div>
+                        <div class="app-item-info">
+                            <div class="app-item-name">${app.name}</div>
+                            ${app.description ? `<div class="app-item-desc">${app.description}</div>` : ''}
+                        </div>
+                        <div class="app-item-action">${actionHtml}</div>
+                    </a>
+                `;
+            }
+        }
+
+        // Toggle collapsible section
+        function toggleSection(sectionName) {
+            const section = document.getElementById(`${sectionName}Section`);
+            if (section) {
+                section.classList.toggle('collapsed');
+                // Save preference to localStorage
+                const isCollapsed = section.classList.contains('collapsed');
+                localStorage.setItem(`portal_${sectionName}_collapsed`, isCollapsed ? '1' : '0');
+            }
+        }
+
+        // Restore collapsed state from localStorage
+        function restoreCollapsedStates() {
+            ['apps', 'guides'].forEach(sectionName => {
+                const isCollapsed = localStorage.getItem(`portal_${sectionName}_collapsed`) === '1';
+                if (isCollapsed) {
+                    const section = document.getElementById(`${sectionName}Section`);
+                    if (section) {
+                        section.classList.add('collapsed');
+                    }
+                }
+            });
+        }
+
+        // Sanitize HTML to prevent style leakage
+        function sanitizeGuideContent(html) {
+            // Create a temporary container
+            const temp = document.createElement('div');
+            temp.innerHTML = html;
+            // Remove style tags that could leak
+            temp.querySelectorAll('style').forEach(el => el.remove());
+            // Remove script tags for safety
+            temp.querySelectorAll('script').forEach(el => el.remove());
+            // Remove link tags (external stylesheets)
+            temp.querySelectorAll('link[rel="stylesheet"]').forEach(el => el.remove());
+            return temp.innerHTML;
+        }
+
+        // Open guide in dedicated viewer page
+        function openGuide(slug) {
+            window.location.href = `guide-viewer.html?slug=${encodeURIComponent(slug)}&service=plex`;
+        }
+
+        // Load announcements
+        async function loadAnnouncements() {
+            const result = await api('/portal/notices');
+            if (result.success) {
+                const plexNotice = result.notices.find(n => n.type === 'plex');
+                if (plexNotice) {
+                    renderAnnouncements([plexNotice]);
+                }
+            }
+        }
+
+        // Render announcements
+        function renderAnnouncements(notices) {
+            const container = document.getElementById('announcements');
+            container.innerHTML = notices.map(notice => `
+                <div class="announcement">
+                    <i class="fas fa-bullhorn announcement-icon"></i>
+                    <div class="announcement-content">
+                        <div class="announcement-title">Plex Notice</div>
+                        <div class="announcement-message">${notice.content}</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Update cancel button based on status
+        function updateCancelButton() {
+            const btn = document.getElementById('cancelBtn');
+            if (userData.plex_cancelled) {
+                btn.innerHTML = '<i class="fas fa-undo"></i> Undo Cancellation';
+                btn.onclick = undoCancellation;
+                btn.classList.remove('btn-danger');
+                btn.classList.add('btn-secondary');
+            }
+        }
+
+        // Show renew modal
+        function showRenewModal() {
+            window.location.href = 'index.html#renew';
+        }
+
+        // Show cancel modal
+        function showCancelModal() {
+            if (confirm('Are you sure you want to cancel your Plex service? Your access will remain until the expiration date.')) {
+                cancelService();
+            }
+        }
+
+        // Cancel service
+        async function cancelService() {
+            const result = await api('/portal/cancel-service', {
+                method: 'POST',
+                body: JSON.stringify({
+                    service_type: 'plex',
+                    reason: 'User requested cancellation from portal'
+                })
+            });
+
+            if (result.success) {
+                alert(result.message);
+                loadUserData();
+            } else {
+                alert(result.message || 'Failed to cancel service');
+            }
+        }
+
+        // Contact support - opens message modal
+        function contactSupport() {
+            openModal('message-modal');
+        }
+
+        // Modal functions
+        function openModal(id) {
+            document.getElementById(id).classList.add('active');
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.remove('active');
+        }
+
+        // Toast notification
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = `toast ${type} show`;
+
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+
+        // Send message to support
+        async function sendMessage() {
+            const category = document.getElementById('message-category').value;
+            const subject = document.getElementById('message-subject').value;
+            const message = document.getElementById('message-content').value;
+
+            if (!subject || !message) {
+                showToast('Please fill in all fields', 'error');
+                return;
+            }
+
+            try {
+                const token = localStorage.getItem('portal_token');
+                const response = await fetch(`${API_BASE}/portal/messages`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ category, subject, message })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    showToast('Message sent successfully!', 'success');
+                    closeModal('message-modal');
+                    document.getElementById('message-subject').value = '';
+                    document.getElementById('message-content').value = '';
+                } else {
+                    showToast(data.message || 'Failed to send message', 'error');
+                }
+            } catch (error) {
+                showToast('Failed to send message', 'error');
+            }
+        }
+
+        // Logout
+        function logout() {
+            localStorage.removeItem('portal_token');
+            localStorage.removeItem('portal_user');
+            window.location.href = '/login.html';
+        }
+
+        // Undo cancellation
+        async function undoCancellation() {
+            const result = await api('/portal/cancel-scheduled-deletion', {
+                method: 'POST',
+                body: JSON.stringify({ service_type: 'plex' })
+            });
+
+            if (result.success) {
+                alert(result.message);
+                loadUserData();
+            } else {
+                alert(result.message || 'Failed to undo cancellation');
+            }
+        }
+
+        // Close modal on overlay click
+        document.getElementById('guideModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeGuideModal();
+            }
+        });
+
+        // Close modal on escape
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeGuideModal();
+            }
+        });
+
+        // Load watch stats (using admin endpoint - public data)
+        async function loadWatchStats() {
+            try {
+                const result = await api('/portal/watch-stats');
+                if (result.success) {
+                    watchStatsData = result.stats;
+                    renderWatchStats();
+                } else {
+                    // Fallback - try to show section without data
+                    document.getElementById('watchStats').innerHTML =
+                        '<p style="color: var(--text-tertiary); text-align: center; padding: 20px;">Watch statistics coming soon</p>';
+                }
+            } catch (error) {
+                document.getElementById('watchStats').innerHTML =
+                    '<p style="color: var(--text-tertiary); text-align: center; padding: 20px;">Watch statistics coming soon</p>';
+            }
+        }
+
+        // Render watch stats cards
+        function renderWatchStats() {
+            const container = document.getElementById('watchStats');
+
+            if (!watchStatsData) {
+                container.innerHTML = '<p style="color: var(--text-tertiary); text-align: center; padding: 20px;">No watch statistics available</p>';
+                return;
+            }
+
+            let html = '';
+
+            // Most Popular Movies
+            if (watchStatsData.mostPopularMovies && watchStatsData.mostPopularMovies.length > 0) {
+                const movies = watchStatsData.mostPopularMovies;
+                html += `
+                    <div class="watch-stat-card popular-movies">
+                        <div class="watch-stat-header pink">
+                            <i class="fas fa-fire"></i>
+                            <span>Most Popular Movies</span>
+                        </div>
+                        ${movies[0] ? `
+                            <div class="watch-stat-top-item">
+                                ${movies[0].thumb ? `<img src="${movies[0].thumb}" class="watch-stat-poster" onerror="this.style.display='none'"/>` : ''}
+                                <div class="watch-stat-info">
+                                    <div class="watch-stat-title">${movies[0].title}</div>
+                                    ${movies[0].year ? `<div class="watch-stat-year">${movies[0].year}</div>` : ''}
+                                    <div class="watch-stat-counts">
+                                        <i class="fas fa-users" style="color: #ec4899;"></i> ${movies[0].uniqueUsers} viewers
+                                    </div>
+                                </div>
+                            </div>
+                        ` : ''}
+                        ${movies.length > 1 ? `
+                            <div class="watch-stat-list">
+                                ${movies.slice(1, 10).map((m, i) => `
+                                    <div class="watch-stat-list-item">
+                                        <span>${i + 2}. ${m.title}</span>
+                                        <span><i class="fas fa-users" style="color: #ec4899; font-size: 10px;"></i> ${m.uniqueUsers}</span>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            }
+
+            // Most Watched Movies
+            if (watchStatsData.mostWatchedMovies && watchStatsData.mostWatchedMovies.length > 0) {
+                const movies = watchStatsData.mostWatchedMovies;
+                html += `
+                    <div class="watch-stat-card watched-movies">
+                        <div class="watch-stat-header orange">
+                            <i class="fas fa-film"></i>
+                            <span>Most Watched Movies</span>
+                        </div>
+                        ${movies[0] ? `
+                            <div class="watch-stat-top-item">
+                                ${movies[0].thumb ? `<img src="${movies[0].thumb}" class="watch-stat-poster" onerror="this.style.display='none'"/>` : ''}
+                                <div class="watch-stat-info">
+                                    <div class="watch-stat-title">${movies[0].title}</div>
+                                    ${movies[0].year ? `<div class="watch-stat-year">${movies[0].year}</div>` : ''}
+                                    <div class="watch-stat-counts">
+                                        <i class="fas fa-play-circle" style="color: #f59e0b;"></i> ${movies[0].playCount} plays
+                                    </div>
+                                </div>
+                            </div>
+                        ` : ''}
+                        ${movies.length > 1 ? `
+                            <div class="watch-stat-list">
+                                ${movies.slice(1, 10).map((m, i) => `
+                                    <div class="watch-stat-list-item">
+                                        <span>${i + 2}. ${m.title}</span>
+                                        <span><i class="fas fa-play-circle" style="color: #f59e0b; font-size: 10px;"></i> ${m.playCount}</span>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            }
+
+            // Most Popular Shows
+            if (watchStatsData.mostPopularShows && watchStatsData.mostPopularShows.length > 0) {
+                const shows = watchStatsData.mostPopularShows;
+                html += `
+                    <div class="watch-stat-card popular-shows">
+                        <div class="watch-stat-header blue">
+                            <i class="fas fa-star"></i>
+                            <span>Most Popular Shows</span>
+                        </div>
+                        ${shows[0] ? `
+                            <div class="watch-stat-top-item">
+                                ${shows[0].thumb ? `<img src="${shows[0].thumb}" class="watch-stat-poster" onerror="this.style.display='none'"/>` : ''}
+                                <div class="watch-stat-info">
+                                    <div class="watch-stat-title">${shows[0].title}</div>
+                                    ${shows[0].year ? `<div class="watch-stat-year">${shows[0].year}</div>` : ''}
+                                    <div class="watch-stat-counts">
+                                        <i class="fas fa-users" style="color: #3b82f6;"></i> ${shows[0].uniqueUsers} viewers
+                                    </div>
+                                </div>
+                            </div>
+                        ` : ''}
+                        ${shows.length > 1 ? `
+                            <div class="watch-stat-list">
+                                ${shows.slice(1, 10).map((s, i) => `
+                                    <div class="watch-stat-list-item">
+                                        <span>${i + 2}. ${s.title}</span>
+                                        <span><i class="fas fa-users" style="color: #3b82f6; font-size: 10px;"></i> ${s.uniqueUsers}</span>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            }
+
+            // Most Watched Shows
+            if (watchStatsData.mostWatchedShows && watchStatsData.mostWatchedShows.length > 0) {
+                const shows = watchStatsData.mostWatchedShows;
+                html += `
+                    <div class="watch-stat-card watched-shows">
+                        <div class="watch-stat-header purple">
+                            <i class="fas fa-tv"></i>
+                            <span>Most Watched Shows</span>
+                        </div>
+                        ${shows[0] ? `
+                            <div class="watch-stat-top-item">
+                                ${shows[0].thumb ? `<img src="${shows[0].thumb}" class="watch-stat-poster" onerror="this.style.display='none'"/>` : ''}
+                                <div class="watch-stat-info">
+                                    <div class="watch-stat-title">${shows[0].title}</div>
+                                    ${shows[0].year ? `<div class="watch-stat-year">${shows[0].year}</div>` : ''}
+                                    <div class="watch-stat-counts">
+                                        <i class="fas fa-play-circle" style="color: #8b5cf6;"></i> ${shows[0].playCount} plays
+                                    </div>
+                                </div>
+                            </div>
+                        ` : ''}
+                        ${shows.length > 1 ? `
+                            <div class="watch-stat-list">
+                                ${shows.slice(1, 10).map((s, i) => `
+                                    <div class="watch-stat-list-item">
+                                        <span>${i + 2}. ${s.title}</span>
+                                        <span><i class="fas fa-play-circle" style="color: #8b5cf6; font-size: 10px;"></i> ${s.playCount}</span>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            }
+
+            container.innerHTML = html || '<p style="color: var(--text-tertiary); text-align: center; padding: 20px;">No watch statistics available</p>';
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', async function() {
+            restoreCollapsedStates();
+            await loadUserData();
+            loadAnnouncements();
+            loadQuickActions();
+            loadApps();
+            loadGuides();
+            loadWatchStats();
+
+            // Close message modal on overlay click
+            const messageModal = document.getElementById('message-modal');
+            if (messageModal) {
+                messageModal.addEventListener('click', function(e) {
+                    if (e.target === this) {
+                        closeModal('message-modal');
+                    }
+                });
+            }
+        });
+    </script>
+
+    <!-- Toast notification -->
+    <div id="toast" class="toast"></div>
+
+    <!-- Message Modal -->
+    <div class="modal-overlay" id="message-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Contact Support</h3>
+                <button class="modal-close" onclick="closeModal('message-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="message-category">Category</label>
+                    <select id="message-category">
+                        <option value="general">General Question</option>
+                        <option value="technical">Technical Issue</option>
+                        <option value="billing">Billing Question</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="message-subject">Subject</label>
+                    <input type="text" id="message-subject" placeholder="Brief description of your question">
+                </div>
+                <div class="form-group">
+                    <label for="message-content">Message</label>
+                    <textarea id="message-content" placeholder="Describe your question or issue in detail..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="action-btn secondary" onclick="closeModal('message-modal')">Cancel</button>
+                <button class="action-btn primary" onclick="sendMessage()">
+                    <i class="fas fa-paper-plane"></i>
+                    Send Message
+                </button>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

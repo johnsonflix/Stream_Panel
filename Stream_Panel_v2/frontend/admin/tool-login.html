@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/png" href="/assets/favicon.png">
+    <link rel="apple-touch-icon" href="/assets/favicon.png">
+    <title>Logging in... - StreamPanel</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .login-container {
+            text-align: center;
+            padding: 40px;
+        }
+
+        .spinner {
+            font-size: 48px;
+            color: #3b82f6;
+            margin-bottom: 24px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        .message {
+            font-size: 18px;
+            color: #94a3b8;
+            margin-bottom: 8px;
+        }
+
+        .submessage {
+            font-size: 14px;
+            color: #64748b;
+        }
+
+        .error-container {
+            text-align: center;
+            padding: 40px;
+        }
+
+        .error-icon {
+            font-size: 48px;
+            color: #ef4444;
+            margin-bottom: 24px;
+        }
+
+        .error-message {
+            font-size: 18px;
+            color: #f87171;
+            margin-bottom: 16px;
+        }
+
+        .error-details {
+            font-size: 14px;
+            color: #94a3b8;
+            margin-bottom: 24px;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 20px;
+            background: #3b82f6;
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-size: 14px;
+            cursor: pointer;
+            text-decoration: none;
+            transition: background 0.2s;
+        }
+
+        .btn:hover {
+            background: #2563eb;
+        }
+
+        .btn-secondary {
+            background: #334155;
+        }
+
+        .btn-secondary:hover {
+            background: #475569;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+    <div id="loading" class="login-container">
+        <i class="fas fa-spinner fa-spin spinner"></i>
+        <div class="message">Logging you in...</div>
+        <div class="submessage" id="target-name">Connecting to media manager</div>
+    </div>
+
+    <div id="error" class="error-container hidden">
+        <i class="fas fa-exclamation-triangle error-icon"></i>
+        <div class="error-message">Login Failed</div>
+        <div class="error-details" id="error-details">Unable to connect</div>
+        <div style="display: flex; gap: 12px; justify-content: center;">
+            <button class="btn btn-secondary" onclick="window.close()">
+                <i class="fas fa-times"></i> Close
+            </button>
+            <button class="btn" onclick="retryLogin()">
+                <i class="fas fa-redo"></i> Retry
+            </button>
+        </div>
+    </div>
+
+    <!-- Hidden form for submitting credentials to target server -->
+    <!-- Field names change based on app type -->
+    <form id="login-form" method="POST" style="display: none;">
+        <input type="hidden" name="username" id="form-username">
+        <input type="hidden" name="password" id="form-password">
+        <input type="hidden" name="rememberMe" value="on">
+    </form>
+
+    <!-- SABnzbd uses different field names -->
+    <form id="sabnzbd-login-form" method="POST" style="display: none;">
+        <input type="hidden" name="ma_username" id="sab-username">
+        <input type="hidden" name="ma_password" id="sab-password">
+    </form>
+
+    <script>
+        let managerData = null;
+
+        async function performLogin() {
+            const params = new URLSearchParams(window.location.search);
+            const managerId = params.get('id');
+
+            if (!managerId) {
+                showError('No manager ID provided');
+                return;
+            }
+
+            const token = localStorage.getItem('sessionToken') || sessionStorage.getItem('sessionToken');
+
+            if (!token) {
+                showError('Not authenticated. Please log in to StreamPanel first.');
+                return;
+            }
+
+            try {
+                // Fetch manager details including credentials
+                const response = await fetch(`/api/v2/media-managers/${managerId}/credentials`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (!response.ok) {
+                    const data = await response.json();
+                    throw new Error(data.error || 'Failed to fetch credentials');
+                }
+
+                const data = await response.json();
+                managerData = data;
+
+                // Update loading message
+                document.getElementById('target-name').textContent = `Connecting to ${data.name}`;
+
+                // Check if credentials are provided
+                if (!data.username || !data.password) {
+                    // No credentials - just redirect to the URL directly
+                    window.location.href = data.url;
+                    return;
+                }
+
+                let baseUrl = data.url.replace(/\/$/, '');
+
+                // Different apps have different login endpoints and methods
+                if (data.type === 'qbittorrent') {
+                    // qBittorrent: Submit form via hidden iframe to avoid CORS,
+                    // then redirect to main UI after login completes
+                    const iframe = document.createElement('iframe');
+                    iframe.name = 'qb-login-frame';
+                    iframe.style.display = 'none';
+                    document.body.appendChild(iframe);
+
+                    const form = document.getElementById('login-form');
+                    form.action = baseUrl + '/api/v2/auth/login';
+                    form.target = 'qb-login-frame';  // Submit to hidden iframe
+                    document.getElementById('form-username').value = data.username;
+                    document.getElementById('form-password').value = data.password;
+
+                    // When iframe loads (login complete), redirect to main UI
+                    iframe.onload = function() {
+                        // Small delay to ensure cookie is set
+                        setTimeout(() => {
+                            window.location.href = baseUrl;
+                        }, 100);
+                    };
+
+                    form.submit();
+                } else if (data.type === 'sabnzbd') {
+                    // SABnzbd: Normalize URL (strip /login or trailing slash if present)
+                    // This allows users to enter either base URL or full login URL
+                    baseUrl = baseUrl.replace(/\/login\/?$/, '').replace(/\/$/, '');
+                    const form = document.getElementById('sabnzbd-login-form');
+                    // Use /login without trailing slash - some setups redirect /login/ to /login
+                    // which converts POST to GET and loses the credentials
+                    form.action = baseUrl + '/login';
+                    document.getElementById('sab-username').value = data.username;
+                    document.getElementById('sab-password').value = data.password;
+                    console.log('SABnzbd login - submitting to:', form.action);
+                    form.submit();
+                } else if (data.type === 'other') {
+                    // Generic "Other" tool - use the URL as-is (user provides full URL including login path)
+                    const form = document.getElementById('login-form');
+                    form.action = baseUrl;  // Don't append /login - user provides complete URL
+                    document.getElementById('form-username').value = data.username;
+                    document.getElementById('form-password').value = data.password;
+                    form.submit();
+                } else {
+                    // Sonarr/Radarr/other *arr tools use /login endpoint with username/password
+                    const form = document.getElementById('login-form');
+                    form.action = baseUrl + '/login';
+                    document.getElementById('form-username').value = data.username;
+                    document.getElementById('form-password').value = data.password;
+                    form.submit();
+                }
+
+            } catch (error) {
+                console.error('Login error:', error);
+                showError(error.message || 'Failed to log in');
+            }
+        }
+
+        function showError(message) {
+            document.getElementById('loading').classList.add('hidden');
+            document.getElementById('error').classList.remove('hidden');
+            document.getElementById('error-details').textContent = message;
+        }
+
+        function retryLogin() {
+            document.getElementById('loading').classList.remove('hidden');
+            document.getElementById('error').classList.add('hidden');
+            performLogin();
+        }
+
+        // Start login on page load
+        document.addEventListener('DOMContentLoaded', performLogin);
+    </script>
+</body>
+</html>

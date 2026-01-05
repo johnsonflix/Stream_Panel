@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/png" href="/assets/favicon.png">
+    <link rel="apple-touch-icon" href="/assets/favicon.png">
+    <title>Welcome - StreamPanel</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* Always Dark Mode */
+        :root {
+            --bg-primary: #0f172a;
+            --bg-secondary: #1e293b;
+            --bg-tertiary: #334155;
+            --card-bg: #1e293b;
+            --border-color: #334155;
+            --text-primary: #f8fafc;
+            --text-secondary: #cbd5e1;
+            --text-tertiary: #94a3b8;
+            --primary-color: #3b82f6;
+            --primary-color-hover: #2563eb;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            padding: 20px;
+        }
+
+        .welcome-container {
+            width: 100%;
+            max-width: 450px;
+        }
+
+        .welcome-card {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 50px 40px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
+            border: 1px solid var(--border-color);
+            text-align: center;
+            animation: fadeInUp 0.5s ease-out;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .welcome-logo {
+            max-width: 200px;
+            max-height: 100px;
+            margin-bottom: 20px;
+            object-fit: contain;
+        }
+
+        .welcome-icon {
+            font-size: 64px;
+            color: var(--primary-color);
+            margin-bottom: 20px;
+        }
+
+        .welcome-title {
+            font-size: 28px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 10px;
+        }
+
+        .welcome-subtitle {
+            font-size: 15px;
+            color: var(--text-secondary);
+            margin-bottom: 40px;
+        }
+
+        .login-options {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .login-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            width: 100%;
+            padding: 16px 24px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-decoration: none;
+        }
+
+        .login-btn i {
+            font-size: 20px;
+        }
+
+        .login-btn-user {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .login-btn-user:hover {
+            background: var(--primary-color-hover);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+        }
+
+        .login-btn-admin {
+            background: transparent;
+            color: var(--text-secondary);
+            border: 2px solid var(--border-color);
+        }
+
+        .login-btn-admin:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            border-color: var(--text-tertiary);
+        }
+
+        .divider {
+            display: flex;
+            align-items: center;
+            margin: 24px 0;
+            color: var(--text-tertiary);
+            font-size: 13px;
+        }
+
+        .divider::before,
+        .divider::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: var(--border-color);
+        }
+
+        .divider span {
+            padding: 0 16px;
+        }
+
+        .welcome-footer {
+            margin-top: 30px;
+            font-size: 13px;
+            color: var(--text-tertiary);
+        }
+
+        /* Responsive */
+        @media (max-width: 480px) {
+            .welcome-card {
+                padding: 40px 24px;
+            }
+
+            .welcome-title {
+                font-size: 24px;
+            }
+
+            .welcome-icon {
+                font-size: 48px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="welcome-container">
+        <div class="welcome-card">
+            <div id="welcome-logo-container">
+                <!-- Logo or icon will be inserted here dynamically -->
+            </div>
+            <h1 class="welcome-title" id="welcome-title">StreamPanel</h1>
+            <p class="welcome-subtitle">Select your login portal</p>
+
+            <div class="login-options">
+                <a href="/login.html" class="login-btn login-btn-user" id="user-login-btn">
+                    <i class="fas fa-sign-in-alt"></i>
+                    <span>Login</span>
+                </a>
+            </div>
+
+            <div class="welcome-footer" id="welcome-footer">
+                Management System
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '/api/v2';
+
+        // Load branding settings
+        loadBrandingSettings();
+
+        async function loadBrandingSettings() {
+            try {
+                const [appNameRes, logoRes, faviconRes, portalEnabledRes] = await Promise.all([
+                    fetch(`${API_BASE}/settings/app_title`),
+                    fetch(`${API_BASE}/settings/app_logo`),
+                    fetch(`${API_BASE}/settings/app_favicon`),
+                    fetch(`${API_BASE}/settings/user_portal_enabled`)
+                ]);
+
+                const appNameData = await appNameRes.json();
+                const logoData = await logoRes.json();
+                const faviconData = await faviconRes.json();
+                const portalEnabledData = await portalEnabledRes.json();
+
+                // Apply app name
+                const appName = (appNameData.value && appNameData.value.trim() !== '') ? appNameData.value : 'StreamPanel';
+                document.getElementById('welcome-title').textContent = appName;
+                document.title = `Welcome - ${appName}`;
+                document.getElementById('welcome-footer').textContent = `${appName} - Management System`;
+
+                // Apply logo
+                const logoContainer = document.getElementById('welcome-logo-container');
+                const logoPath = logoData.value;
+
+                if (logoPath && logoPath.trim() !== '') {
+                    logoContainer.innerHTML = `<img src="${logoPath}" alt="${appName}" class="welcome-logo" onerror="this.style.display='none'; this.parentElement.innerHTML='<div class=\\'welcome-icon\\'><i class=\\'fas fa-tv\\'></i></div>';">`;
+                } else {
+                    logoContainer.innerHTML = `<div class="welcome-icon"><i class="fas fa-tv"></i></div>`;
+                }
+
+                // Apply favicon
+                if (faviconData.value) {
+                    let link = document.querySelector("link[rel*='icon']");
+                    if (!link) {
+                        link = document.createElement('link');
+                        link.rel = 'icon';
+                        document.head.appendChild(link);
+                    }
+                    link.href = faviconData.value;
+                }
+
+                // Hide user portal button if disabled
+                const portalEnabled = portalEnabledData.value !== 'false' && portalEnabledData.value !== false;
+                if (!portalEnabled) {
+                    document.getElementById('user-login-btn').style.display = 'none';
+                    document.querySelector('.divider').style.display = 'none';
+                }
+
+            } catch (error) {
+                console.error('Error loading branding settings:', error);
+                // Use defaults
+                document.getElementById('welcome-logo-container').innerHTML = `<div class="welcome-icon"><i class="fas fa-tv"></i></div>`;
+            }
+        }
+    </script>
+</body>
+</html>

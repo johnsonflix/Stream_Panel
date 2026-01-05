@@ -1,0 +1,1651 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#0f172a">
+    <title>TV Shows - User Portal</title>
+    <link rel="apple-touch-icon" href="/assets/favicon.png">
+    <link rel="icon" type="image/png" href="/assets/favicon.png">
+    <link rel="manifest" href="/api/v2/public/manifest.json">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --bg-primary: #0f172a;
+            --bg-secondary: #1e293b;
+            --bg-tertiary: #334155;
+            --card-bg: #1e293b;
+            --border-color: #334155;
+            --text-primary: #f8fafc;
+            --text-secondary: #cbd5e1;
+            --text-tertiary: #94a3b8;
+            --primary-color: #3b82f6;
+            --primary-color-hover: #2563eb;
+            --error-color: #ef4444;
+            --success-color: #22c55e;
+            --warning-color: #f59e0b;
+            --iptv-color: #8b5cf6;
+            --series-color: #06b6d4;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        /* Custom Scrollbars */
+        ::-webkit-scrollbar { width: 10px; height: 10px; }
+        ::-webkit-scrollbar-track { background: var(--bg-primary); border-radius: 5px; }
+        ::-webkit-scrollbar-thumb { background: var(--bg-tertiary); border-radius: 5px; border: 2px solid var(--bg-primary); }
+        ::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+
+        .app-container { display: flex; flex-direction: column; height: 100vh; }
+
+        /* Header */
+        .header {
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex-shrink: 0;
+            z-index: 100;
+        }
+
+        .back-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            background: var(--bg-tertiary);
+            border: none;
+            border-radius: 6px;
+            color: var(--text-secondary);
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-decoration: none;
+        }
+
+        .back-btn:hover { background: var(--border-color); color: var(--text-primary); }
+
+        .header-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .header-title i { color: var(--series-color); }
+
+        .header-nav {
+            display: flex;
+            gap: 8px;
+            margin-left: 16px;
+        }
+
+        .nav-btn {
+            padding: 8px 16px;
+            background: var(--bg-tertiary);
+            border: none;
+            border-radius: 6px;
+            color: var(--text-secondary);
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .nav-btn:hover { background: var(--border-color); color: var(--text-primary); }
+        .nav-btn.active { background: var(--series-color); color: white; }
+
+        .search-box {
+            flex: 1;
+            max-width: 400px;
+            display: flex;
+            align-items: stretch;
+            margin-left: auto;
+        }
+
+        .search-input-wrapper {
+            flex: 1;
+            position: relative;
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 10px 16px 10px 40px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 14px;
+        }
+
+        .search-box input:focus { outline: none; border-color: var(--primary-color); }
+        .search-input-wrapper i { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--text-tertiary); }
+
+        .header-actions { display: flex; gap: 8px; }
+
+        .btn-icon {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--bg-tertiary);
+            border: none;
+            border-radius: 8px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-icon:hover { background: var(--border-color); color: var(--text-primary); }
+
+        /* Main Layout */
+        .main-layout { display: flex; flex: 1; overflow: hidden; }
+
+        /* Sidebar - Categories */
+        .categories-sidebar {
+            width: 280px;
+            min-width: 280px;
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border-color);
+            overflow-y: auto;
+            flex-shrink: 0;
+        }
+
+        .sidebar-header {
+            padding: 16px;
+            border-bottom: 1px solid var(--border-color);
+            font-size: 12px;
+            text-transform: uppercase;
+            color: var(--text-tertiary);
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .category-item {
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border-left: 3px solid transparent;
+        }
+
+        .category-item:hover { background: var(--bg-tertiary); }
+
+        .category-item.active {
+            background: rgba(6, 182, 212, 0.15);
+            border-left-color: var(--series-color);
+        }
+
+        .category-item i { width: 20px; text-align: center; color: var(--text-tertiary); font-size: 14px; }
+        .category-item.active i { color: var(--series-color); }
+
+        .category-name {
+            flex: 1;
+            font-size: 14px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .category-count {
+            font-size: 12px;
+            color: var(--text-tertiary);
+            background: var(--bg-tertiary);
+            padding: 2px 8px;
+            border-radius: 10px;
+            flex-shrink: 0;
+        }
+
+        /* Content Area */
+        .content-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+        .content-header {
+            padding: 16px 24px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-shrink: 0;
+            background: var(--bg-secondary);
+        }
+
+        .content-header h2 {
+            font-size: 18px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .content-header h2 i { color: var(--series-color); }
+        .series-count { font-size: 13px; color: var(--text-tertiary); }
+
+        /* Series Grid */
+        .series-grid-wrapper {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px;
+        }
+
+        .series-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 24px;
+        }
+
+        .series-card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .series-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.4);
+        }
+
+        .series-poster {
+            aspect-ratio: 2/3;
+            background: var(--bg-tertiary);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .series-poster img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.3s;
+        }
+
+        .series-card:hover .series-poster img {
+            transform: scale(1.05);
+        }
+
+        .series-poster-placeholder {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-tertiary);
+            font-size: 48px;
+        }
+
+        .view-btn {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: var(--series-color);
+            border: none;
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+            opacity: 0;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .series-card:hover .view-btn {
+            opacity: 1;
+        }
+
+        .view-btn:hover {
+            transform: translate(-50%, -50%) scale(1.1);
+            background: #0891b2;
+        }
+
+        .series-info {
+            padding: 12px;
+        }
+
+        .series-title {
+            font-size: 14px;
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-bottom: 4px;
+        }
+
+        .series-meta {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            color: var(--text-tertiary);
+        }
+
+        .series-year { color: var(--text-secondary); }
+
+        .series-rating {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            color: var(--warning-color);
+        }
+
+        .series-rating i { font-size: 10px; }
+
+        /* Loading & Empty States */
+        .loading {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 60px;
+            color: var(--text-tertiary);
+            gap: 16px;
+        }
+
+        .loading i { font-size: 32px; animation: spin 1s linear infinite; }
+
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 60px 24px;
+            color: var(--text-tertiary);
+            text-align: center;
+        }
+
+        .empty-state i { font-size: 48px; margin-bottom: 16px; color: var(--series-color); opacity: 0.5; }
+        .empty-state h3 { font-size: 18px; margin-bottom: 8px; color: var(--text-secondary); }
+
+        /* Load More */
+        .load-more-trigger {
+            padding: 20px;
+            text-align: center;
+            color: var(--text-tertiary);
+        }
+
+        /* Series Detail Modal */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .modal-overlay.active { display: flex; }
+
+        .modal-content {
+            background: var(--bg-secondary);
+            border-radius: 16px;
+            max-width: 900px;
+            width: 100%;
+            max-height: 90vh;
+            overflow: hidden;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .modal-header {
+            position: relative;
+            flex-shrink: 0;
+        }
+
+        .modal-scrollable {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: var(--bg-tertiary);
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            z-index: 10;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+        }
+
+        .modal-close:hover { background: var(--border-color); color: var(--text-primary); }
+
+        .modal-backdrop {
+            height: 250px;
+            background: var(--bg-tertiary);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .modal-backdrop img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            opacity: 0.5;
+        }
+
+        .modal-backdrop-gradient {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(to top, var(--bg-secondary) 0%, transparent 100%);
+        }
+
+        .modal-poster {
+            position: absolute;
+            bottom: -60px;
+            left: 24px;
+            width: 130px;
+            height: 195px;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+            background: var(--bg-tertiary);
+        }
+
+        .modal-poster img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .modal-body {
+            padding: 80px 24px 24px;
+        }
+
+        .modal-title {
+            font-size: 26px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .modal-meta {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 16px;
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        .modal-meta .rating {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            color: var(--warning-color);
+        }
+
+        .modal-plot {
+            color: var(--text-secondary);
+            line-height: 1.6;
+            margin-bottom: 24px;
+        }
+
+        .modal-details {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .modal-detail {
+            font-size: 13px;
+        }
+
+        .modal-detail-label {
+            color: var(--text-tertiary);
+            margin-bottom: 4px;
+        }
+
+        .modal-detail-value {
+            color: var(--text-primary);
+        }
+
+        /* Seasons & Episodes */
+        .seasons-section {
+            margin-top: 24px;
+            border-top: 1px solid var(--border-color);
+            padding-top: 24px;
+        }
+
+        .seasons-header {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .seasons-header i { color: var(--series-color); }
+
+        .season-tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+
+        .season-tab {
+            padding: 8px 16px;
+            background: var(--bg-tertiary);
+            border: none;
+            border-radius: 6px;
+            color: var(--text-secondary);
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .season-tab:hover { background: var(--border-color); }
+        .season-tab.active { background: var(--series-color); color: white; }
+
+        .episodes-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .episode-item {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 12px 16px;
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .episode-item:hover { background: var(--border-color); }
+
+        .episode-number {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            background: var(--bg-secondary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 14px;
+            color: var(--series-color);
+            flex-shrink: 0;
+        }
+
+        .episode-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .episode-title {
+            font-size: 14px;
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-bottom: 2px;
+        }
+
+        .episode-meta {
+            font-size: 12px;
+            color: var(--text-tertiary);
+        }
+
+        .episode-play-btn {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: var(--series-color);
+            border: none;
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            flex-shrink: 0;
+            transition: all 0.2s;
+        }
+
+        .episode-play-btn:hover {
+            background: #0891b2;
+            transform: scale(1.1);
+        }
+
+        .episodes-loading {
+            padding: 40px;
+            text-align: center;
+            color: var(--text-tertiary);
+        }
+
+        /* Home Sections - Horizontal Scrolling Netflix-style */
+        .home-sections {
+            padding: 24px;
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        .section-row {
+            margin-bottom: 32px;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+            padding: 0 4px;
+        }
+
+        .section-header h3 {
+            font-size: 18px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section-header h3 i {
+            color: var(--series-color);
+        }
+
+        .section-header .view-all {
+            color: var(--series-color);
+            font-size: 13px;
+            cursor: pointer;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            transition: color 0.2s;
+        }
+
+        .section-header .view-all:hover {
+            color: #0891b2;
+        }
+
+        .section-scroll {
+            display: flex;
+            gap: 16px;
+            overflow-x: auto;
+            padding: 8px 4px 16px;
+            scroll-behavior: smooth;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: thin;
+            scrollbar-color: var(--bg-tertiary) var(--bg-secondary);
+        }
+
+        .section-scroll::-webkit-scrollbar {
+            height: 8px;
+        }
+
+        .section-scroll::-webkit-scrollbar-track {
+            background: var(--bg-secondary);
+            border-radius: 4px;
+        }
+
+        .section-scroll::-webkit-scrollbar-thumb {
+            background: var(--bg-tertiary);
+            border-radius: 4px;
+        }
+
+        .section-scroll::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+
+        .section-card {
+            flex: 0 0 160px;
+            background: var(--card-bg);
+            border-radius: 12px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .section-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.4);
+        }
+
+        .section-card .series-poster {
+            aspect-ratio: 2/3;
+            background: var(--bg-tertiary);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .section-card .series-poster img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.3s;
+        }
+
+        .section-card:hover .series-poster img {
+            transform: scale(1.05);
+        }
+
+        .section-card .series-info {
+            padding: 10px;
+        }
+
+        .section-card .series-title {
+            font-size: 13px;
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-bottom: 4px;
+        }
+
+        .section-card .series-meta {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 11px;
+            color: var(--text-tertiary);
+        }
+
+        /* Mobile Responsive */
+        @media (max-width: 768px) {
+            .categories-sidebar { display: none; }
+            .header-nav { display: none; }
+            .search-box { max-width: none; }
+
+            .series-grid {
+                grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+                gap: 16px;
+            }
+
+            .series-grid-wrapper { padding: 16px; }
+
+            .modal-poster {
+                width: 100px;
+                height: 150px;
+                bottom: -40px;
+            }
+
+            .modal-body { padding: 60px 16px 16px; }
+            .modal-title { font-size: 20px; }
+            .modal-details { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="header">
+            <a href="/portal/" class="back-btn">
+                <i class="fas fa-arrow-left"></i>
+                <span>Portal</span>
+            </a>
+            <div class="header-title">
+                <i class="fas fa-photo-film"></i>
+                <span>TV Shows</span>
+            </div>
+            <nav class="header-nav">
+                <a href="/portal/guide.html" class="nav-btn">
+                    <i class="fas fa-tv"></i> Live TV
+                </a>
+                <a href="/portal/movies.html" class="nav-btn">
+                    <i class="fas fa-film"></i> Movies
+                </a>
+                <a href="/portal/series.html" class="nav-btn active">
+                    <i class="fas fa-photo-film"></i> TV Shows
+                </a>
+            </nav>
+            <div class="search-box">
+                <div class="search-input-wrapper">
+                    <i class="fas fa-search"></i>
+                    <input type="text" id="searchInput" placeholder="Search TV shows...">
+                </div>
+            </div>
+            <div class="header-actions">
+                <button class="btn-icon" id="refreshBtn" title="Refresh">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Layout -->
+        <div class="main-layout">
+            <!-- Categories Sidebar -->
+            <aside class="categories-sidebar">
+                <div class="sidebar-header">
+                    <i class="fas fa-folder"></i>
+                    Categories
+                </div>
+                <div id="categoriesList">
+                    <div class="loading">
+                        <i class="fas fa-spinner"></i>
+                        <span>Loading categories...</span>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Content Area -->
+            <main class="content-area">
+                <div class="content-header">
+                    <h2>
+                        <i class="fas fa-photo-film"></i>
+                        <span id="currentCategory">All TV Shows</span>
+                    </h2>
+                    <span class="series-count" id="seriesCount">0 shows</span>
+                </div>
+
+                <div class="series-grid-wrapper" id="seriesContainer">
+                    <div class="loading" id="seriesLoading">
+                        <i class="fas fa-spinner"></i>
+                        <span>Loading TV shows...</span>
+                    </div>
+                    <div class="series-grid" id="seriesGrid"></div>
+                    <div class="load-more-trigger" id="loadMoreTrigger"></div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Series Detail Modal -->
+    <div class="modal-overlay" id="seriesModal">
+        <div class="modal-content">
+            <button class="modal-close" onclick="closeModal()">
+                <i class="fas fa-times"></i>
+            </button>
+            <div class="modal-header">
+                <div class="modal-backdrop" id="modalBackdrop">
+                    <div class="modal-backdrop-gradient"></div>
+                </div>
+                <div class="modal-poster" id="modalPoster"></div>
+            </div>
+            <div class="modal-scrollable">
+                <div class="modal-body">
+                <h1 class="modal-title" id="modalTitle"></h1>
+                <div class="modal-meta" id="modalMeta"></div>
+                <p class="modal-plot" id="modalPlot"></p>
+                <div class="modal-details" id="modalDetails"></div>
+
+                <!-- Seasons & Episodes -->
+                <div class="seasons-section">
+                    <h3 class="seasons-header">
+                        <i class="fas fa-list"></i>
+                        Episodes
+                    </h3>
+                    <div class="season-tabs" id="seasonTabs"></div>
+                    <div class="episodes-list" id="episodesList">
+                        <div class="episodes-loading">
+                            <i class="fas fa-spinner fa-spin"></i>
+                            <span>Loading episodes...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // State
+        let allSeries = [];
+        let filteredSeries = [];
+        let displayedSeries = [];
+        let categories = [];
+        let currentCategoryId = null;
+        let currentPage = 0;
+        const ITEMS_PER_PAGE = 24;
+        let isLoading = false;
+        let searchTimeout = null;
+        let currentSeriesData = null;
+        let currentSeason = null;
+        let homeSections = [];
+        let isHomeView = true;
+        let cachedDataAvailable = false;
+
+        // DOM Elements
+        const categoriesList = document.getElementById('categoriesList');
+        const seriesGrid = document.getElementById('seriesGrid');
+        const seriesLoading = document.getElementById('seriesLoading');
+        const seriesCount = document.getElementById('seriesCount');
+        const currentCategoryEl = document.getElementById('currentCategory');
+        const searchInput = document.getElementById('searchInput');
+        const loadMoreTrigger = document.getElementById('loadMoreTrigger');
+        const seriesModal = document.getElementById('seriesModal');
+
+        // Get auth token
+        function getToken() {
+            return localStorage.getItem('portal_token');
+        }
+
+        // API helper
+        async function apiRequest(endpoint) {
+            const token = getToken();
+            if (!token) {
+                window.location.href = '/portal/login.html';
+                return null;
+            }
+
+            const response = await fetch(`/api/v2/portal${endpoint}`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            if (response.status === 401) {
+                localStorage.removeItem('portal_token');
+                window.location.href = '/portal/login.html';
+                return null;
+            }
+
+            const data = await response.json();
+            if (!data.success) {
+                throw new Error(data.message || 'API request failed');
+            }
+
+            return data;
+        }
+
+        // Load categories
+        async function loadCategories() {
+            try {
+                // Try cached categories first
+                let data;
+                try {
+                    data = await apiRequest('/iptv/series/cached/categories');
+                    if (data && data.categories) {
+                        cachedDataAvailable = true;
+                    }
+                } catch (e) {
+                    // Fall back to live API
+                    data = await apiRequest('/iptv/series/categories');
+                }
+                if (!data) return;
+
+                categories = data.categories || [];
+
+                // Start with Home option
+                let html = `
+                    <div class="category-item active" data-category-id="home">
+                        <i class="fas fa-home"></i>
+                        <span class="category-name">Home</span>
+                    </div>
+                    <div class="category-item" data-category-id="">
+                        <i class="fas fa-photo-film"></i>
+                        <span class="category-name">All TV Shows</span>
+                    </div>
+                `;
+
+                categories.forEach(cat => {
+                    const count = cat.count || cat.num_series || '';
+                    html += `
+                        <div class="category-item" data-category-id="${cat.category_id}">
+                            <i class="fas fa-folder"></i>
+                            <span class="category-name">${escapeHtml(cat.category_name)}</span>
+                            ${count ? `<span class="category-count">${count}</span>` : ''}
+                        </div>
+                    `;
+                });
+
+                categoriesList.innerHTML = html;
+
+                // Add click handlers
+                categoriesList.querySelectorAll('.category-item').forEach(item => {
+                    item.addEventListener('click', () => selectCategory(item));
+                });
+
+            } catch (error) {
+                console.error('Failed to load categories:', error);
+                const is403 = error.message && error.message.includes('403');
+                categoriesList.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-${is403 ? 'lock' : 'exclamation-circle'}"></i>
+                        <p>${is403 ? 'VOD not available' : 'Failed to load categories'}</p>
+                    </div>
+                `;
+            }
+        }
+
+        // Select category
+        async function selectCategory(item) {
+            categoriesList.querySelectorAll('.category-item').forEach(i => i.classList.remove('active'));
+            item.classList.add('active');
+
+            const categoryId = item.dataset.categoryId;
+            currentCategoryEl.textContent = item.querySelector('.category-name').textContent;
+
+            allSeries = [];
+            filteredSeries = [];
+            displayedSeries = [];
+            currentPage = 0;
+            // Clear grid if it exists (may have been replaced by home sections)
+            const existingGrid = document.getElementById('seriesGrid');
+            if (existingGrid) existingGrid.innerHTML = '';
+            searchInput.value = '';
+
+            // Handle Home view
+            if (categoryId === 'home') {
+                isHomeView = true;
+                currentCategoryId = null;
+                await loadHomePage();
+                return;
+            }
+
+            isHomeView = false;
+            currentCategoryId = categoryId || null;
+
+            // Show the grid view
+            document.getElementById('seriesContainer').innerHTML = `
+                <div class="loading" id="seriesLoading">
+                    <i class="fas fa-spinner"></i>
+                    <span>Loading TV shows...</span>
+                </div>
+                <div class="series-grid" id="seriesGrid"></div>
+                <div class="load-more-trigger" id="loadMoreTrigger"></div>
+            `;
+
+            // Set up infinite scroll observer for the new element
+            const newTrigger = document.getElementById('loadMoreTrigger');
+            if (newTrigger) {
+                observer.observe(newTrigger);
+            }
+
+            await loadSeries(categoryId || null);
+        }
+
+        // Load series
+        async function loadSeries(categoryId = null) {
+            // Get fresh DOM references (elements may have been recreated)
+            const loadingEl = document.getElementById('seriesLoading');
+            const gridEl = document.getElementById('seriesGrid');
+
+            if (loadingEl) loadingEl.style.display = 'flex';
+
+            try {
+                const endpoint = categoryId
+                    ? `/iptv/series/list?category_id=${categoryId}`
+                    : '/iptv/series/list';
+
+                const data = await apiRequest(endpoint);
+                if (!data) return;
+
+                allSeries = data.series || [];
+                filteredSeries = [...allSeries];
+
+                seriesCount.textContent = `${filteredSeries.length} shows`;
+
+                renderSeries();
+
+            } catch (error) {
+                console.error('Failed to load series:', error);
+                const is403 = error.message && error.message.includes('403');
+                const currentGrid = document.getElementById('seriesGrid');
+                if (currentGrid) {
+                    currentGrid.innerHTML = `
+                        <div class="empty-state">
+                            <i class="fas fa-${is403 ? 'lock' : 'exclamation-circle'}"></i>
+                            <h3>${is403 ? 'VOD Not Available' : 'Failed to load TV shows'}</h3>
+                            <p>${is403 ? 'Your IPTV subscription may not include TV Series access. Contact your provider to upgrade your package.' : error.message}</p>
+                        </div>
+                    `;
+                }
+            } finally {
+                const loadingElFinal = document.getElementById('seriesLoading');
+                if (loadingElFinal) loadingElFinal.style.display = 'none';
+            }
+        }
+
+        // Load home page with sections
+        async function loadHomePage() {
+            const container = document.getElementById('seriesContainer');
+            container.innerHTML = `
+                <div class="loading">
+                    <i class="fas fa-spinner"></i>
+                    <span>Loading home...</span>
+                </div>
+            `;
+
+            try {
+                const data = await apiRequest('/iptv/series/cached/home');
+                if (!data) return;
+
+                homeSections = data.sections || [];
+                cachedDataAvailable = true;
+
+                seriesCount.textContent = `${data.totalSeries || 0} shows available`;
+
+                renderHomeSections();
+
+            } catch (error) {
+                console.error('Failed to load home page:', error);
+                // Fall back to loading all series in grid view
+                container.innerHTML = `
+                    <div class="loading" id="seriesLoading">
+                        <i class="fas fa-spinner"></i>
+                        <span>Loading TV shows...</span>
+                    </div>
+                    <div class="series-grid" id="seriesGrid"></div>
+                    <div class="load-more-trigger" id="loadMoreTrigger"></div>
+                `;
+                isHomeView = false;
+
+                // Set up infinite scroll observer
+                const newTrigger = document.getElementById('loadMoreTrigger');
+                if (newTrigger) {
+                    observer.observe(newTrigger);
+                }
+
+                await loadSeries();
+            }
+        }
+
+        // Render home sections (horizontal scrolling rows)
+        function renderHomeSections() {
+            const container = document.getElementById('seriesContainer');
+
+            if (!homeSections || homeSections.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-photo-film"></i>
+                        <h3>No TV shows available</h3>
+                        <p>Content will appear here once the cache is populated</p>
+                    </div>
+                `;
+                return;
+            }
+
+            let html = '<div class="home-sections">';
+
+            homeSections.forEach(section => {
+                // Handle both 'items' and 'series' property names from backend
+                const sectionItems = section.items || section.series || [];
+                if (sectionItems.length === 0) return;
+
+                const icon = section.icon || (section.id === 'recently-added' ? 'clock' :
+                             section.id === 'top-rated' ? 'star' :
+                             section.id === 'popular' ? 'fire' : 'folder');
+
+                html += `
+                    <div class="section-row">
+                        <div class="section-header">
+                            <h3><i class="fas fa-${icon}"></i> ${escapeHtml(section.title)}</h3>
+                            ${section.categoryId ? `
+                                <a class="view-all" onclick="viewCategory('${section.categoryId}', '${escapeHtml(section.title)}')">
+                                    View All <i class="fas fa-chevron-right"></i>
+                                </a>
+                            ` : ''}
+                        </div>
+                        <div class="section-scroll">
+                `;
+
+                sectionItems.forEach(series => {
+                    const posterUrl = series.cover || '';
+                    const year = series.year || series.releaseDate?.substring(0, 4) || '';
+                    const rating = series.rating_5based || (series.rating ? (parseFloat(series.rating) / 2).toFixed(1) : '');
+
+                    html += `
+                        <div class="section-card" onclick='openSeriesDetail(${JSON.stringify(series).replace(/'/g, "\\'")})'>
+                            <div class="series-poster">
+                                ${posterUrl
+                                    ? `<img src="${posterUrl}" alt="${escapeHtml(series.name)}" loading="lazy" onerror="this.style.display='none'">`
+                                    : `<div class="series-poster-placeholder" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center"><i class="fas fa-photo-film" style="font-size:32px;color:var(--text-tertiary)"></i></div>`
+                                }
+                            </div>
+                            <div class="series-info">
+                                <div class="series-title" title="${escapeHtml(series.name)}">${escapeHtml(series.name)}</div>
+                                <div class="series-meta">
+                                    ${year ? `<span>${year}</span>` : ''}
+                                    ${rating ? `<span><i class="fas fa-star" style="color:var(--warning-color)"></i> ${rating}</span>` : ''}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                html += `
+                        </div>
+                    </div>
+                `;
+            });
+
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        // View category from home section
+        function viewCategory(categoryId, categoryName) {
+            // Find and click the category in the sidebar
+            const categoryItems = categoriesList.querySelectorAll('.category-item');
+            for (const item of categoryItems) {
+                if (item.dataset.categoryId === categoryId) {
+                    selectCategory(item);
+                    return;
+                }
+            }
+
+            // If not found in sidebar, load directly
+            isHomeView = false;
+            currentCategoryId = categoryId;
+            currentCategoryEl.textContent = categoryName || 'Category';
+
+            document.getElementById('seriesContainer').innerHTML = `
+                <div class="loading" id="seriesLoading">
+                    <i class="fas fa-spinner"></i>
+                    <span>Loading TV shows...</span>
+                </div>
+                <div class="series-grid" id="seriesGrid"></div>
+                <div class="load-more-trigger" id="loadMoreTrigger"></div>
+            `;
+
+            // Set up infinite scroll observer
+            const newTrigger = document.getElementById('loadMoreTrigger');
+            if (newTrigger) {
+                observer.observe(newTrigger);
+            }
+
+            loadSeries(categoryId);
+        }
+
+        // Render series with pagination
+        function renderSeries() {
+            // Get fresh DOM reference
+            const gridEl = document.getElementById('seriesGrid');
+            if (!gridEl) return;
+
+            const start = currentPage * ITEMS_PER_PAGE;
+            const end = start + ITEMS_PER_PAGE;
+            const seriesToRender = filteredSeries.slice(start, end);
+
+            if (currentPage === 0 && seriesToRender.length === 0) {
+                gridEl.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-photo-film"></i>
+                        <h3>No TV shows found</h3>
+                        <p>Try a different category or search term</p>
+                    </div>
+                `;
+                return;
+            }
+
+            seriesToRender.forEach(series => {
+                displayedSeries.push(series);
+                const card = createSeriesCard(series);
+                gridEl.appendChild(card);
+            });
+
+            currentPage++;
+        }
+
+        // Create series card
+        function createSeriesCard(series) {
+            const card = document.createElement('div');
+            card.className = 'series-card';
+            card.onclick = () => openSeriesDetail(series);
+
+            const posterUrl = series.cover || '';
+            const year = series.year || series.releaseDate?.substring(0, 4) || '';
+            const rating = series.rating_5based || (series.rating ? (parseFloat(series.rating) / 2).toFixed(1) : '');
+
+            card.innerHTML = `
+                <div class="series-poster">
+                    ${posterUrl
+                        ? `<img src="${posterUrl}" alt="${escapeHtml(series.name)}" loading="lazy" onerror="this.parentElement.innerHTML='<div class=\\'series-poster-placeholder\\'><i class=\\'fas fa-photo-film\\'></i></div>'">`
+                        : `<div class="series-poster-placeholder"><i class="fas fa-photo-film"></i></div>`
+                    }
+                    <button class="view-btn" onclick="event.stopPropagation(); openSeriesDetail(${JSON.stringify(series).replace(/"/g, '&quot;')})">
+                        <i class="fas fa-list"></i>
+                    </button>
+                </div>
+                <div class="series-info">
+                    <div class="series-title" title="${escapeHtml(series.name)}">${escapeHtml(series.name)}</div>
+                    <div class="series-meta">
+                        ${year ? `<span class="series-year">${year}</span>` : ''}
+                        ${rating ? `<span class="series-rating"><i class="fas fa-star"></i> ${rating}</span>` : ''}
+                    </div>
+                </div>
+            `;
+
+            return card;
+        }
+
+        // Open series detail modal
+        async function openSeriesDetail(series) {
+            currentSeriesData = null;
+            currentSeason = null;
+
+            // Set basic info first
+            document.getElementById('modalTitle').textContent = series.name;
+
+            const year = series.year || series.releaseDate?.substring(0, 4) || '';
+            const rating = series.rating_5based || (series.rating ? (parseFloat(series.rating) / 2).toFixed(1) : '');
+
+            document.getElementById('modalMeta').innerHTML = `
+                ${year ? `<span>${year}</span>` : ''}
+                ${rating ? `<span class="rating"><i class="fas fa-star"></i> ${rating}</span>` : ''}
+                ${series.genre ? `<span>${series.genre}</span>` : ''}
+            `;
+
+            document.getElementById('modalPlot').textContent = series.plot || 'No description available.';
+
+            // Poster
+            const posterEl = document.getElementById('modalPoster');
+            posterEl.innerHTML = series.cover
+                ? `<img src="${series.cover}" alt="${escapeHtml(series.name)}">`
+                : `<div class="series-poster-placeholder" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:var(--bg-tertiary)"><i class="fas fa-photo-film" style="font-size:36px;color:var(--text-tertiary)"></i></div>`;
+
+            // Backdrop
+            const backdropEl = document.getElementById('modalBackdrop');
+            const backdropUrl = series.backdrop_path || series.cover || '';
+            if (backdropUrl) {
+                backdropEl.innerHTML = `<img src="${backdropUrl}" alt=""><div class="modal-backdrop-gradient"></div>`;
+            } else {
+                backdropEl.innerHTML = `<div class="modal-backdrop-gradient"></div>`;
+            }
+
+            // Details
+            document.getElementById('modalDetails').innerHTML = `
+                ${series.director ? `<div class="modal-detail"><div class="modal-detail-label">Director</div><div class="modal-detail-value">${escapeHtml(series.director)}</div></div>` : ''}
+                ${series.cast ? `<div class="modal-detail"><div class="modal-detail-label">Cast</div><div class="modal-detail-value">${escapeHtml(series.cast)}</div></div>` : ''}
+            `;
+
+            // Reset episodes section
+            document.getElementById('seasonTabs').innerHTML = '';
+            document.getElementById('episodesList').innerHTML = `
+                <div class="episodes-loading">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    <span>Loading episodes...</span>
+                </div>
+            `;
+
+            seriesModal.classList.add('active');
+
+            // Load full series info with episodes
+            try {
+                const data = await apiRequest(`/iptv/series/${series.series_id}`);
+                if (data && data.series) {
+                    currentSeriesData = data.series;
+                    const info = data.series.info;
+
+                    // Update with full details
+                    if (info.plot) document.getElementById('modalPlot').textContent = info.plot;
+
+                    if (info.backdrop_path) {
+                        backdropEl.innerHTML = `<img src="${info.backdrop_path}" alt=""><div class="modal-backdrop-gradient"></div>`;
+                    }
+
+                    document.getElementById('modalDetails').innerHTML = `
+                        ${info.director ? `<div class="modal-detail"><div class="modal-detail-label">Director</div><div class="modal-detail-value">${escapeHtml(info.director)}</div></div>` : ''}
+                        ${info.cast ? `<div class="modal-detail"><div class="modal-detail-label">Cast</div><div class="modal-detail-value">${escapeHtml(info.cast)}</div></div>` : ''}
+                        ${info.genre ? `<div class="modal-detail"><div class="modal-detail-label">Genre</div><div class="modal-detail-value">${escapeHtml(info.genre)}</div></div>` : ''}
+                        <div class="modal-detail"><div class="modal-detail-label">Seasons</div><div class="modal-detail-value">${data.series.totalSeasons}</div></div>
+                        <div class="modal-detail"><div class="modal-detail-label">Episodes</div><div class="modal-detail-value">${data.series.totalEpisodes}</div></div>
+                    `;
+
+                    // Render season tabs and episodes
+                    renderSeasons(data.series);
+                }
+            } catch (e) {
+                console.error('Could not load series details:', e);
+                document.getElementById('episodesList').innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-exclamation-circle"></i>
+                        <p>Failed to load episodes</p>
+                    </div>
+                `;
+            }
+        }
+
+        // Render seasons and episodes
+        function renderSeasons(seriesData) {
+            const seasonTabs = document.getElementById('seasonTabs');
+            const episodesList = document.getElementById('episodesList');
+
+            const seasonNumbers = Object.keys(seriesData.episodes).sort((a, b) => parseInt(a) - parseInt(b));
+
+            if (seasonNumbers.length === 0) {
+                episodesList.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-info-circle"></i>
+                        <p>No episodes available</p>
+                    </div>
+                `;
+                return;
+            }
+
+            // Season tabs
+            let tabsHtml = '';
+            seasonNumbers.forEach((seasonNum, index) => {
+                const episodeCount = seriesData.episodes[seasonNum]?.length || 0;
+                tabsHtml += `
+                    <button class="season-tab ${index === 0 ? 'active' : ''}" data-season="${seasonNum}">
+                        Season ${seasonNum} (${episodeCount})
+                    </button>
+                `;
+            });
+            seasonTabs.innerHTML = tabsHtml;
+
+            // Add click handlers to tabs
+            seasonTabs.querySelectorAll('.season-tab').forEach(tab => {
+                tab.addEventListener('click', () => {
+                    seasonTabs.querySelectorAll('.season-tab').forEach(t => t.classList.remove('active'));
+                    tab.classList.add('active');
+                    renderEpisodes(seriesData.episodes[tab.dataset.season], tab.dataset.season);
+                });
+            });
+
+            // Render first season's episodes
+            currentSeason = seasonNumbers[0];
+            renderEpisodes(seriesData.episodes[currentSeason], currentSeason);
+        }
+
+        // Render episodes for a season
+        function renderEpisodes(episodes, seasonNum) {
+            const episodesList = document.getElementById('episodesList');
+
+            if (!episodes || episodes.length === 0) {
+                episodesList.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-info-circle"></i>
+                        <p>No episodes in this season</p>
+                    </div>
+                `;
+                return;
+            }
+
+            // Sort by episode number
+            episodes.sort((a, b) => (a.episode_num || 0) - (b.episode_num || 0));
+
+            let html = '';
+            episodes.forEach(ep => {
+                const epNum = ep.episode_num || '?';
+                const duration = ep.info?.duration || '';
+
+                html += `
+                    <div class="episode-item" onclick="playEpisode('${ep.url}', '${escapeHtml(currentSeriesData?.info?.name || '')}', ${seasonNum}, ${epNum}, '${escapeHtml(ep.title)}')">
+                        <div class="episode-number">${epNum}</div>
+                        <div class="episode-info">
+                            <div class="episode-title">${escapeHtml(ep.title)}</div>
+                            <div class="episode-meta">
+                                S${seasonNum} E${epNum}
+                                ${duration ? ` &bull; ${duration}` : ''}
+                            </div>
+                        </div>
+                        <button class="episode-play-btn" onclick="event.stopPropagation(); playEpisode('${ep.url}', '${escapeHtml(currentSeriesData?.info?.name || '')}', ${seasonNum}, ${epNum}, '${escapeHtml(ep.title)}')">
+                            <i class="fas fa-play"></i>
+                        </button>
+                    </div>
+                `;
+            });
+
+            episodesList.innerHTML = html;
+        }
+
+        // Close modal
+        function closeModal() {
+            seriesModal.classList.remove('active');
+            currentSeriesData = null;
+            currentSeason = null;
+        }
+
+        // Play episode
+        function playEpisode(url, seriesName, season, episode, episodeTitle) {
+            closeModal();
+            const name = `${seriesName} - S${season}E${episode} - ${episodeTitle}`;
+            const encodedUrl = encodeURIComponent(url);
+            const encodedName = encodeURIComponent(name);
+            window.location.href = `/portal/player.html?url=${encodedUrl}&name=${encodedName}&type=series`;
+        }
+
+        // Search series
+        function searchSeries(query) {
+            query = query.toLowerCase().trim();
+
+            // If in home view and searching, switch to grid view
+            if (isHomeView && query) {
+                isHomeView = false;
+                // Load all series first if not loaded
+                if (allSeries.length === 0) {
+                    loadSeries().then(() => searchSeries(query));
+                    return;
+                }
+                // Switch to grid view
+                document.getElementById('seriesContainer').innerHTML = `
+                    <div class="loading" id="seriesLoading" style="display:none">
+                        <i class="fas fa-spinner"></i>
+                        <span>Loading TV shows...</span>
+                    </div>
+                    <div class="series-grid" id="seriesGrid"></div>
+                    <div class="load-more-trigger" id="loadMoreTrigger"></div>
+                `;
+                const newTrigger = document.getElementById('loadMoreTrigger');
+                if (newTrigger) observer.observe(newTrigger);
+            }
+
+            if (!query) {
+                filteredSeries = [...allSeries];
+            } else {
+                filteredSeries = allSeries.filter(series =>
+                    series.name.toLowerCase().includes(query) ||
+                    (series.plot && series.plot.toLowerCase().includes(query)) ||
+                    (series.cast && series.cast.toLowerCase().includes(query)) ||
+                    (series.director && series.director.toLowerCase().includes(query))
+                );
+            }
+
+            currentPage = 0;
+            displayedSeries = [];
+            const gridEl = document.getElementById('seriesGrid');
+            if (gridEl) gridEl.innerHTML = '';
+            seriesCount.textContent = `${filteredSeries.length} shows`;
+            renderSeries();
+        }
+
+        // Escape HTML
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Intersection Observer for infinite scroll
+        const observer = new IntersectionObserver((entries) => {
+            if (entries[0].isIntersecting && !isLoading && !isHomeView && displayedSeries.length < filteredSeries.length) {
+                renderSeries();
+            }
+        }, { rootMargin: '200px' });
+
+        // Event Listeners
+        searchInput.addEventListener('input', (e) => {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => searchSeries(e.target.value), 300);
+        });
+
+        document.getElementById('refreshBtn').addEventListener('click', () => {
+            loadCategories();
+            if (isHomeView) {
+                loadHomePage();
+            } else {
+                loadSeries(currentCategoryId);
+            }
+        });
+
+        // Close modal on outside click
+        seriesModal.addEventListener('click', (e) => {
+            if (e.target === seriesModal) closeModal();
+        });
+
+        // Close modal on Escape
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && seriesModal.classList.contains('active')) {
+                closeModal();
+            }
+        });
+
+        // Initialize
+        async function init() {
+            const token = getToken();
+            if (!token) {
+                window.location.href = '/portal/login.html';
+                return;
+            }
+
+            // Check if user has permission to view TV shows
+            try {
+                const userData = await apiRequest('/user/full');
+                if (!userData.user.show_iptv_series) {
+                    // User doesn't have access to TV shows, redirect to portal
+                    window.location.href = '/portal/';
+                    return;
+                }
+            } catch (error) {
+                console.error('Failed to check user permissions:', error);
+                // Allow access on error (fail open for UX)
+            }
+
+            await loadCategories();
+            await loadHomePage();
+        }
+
+        init();
+    </script>
+</body>
+</html>

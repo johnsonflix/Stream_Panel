@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <link rel="icon" type="image/png" href="/assets/favicon.png">
+    <link rel="apple-touch-icon" href="/assets/favicon.png">
+    <title>Redirecting...</title>
+    <script>
+        // Check for existing sessions and redirect appropriately
+        (function() {
+            // Check for portal user session first
+            var portalToken = localStorage.getItem('portal_token');
+            if (portalToken) {
+                window.location.replace('/portal/');
+                return;
+            }
+
+            // Check for admin session
+            var adminToken = localStorage.getItem('sessionToken') || sessionStorage.getItem('sessionToken');
+            if (adminToken) {
+                window.location.replace('/admin/');
+                return;
+            }
+
+            // No session - go to login page
+            window.location.replace('/login.html');
+        })();
+    </script>
+</head>
+<body>
+    <p>Redirecting...</p>
+</body>
+</html>

@@ -1,0 +1,351 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 400">
+  <defs>
+    <linearGradient id="espnGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#d00;stop-opacity:0.9"/>
+      <stop offset="100%" style="stop-color:#a00;stop-opacity:0.7"/>
+    </linearGradient>
+    <linearGradient id="nflGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#013369;stop-opacity:0.9"/>
+      <stop offset="100%" style="stop-color:#012244;stop-opacity:0.7"/>
+    </linearGradient>
+    <linearGradient id="nbcGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ff6600;stop-opacity:0.85"/>
+      <stop offset="100%" style="stop-color:#cc5200;stop-opacity:0.65"/>
+    </linearGradient>
+    <linearGradient id="cbsGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a1a1a;stop-opacity:0.9"/>
+      <stop offset="100%" style="stop-color:#333;stop-opacity:0.7"/>
+    </linearGradient>
+    <linearGradient id="abcGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#000;stop-opacity:0.85"/>
+      <stop offset="100%" style="stop-color:#222;stop-opacity:0.65"/>
+    </linearGradient>
+    <linearGradient id="foxGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#003087;stop-opacity:0.9"/>
+      <stop offset="100%" style="stop-color:#001f5c;stop-opacity:0.7"/>
+    </linearGradient>
+    <linearGradient id="tntGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#e50914;stop-opacity:0.85"/>
+      <stop offset="100%" style="stop-color:#b8070f;stop-opacity:0.65"/>
+    </linearGradient>
+    <linearGradient id="nickGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ff6600;stop-opacity:0.9"/>
+      <stop offset="100%" style="stop-color:#ff8533;stop-opacity:0.7"/>
+    </linearGradient>
+    <linearGradient id="disneyGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#113ccf;stop-opacity:0.85"/>
+      <stop offset="100%" style="stop-color:#0d2ea3;stop-opacity:0.65"/>
+    </linearGradient>
+    <linearGradient id="comedyGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ffcc00;stop-opacity:0.9"/>
+      <stop offset="100%" style="stop-color:#cca300;stop-opacity:0.7"/>
+    </linearGradient>
+    <linearGradient id="mlbGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#bf0d3e;stop-opacity:0.9"/>
+      <stop offset="100%" style="stop-color:#8c0a2e;stop-opacity:0.7"/>
+    </linearGradient>
+    <linearGradient id="hboGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#000;stop-opacity:0.9"/>
+      <stop offset="100%" style="stop-color:#1a1a1a;stop-opacity:0.7"/>
+    </linearGradient>
+    <linearGradient id="usaGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0033a0;stop-opacity:0.85"/>
+      <stop offset="100%" style="stop-color:#002878;stop-opacity:0.65"/>
+    </linearGradient>
+    <linearGradient id="fxGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f0a500;stop-opacity:0.9"/>
+      <stop offset="100%" style="stop-color:#c08400;stop-opacity:0.7"/>
+    </linearGradient>
+    <linearGradient id="amcGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1d1d1d;stop-opacity:0.85"/>
+      <stop offset="100%" style="stop-color:#3d3d3d;stop-opacity:0.65"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Row 1 -->
+  <g transform="translate(10, 15) rotate(-8)">
+    <rect width="70" height="35" rx="4" fill="url(#espnGrad)"/>
+    <text x="35" y="24" text-anchor="middle" fill="white" font-family="Arial Black, sans-serif" font-size="14" font-weight="bold">ESPN</text>
+  </g>
+
+  <g transform="translate(95, 5) rotate(5)">
+    <rect width="55" height="35" rx="4" fill="url(#nflGrad)"/>
+    <text x="27" y="24" text-anchor="middle" fill="white" font-family="Arial Black, sans-serif" font-size="12" font-weight="bold">NFL</text>
+  </g>
+
+  <g transform="translate(165, 20) rotate(-3)">
+    <rect width="55" height="35" rx="4" fill="url(#nbcGrad)"/>
+    <text x="27" y="24" text-anchor="middle" fill="white" font-family="Arial Black, sans-serif" font-size="12" font-weight="bold">NBC</text>
+  </g>
+
+  <g transform="translate(235, 8) rotate(7)">
+    <rect width="55" height="35" rx="4" fill="url(#cbsGrad)"/>
+    <text x="27" y="24" text-anchor="middle" fill="white" font-family="Arial Black, sans-serif" font-size="12" font-weight="bold">CBS</text>
+  </g>
+
+  <g transform="translate(305, 18) rotate(-6)">
+    <rect width="55" height="35" rx="4" fill="url(#abcGrad)"/>
+    <text x="27" y="24" text-anchor="middle" fill="white" font-family="Arial Black, sans-serif" font-size="12" font-weight="bold">ABC</text>
+  </g>
+
+  <g transform="translate(375, 5) rotate(4)">
+    <rect width="55" height="35" rx="4" fill="url(#foxGrad)"/>
+    <text x="27" y="24" text-anchor="middle" fill="white" font-family="Arial Black, sans-serif" font-size="12" font-weight="bold">FOX</text>
+  </g>
+
+  <g transform="translate(445, 22) rotate(-5)">
+    <rect width="55" height="35" rx="4" fill="url(#tntGrad)"/>
+    <text x="27" y="24" text-anchor="middle" fill="white" font-family="Arial Black, sans-serif" font-size="12" font-weight="bold">TNT</text>
+  </g>
+
+  <g transform="translate(515, 10) rotate(8)">
+    <rect width="75" height="35" rx="4" fill="url(#nickGrad)"/>
+    <text x="37" y="24" text-anchor="middle" fill="white" font-family="Arial Black, sans-serif" font-size="10" font-weight="bold">NICK</text>
+  </g>
+
+  <!-- Row 2 -->
+  <g transform="translate(25, 70) rotate(6)">
+    <rect width="75" height="35" rx="4" fill="url(#disneyGrad)"/>
+    <text x="37" y="24" text-anchor="middle" fill="white" font-family="Arial Black, sans-serif" font-size="10" font-weight="bold">DISNEY</text>
+  </g>
+
+  <g transform="translate(115, 80) rotate(-7)">
+    <rect width="55" height="35" rx="4" fill="url(#mlbGrad)"/>
+    <text x="27" y="24" text-anchor="middle" fill="white" font-family="Arial Black, sans-serif" font-size="12" font-weight="bold">MLB</text>
+  </g>
+
+  <g transform="translate(185, 65) rotate(4)">
+    <rect width="55" height="35" rx="4" fill="url(#hboGrad)"/>
+    <text x="27" y="24" text-anchor="middle" fill="white" font-family="Arial Black, sans-serif" font-size="12" font-weight="bold">HBO</text>
+  </g>
+
+  <g transform="translate(255, 75) rotate(-5)">
+    <rect width="55" height="35" rx="4" fill="url(#usaGrad)"/>
+    <text x="27" y="24" text-anchor="middle" fill="white" font-family="Arial Black, sans-serif" font-size="12" font-weight="bold">USA</text>
+  </g>
+
+  <g transform="translate(325, 68) rotate(8)">
+    <rect width="45" height="35" rx="4" fill="url(#fxGrad)"/>
+    <text x="22" y="24" text-anchor="middle" fill="#000" font-family="Arial Black, sans-serif" font-size="14" font-weight="bold">FX</text>
+  </g>
+
+  <g transform="translate(385, 82) rotate(-4)">
+    <rect width="55" height="35" rx="4" fill="url(#amcGrad)"/>
+    <text x="27" y="24" text-anchor="middle" fill="white" font-family="Arial Black, sans-serif" font-size="12" font-weight="bold">AMC</text>
+  </g>
+
+  <g transform="translate(455, 72) rotate(6)">
+    <rect width="70" height="35" rx="4" fill="url(#espnGrad)"/>
+    <text x="35" y="24" text-anchor="middle" fill="white" font-family="Arial Black, sans-serif" font-size="12" font-weight="bold">ESPN2</text>
+  </g>
+
+  <g transform="translate(540, 78) rotate(-6)">
+    <rect width="55" height="35" rx="4" fill="url(#cbsGrad)"/>
+    <text x="27" y="24" text-anchor="middle" fill="white" font-family="Arial Black, sans-serif" font-size="12" font-weight="bold">CBS</text>
+  </g>
+
+  <!-- Row 3 -->
+  <g transform="translate(5, 130) rotate(-5)">
+    <rect width="55" height="35" rx="4" fill="url(#foxGrad)"/>
+    <text x="27" y="24" text-anchor="middle" fill="white" font-family="Arial Black, sans-serif" font-size="12" font-weight="bold">FOX</text>
+  </g>
+
+  <g transform="translate(75, 140) rotate(7)">
+    <rect width="75" height="35" rx="4" fill="url(#comedyGrad)"/>
+    <text x="37" y="22" text-anchor="middle" fill="#000" font-family="Arial Black, sans-serif" font-size="8" font-weight="bold">COMEDY</text>
+  </g>
+
+  <g transform="translate(165, 125) rotate(-4)">
+    <rect width="55" height="35" rx="4" fill="url(#tntGrad)"/>
+    <text x="27" y="24" text-anchor="middle" fill="white" font-family="Arial Black, sans-serif" font-size="12" font-weight="bold">TBS</text>
+  </g>
+
+  <g transform="translate(235, 138) rotate(5)">
+    <rect width="55" height="35" rx="4" fill="url(#nflGrad)"/>
+    <text x="27" y="24" text-anchor="middle" fill="white" font-family="Arial Black, sans-serif" font-size="10" font-weight="bold">NFLN</text>
+  </g>
+
+  <g transform="translate(305, 128) rotate(-8)">
+    <rect width="55" height="35" rx="4" fill="url(#nbcGrad)"/>
+    <text x="27" y="24" text-anchor="middle" fill="white" font-family="Arial Black, sans-serif" font-size="10" font-weight="bold">CNBC</text>
+  </g>
+
+  <g transform="translate(375, 142) rotate(4)">
+    <rect width="55" height="35" rx="4" fill="url(#abcGrad)"/>
+    <text x="27" y="24" text-anchor="middle" fill="white" font-family="Arial Black, sans-serif" font-size="10" font-weight="bold">CNN</text>
+  </g>
+
+  <g transform="translate(445, 130) rotate(-6)">
+    <rect width="70" height="35" rx="4" fill="url(#mlbGrad)"/>
+    <text x="35" y="24" text-anchor="middle" fill="white" font-family="Arial Black, sans-serif" font-size="10" font-weight="bold">MLBN</text>
+  </g>
+
+  <g transform="translate(530, 135) rotate(5)">
+    <rect width="65" height="35" rx="4" fill="url(#disneyGrad)"/>
+    <text x="32" y="22" text-anchor="middle" fill="white" font-family="Arial Black, sans-serif" font-size="8" font-weight="bold">DISNEY+</text>
+  </g>
+
+  <!-- Row 4 -->
+  <g transform="translate(20, 190) rotate(5)">
+    <rect width="55" height="35" rx="4" fill="url(#usaGrad)"/>
+    <text x="27" y="24" text-anchor="middle" fill="white" font-family="Arial Black, sans-serif" font-size="10" font-weight="bold">SYFY</text>
+  </g>
+
+  <g transform="translate(90, 200) rotate(-6)">
+    <rect width="55" height="35" rx="4" fill="url(#hboGrad)"/>
+    <text x="27" y="24" text-anchor="middle" fill="white" font-family="Arial Black, sans-serif" font-size="10" font-weight="bold">MAX</text>
+  </g>
+
+  <g transform="translate(160, 185) rotate(4)">
+    <rect width="70" height="35" rx="4" fill="url(#espnGrad)"/>
+    <text x="35" y="24" text-anchor="middle" fill="white" font-family="Arial Black, sans-serif" font-size="10" font-weight="bold">ESPNU</text>
+  </g>
+
+  <g transform="translate(245, 195) rotate(-5)">
+    <rect width="55" height="35" rx="4" fill="url(#nickGrad)"/>
+    <text x="27" y="24" text-anchor="middle" fill="white" font-family="Arial Black, sans-serif" font-size="10" font-weight="bold">MTV</text>
+  </g>
+
+  <g transform="translate(315, 188) rotate(7)">
+    <rect width="55" height="35" rx="4" fill="url(#cbsGrad)"/>
+    <text x="27" y="24" text-anchor="middle" fill="white" font-family="Arial Black, sans-serif" font-size="10" font-weight="bold">BET</text>
+  </g>
+
+  <g transform="translate(385, 198) rotate(-4)">
+    <rect width="55" height="35" rx="4" fill="url(#foxGrad)"/>
+    <text x="27" y="24" text-anchor="middle" fill="white" font-family="Arial Black, sans-serif" font-size="10" font-weight="bold">FS1</text>
+  </g>
+
+  <g transform="translate(455, 182) rotate(6)">
+    <rect width="55" height="35" rx="4" fill="url(#tntGrad)"/>
+    <text x="27" y="24" text-anchor="middle" fill="white" font-family="Arial Black, sans-serif" font-size="12" font-weight="bold">TNT</text>
+  </g>
+
+  <g transform="translate(525, 192) rotate(-7)">
+    <rect width="70" height="35" rx="4" fill="url(#nbcGrad)"/>
+    <text x="35" y="24" text-anchor="middle" fill="white" font-family="Arial Black, sans-serif" font-size="10" font-weight="bold">BRAVO</text>
+  </g>
+
+  <!-- Row 5 -->
+  <g transform="translate(5, 248) rotate(-4)">
+    <rect width="55" height="35" rx="4" fill="url(#amcGrad)"/>
+    <text x="27" y="24" text-anchor="middle" fill="white" font-family="Arial Black, sans-serif" font-size="12" font-weight="bold">AMC</text>
+  </g>
+
+  <g transform="translate(75, 258) rotate(6)">
+    <rect width="55" height="35" rx="4" fill="url(#abcGrad)"/>
+    <text x="27" y="24" text-anchor="middle" fill="white" font-family="Arial Black, sans-serif" font-size="12" font-weight="bold">ABC</text>
+  </g>
+
+  <g transform="translate(145, 245) rotate(-5)">
+    <rect width="75" height="35" rx="4" fill="url(#disneyGrad)"/>
+    <text x="37" y="22" text-anchor="middle" fill="white" font-family="Arial Black, sans-serif" font-size="9" font-weight="bold">FREEFORM</text>
+  </g>
+
+  <g transform="translate(235, 255) rotate(4)">
+    <rect width="65" height="35" rx="4" fill="url(#espnGrad)"/>
+    <text x="32" y="22" text-anchor="middle" fill="white" font-family="Arial Black, sans-serif" font-size="9" font-weight="bold">SECN</text>
+  </g>
+
+  <g transform="translate(315, 250) rotate(-6)">
+    <rect width="55" height="35" rx="4" fill="url(#nflGrad)"/>
+    <text x="27" y="24" text-anchor="middle" fill="white" font-family="Arial Black, sans-serif" font-size="10" font-weight="bold">NBA</text>
+  </g>
+
+  <g transform="translate(385, 262) rotate(5)">
+    <rect width="55" height="35" rx="4" fill="url(#hboGrad)"/>
+    <text x="27" y="24" text-anchor="middle" fill="white" font-family="Arial Black, sans-serif" font-size="10" font-weight="bold">STARZ</text>
+  </g>
+
+  <g transform="translate(455, 248) rotate(-7)">
+    <rect width="55" height="35" rx="4" fill="url(#usaGrad)"/>
+    <text x="27" y="24" text-anchor="middle" fill="white" font-family="Arial Black, sans-serif" font-size="12" font-weight="bold">USA</text>
+  </g>
+
+  <g transform="translate(525, 255) rotate(4)">
+    <rect width="70" height="35" rx="4" fill="url(#fxGrad)"/>
+    <text x="35" y="24" text-anchor="middle" fill="#000" font-family="Arial Black, sans-serif" font-size="12" font-weight="bold">FXX</text>
+  </g>
+
+  <!-- Row 6 -->
+  <g transform="translate(25, 310) rotate(5)">
+    <rect width="55" height="35" rx="4" fill="url(#cbsGrad)"/>
+    <text x="27" y="24" text-anchor="middle" fill="white" font-family="Arial Black, sans-serif" font-size="10" font-weight="bold">SHOW</text>
+  </g>
+
+  <g transform="translate(95, 318) rotate(-4)">
+    <rect width="70" height="35" rx="4" fill="url(#nickGrad)"/>
+    <text x="35" y="22" text-anchor="middle" fill="white" font-family="Arial Black, sans-serif" font-size="8" font-weight="bold">NICK JR</text>
+  </g>
+
+  <g transform="translate(180, 305) rotate(6)">
+    <rect width="55" height="35" rx="4" fill="url(#mlbGrad)"/>
+    <text x="27" y="24" text-anchor="middle" fill="white" font-family="Arial Black, sans-serif" font-size="10" font-weight="bold">NHL</text>
+  </g>
+
+  <g transform="translate(250, 315) rotate(-5)">
+    <rect width="55" height="35" rx="4" fill="url(#nbcGrad)"/>
+    <text x="27" y="24" text-anchor="middle" fill="white" font-family="Arial Black, sans-serif" font-size="10" font-weight="bold">E!</text>
+  </g>
+
+  <g transform="translate(320, 308) rotate(4)">
+    <rect width="55" height="35" rx="4" fill="url(#tntGrad)"/>
+    <text x="27" y="24" text-anchor="middle" fill="white" font-family="Arial Black, sans-serif" font-size="10" font-weight="bold">TRU</text>
+  </g>
+
+  <g transform="translate(390, 320) rotate(-6)">
+    <rect width="65" height="35" rx="4" fill="url(#comedyGrad)"/>
+    <text x="32" y="22" text-anchor="middle" fill="#000" font-family="Arial Black, sans-serif" font-size="9" font-weight="bold">FOOD</text>
+  </g>
+
+  <g transform="translate(470, 305) rotate(5)">
+    <rect width="55" height="35" rx="4" fill="url(#foxGrad)"/>
+    <text x="27" y="24" text-anchor="middle" fill="white" font-family="Arial Black, sans-serif" font-size="10" font-weight="bold">FS2</text>
+  </g>
+
+  <g transform="translate(540, 315) rotate(-4)">
+    <rect width="55" height="35" rx="4" fill="url(#espnGrad)"/>
+    <text x="27" y="24" text-anchor="middle" fill="white" font-family="Arial Black, sans-serif" font-size="12" font-weight="bold">ESPN</text>
+  </g>
+
+  <!-- Row 7 (partial, bottom) -->
+  <g transform="translate(10, 365) rotate(-5)">
+    <rect width="55" height="35" rx="4" fill="url(#disneyGrad)"/>
+    <text x="27" y="22" text-anchor="middle" fill="white" font-family="Arial Black, sans-serif" font-size="9" font-weight="bold">DISXD</text>
+  </g>
+
+  <g transform="translate(80, 372) rotate(4)">
+    <rect width="55" height="35" rx="4" fill="url(#abcGrad)"/>
+    <text x="27" y="24" text-anchor="middle" fill="white" font-family="Arial Black, sans-serif" font-size="10" font-weight="bold">A&amp;E</text>
+  </g>
+
+  <g transform="translate(150, 368) rotate(-6)">
+    <rect width="70" height="35" rx="4" fill="url(#hboGrad)"/>
+    <text x="35" y="22" text-anchor="middle" fill="white" font-family="Arial Black, sans-serif" font-size="9" font-weight="bold">HISTORY</text>
+  </g>
+
+  <g transform="translate(235, 375) rotate(5)">
+    <rect width="55" height="35" rx="4" fill="url(#usaGrad)"/>
+    <text x="27" y="24" text-anchor="middle" fill="white" font-family="Arial Black, sans-serif" font-size="10" font-weight="bold">DISC</text>
+  </g>
+
+  <g transform="translate(305, 362) rotate(-4)">
+    <rect width="65" height="35" rx="4" fill="url(#nflGrad)"/>
+    <text x="32" y="24" text-anchor="middle" fill="white" font-family="Arial Black, sans-serif" font-size="10" font-weight="bold">GOLF</text>
+  </g>
+
+  <g transform="translate(385, 370) rotate(6)">
+    <rect width="55" height="35" rx="4" fill="url(#amcGrad)"/>
+    <text x="27" y="24" text-anchor="middle" fill="white" font-family="Arial Black, sans-serif" font-size="10" font-weight="bold">IFC</text>
+  </g>
+
+  <g transform="translate(455, 365) rotate(-5)">
+    <rect width="75" height="35" rx="4" fill="url(#nbcGrad)"/>
+    <text x="37" y="22" text-anchor="middle" fill="white" font-family="Arial Black, sans-serif" font-size="9" font-weight="bold">OXYGEN</text>
+  </g>
+
+  <g transform="translate(545, 372) rotate(4)">
+    <rect width="55" height="35" rx="4" fill="url(#tntGrad)"/>
+    <text x="27" y="24" text-anchor="middle" fill="white" font-family="Arial Black, sans-serif" font-size="12" font-weight="bold">TBS</text>
+  </g>
+</svg>

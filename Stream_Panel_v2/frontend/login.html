@@ -1,0 +1,1340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/png" href="/assets/favicon.png">
+    <link rel="apple-touch-icon" href="/assets/favicon.png">
+    <title>Login - StreamPanel</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* Login-specific styles - Always Dark Mode */
+        :root {
+            --bg-primary: #0f172a;
+            --bg-secondary: #1e293b;
+            --bg-tertiary: #334155;
+            --card-bg: #1e293b;
+            --border-color: #334155;
+            --text-primary: #f8fafc;
+            --text-secondary: #cbd5e1;
+            --text-tertiary: #94a3b8;
+            --primary-color: #8e24aa;
+            --primary-color-hover: #7b1fa2;
+            --error-color: #ef4444;
+            --success-color: #22c55e;
+            --plex-color: #e5a00d;
+            --plex-color-hover: #cc8f0c;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            padding: 20px;
+        }
+
+        .login-container {
+            width: 100%;
+            max-width: 420px;
+        }
+
+        .login-card {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 40px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
+            border: 1px solid var(--border-color);
+            animation: fadeInUp 0.5s ease-out;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .login-header {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+
+        .login-logo {
+            max-width: 180px;
+            max-height: 80px;
+            margin-bottom: 15px;
+            object-fit: contain;
+        }
+
+        .login-logo-large {
+            max-width: 250px;
+            max-height: 120px;
+        }
+
+        .login-icon {
+            font-size: 48px;
+            color: var(--primary-color);
+            margin-bottom: 15px;
+        }
+
+        .login-icon-large {
+            font-size: 72px;
+        }
+
+        .login-title {
+            font-size: 24px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin: 0 0 8px 0;
+        }
+
+        .login-subtitle {
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin: 0;
+        }
+
+        /* Login Type Toggle (Admin/End User) */
+        .login-type-toggle {
+            margin-bottom: 24px;
+        }
+
+        .toggle-container {
+            display: flex;
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            padding: 4px;
+        }
+
+        .toggle-btn {
+            flex: 1;
+            padding: 10px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+
+        .toggle-btn.active {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .toggle-btn:not(.active) {
+            background: transparent;
+            color: var(--text-secondary);
+        }
+
+        .toggle-btn:not(.active):hover {
+            color: var(--text-primary);
+        }
+
+        /* Alert Styles */
+        .alert {
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            margin-bottom: 20px;
+            display: none;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .alert.show {
+            display: flex;
+        }
+
+        .alert-error {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            color: #ef4444;
+        }
+
+        .alert-success {
+            background: rgba(34, 197, 94, 0.1);
+            border: 1px solid rgba(34, 197, 94, 0.3);
+            color: #22c55e;
+        }
+
+        /* Form Styles */
+        .login-form {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .form-label {
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .form-input-wrapper {
+            position: relative;
+        }
+
+        .form-input-icon {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-tertiary);
+            font-size: 16px;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 12px 12px 12px 40px;
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 14px;
+            background-color: var(--bg-secondary);
+            color: var(--text-primary);
+            transition: border-color 0.2s;
+            box-sizing: border-box;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+
+        .form-input::placeholder {
+            color: var(--text-tertiary);
+        }
+
+        .form-error {
+            font-size: 13px;
+            color: var(--error-color);
+            margin-top: 4px;
+            display: none;
+        }
+
+        .form-error.show {
+            display: block;
+        }
+
+        .login-button {
+            width: 100%;
+            padding: 14px;
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .login-button:hover {
+            background: var(--primary-color-hover);
+            transform: translateY(-1px);
+        }
+
+        .login-button:active {
+            transform: scale(0.98);
+        }
+
+        .login-button:disabled {
+            background: var(--border-color);
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .login-button.plex-button {
+            background: var(--plex-color);
+            color: #1a1a1a;
+        }
+
+        .login-button.plex-button:hover {
+            background: var(--plex-color-hover);
+        }
+
+        .login-button .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Divider */
+        .login-divider {
+            margin: 24px 0;
+            text-align: center;
+            position: relative;
+        }
+
+        .login-divider::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 0;
+            right: 0;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .login-divider span {
+            background: var(--card-bg);
+            padding: 0 16px;
+            position: relative;
+            color: var(--text-tertiary);
+            font-size: 13px;
+        }
+
+        /* Footer */
+        .login-footer {
+            text-align: center;
+            margin-top: 24px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border-color);
+            font-size: 13px;
+            color: var(--text-tertiary);
+        }
+
+        /* Forgot Login Link */
+        .forgot-login-link {
+            text-align: center;
+            margin-top: 16px;
+        }
+
+        .forgot-login-link a {
+            color: var(--text-secondary);
+            font-size: 13px;
+            text-decoration: none;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+
+        .forgot-login-link a:hover {
+            color: var(--primary-color);
+        }
+
+        /* Email Lookup Form */
+        .email-lookup-form {
+            display: none;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .email-lookup-form.show {
+            display: block;
+        }
+
+        .email-lookup-title {
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-primary);
+            margin-bottom: 12px;
+            text-align: center;
+        }
+
+        .back-to-login {
+            text-align: center;
+            margin-top: 12px;
+        }
+
+        .back-to-login a {
+            color: var(--text-secondary);
+            font-size: 13px;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .back-to-login a:hover {
+            color: var(--primary-color);
+        }
+
+        /* Responsive */
+        @media (max-width: 480px) {
+            .login-card {
+                padding: 30px 20px;
+            }
+
+            .login-title {
+                font-size: 20px;
+            }
+
+            .toggle-btn {
+                font-size: 13px;
+                padding: 8px 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-card">
+            <div class="login-header">
+                <div id="logo-container">
+                    <div class="login-icon"><i class="fas fa-tv"></i></div>
+                </div>
+                <h1 class="login-title" id="login-title">StreamPanel</h1>
+                <p class="login-subtitle" id="login-subtitle">Sign in to your account</p>
+            </div>
+
+            <!-- Login Type Toggle (Admin/End User) -->
+            <div class="login-type-toggle">
+                <div class="toggle-container">
+                    <button type="button" id="user-toggle" class="toggle-btn active">
+                        <i class="fas fa-user"></i>End User
+                    </button>
+                    <button type="button" id="admin-toggle" class="toggle-btn">
+                        <i class="fas fa-user-shield"></i>Admin
+                    </button>
+                </div>
+            </div>
+
+            <!-- Alert Messages -->
+            <div id="alert" class="alert"></div>
+
+            <!-- ==================== END USER LOGIN ==================== -->
+            <div id="end-user-section">
+                <form id="iptv-login-form" class="login-form">
+                    <div class="form-group">
+                        <label for="iptv-username" class="form-label">Username</label>
+                        <div class="form-input-wrapper">
+                            <i class="fas fa-user form-input-icon"></i>
+                            <input
+                                type="text"
+                                id="iptv-username"
+                                name="username"
+                                class="form-input"
+                                placeholder="Enter your username"
+                                required
+                                autocomplete="username"
+                            >
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="iptv-password" class="form-label">Password</label>
+                        <div class="form-input-wrapper">
+                            <i class="fas fa-lock form-input-icon"></i>
+                            <input
+                                type="password"
+                                id="iptv-password"
+                                name="password"
+                                class="form-input"
+                                placeholder="Enter your password"
+                                required
+                                autocomplete="current-password"
+                            >
+                        </div>
+                    </div>
+
+                    <button type="submit" id="iptv-submit-btn" class="login-button">
+                        <i class="fas fa-sign-in-alt"></i>
+                        Sign In
+                    </button>
+                </form>
+
+                <!-- Plex SSO Divider -->
+                <div id="user-plex-divider" class="login-divider">
+                    <span>or</span>
+                </div>
+
+                <!-- Plex SSO Link - use <a> tag so Safari mobile can navigate without JS blocking -->
+                <a id="plex-login-btn" class="login-button plex-button" href="/api/v2/portal/auth/plex/redirect" style="text-decoration: none;">
+                    <i class="fab fa-plex"></i>
+                    Sign in with Plex
+                </a>
+
+                <div class="forgot-login-link">
+                    <a id="email-my-login-link"><i class="fas fa-envelope"></i> Email me my login</a>
+                </div>
+
+                <!-- Email Lookup Form -->
+                <div id="email-lookup-form" class="email-lookup-form">
+                    <p class="email-lookup-title">Enter your email to receive your login credentials</p>
+                    <form id="email-lookup-submit-form" class="login-form">
+                        <div class="form-group">
+                            <div class="form-input-wrapper">
+                                <i class="fas fa-envelope form-input-icon"></i>
+                                <input
+                                    type="email"
+                                    id="lookup-email"
+                                    class="form-input"
+                                    placeholder="Enter your email address"
+                                    required
+                                    autocomplete="email"
+                                >
+                            </div>
+                        </div>
+                        <button type="submit" id="email-lookup-btn" class="login-button">
+                            <i class="fas fa-paper-plane"></i>
+                            Send My Login
+                        </button>
+                    </form>
+                    <div class="back-to-login">
+                        <a id="back-to-login-link"><i class="fas fa-arrow-left"></i> Back to login</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ==================== ADMIN LOGIN ==================== -->
+            <div id="admin-section" style="display: none;">
+                <form id="admin-login-form" class="login-form">
+                    <div class="form-group">
+                        <label for="admin-email" class="form-label">Email</label>
+                        <div class="form-input-wrapper">
+                            <i class="fas fa-envelope form-input-icon"></i>
+                            <input
+                                type="email"
+                                id="admin-email"
+                                name="email"
+                                class="form-input"
+                                placeholder="Enter your email"
+                                required
+                                autocomplete="email"
+                            >
+                        </div>
+                        <div class="form-error" id="admin-email-error"></div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="admin-password" class="form-label">Password</label>
+                        <div class="form-input-wrapper">
+                            <i class="fas fa-lock form-input-icon"></i>
+                            <input
+                                type="password"
+                                id="admin-password"
+                                name="password"
+                                class="form-input"
+                                placeholder="Enter your password"
+                                required
+                                autocomplete="current-password"
+                            >
+                        </div>
+                        <div class="form-error" id="admin-password-error"></div>
+                    </div>
+
+                    <button type="submit" id="admin-submit-btn" class="login-button">
+                        <i class="fas fa-sign-in-alt"></i>
+                        Sign In
+                    </button>
+                </form>
+
+                <!-- Admin Plex SSO Divider -->
+                <div id="admin-plex-divider" class="login-divider">
+                    <span>or</span>
+                </div>
+
+                <!-- Admin Plex SSO Link - use <a> tag so Safari mobile can navigate without JS blocking -->
+                <a id="admin-plex-sso-btn" class="login-button plex-button" href="/api/v2/auth/plex/redirect" style="text-decoration: none;">
+                    <i class="fab fa-plex"></i>
+                    Sign in with Plex
+                </a>
+            </div>
+
+            <div class="login-footer" id="login-footer">
+                StreamPanel - Management System
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '/api/v2';
+        let loginType = 'user'; // Default to End User
+
+        // Get redirect URL from query params (for direct player access etc)
+        const urlParams = new URLSearchParams(window.location.search);
+        const redirectUrl = urlParams.get('redirect') || '/portal/';
+
+        // Initialize on page load
+        loadBrandingSettings();
+        checkExistingSession();
+        initLoginToggle();
+        checkPlexAvailability();
+
+        // =====================================================
+        // LOGIN TYPE TOGGLE (Admin/End User)
+        // =====================================================
+        function initLoginToggle() {
+            const adminToggle = document.getElementById('admin-toggle');
+            const userToggle = document.getElementById('user-toggle');
+            const endUserSection = document.getElementById('end-user-section');
+            const adminSection = document.getElementById('admin-section');
+
+            userToggle.addEventListener('click', () => {
+                loginType = 'user';
+                userToggle.classList.add('active');
+                adminToggle.classList.remove('active');
+                endUserSection.style.display = 'block';
+                adminSection.style.display = 'none';
+                hideAlert();
+            });
+
+            adminToggle.addEventListener('click', () => {
+                loginType = 'admin';
+                adminToggle.classList.add('active');
+                userToggle.classList.remove('active');
+                adminSection.style.display = 'block';
+                endUserSection.style.display = 'none';
+                hideAlert();
+            });
+        }
+
+        // =====================================================
+        // CHECK PLEX AVAILABILITY
+        // =====================================================
+        async function checkPlexAvailability() {
+            try {
+                // Check portal Plex (for end user login)
+                const portalPlexRes = await fetch(`${API_BASE}/settings/portal_plex_enabled`).catch(() => ({ json: () => ({}) }));
+                const portalPlexData = await portalPlexRes.json().catch(() => ({}));
+
+                if (portalPlexData.value !== 'false' && portalPlexData.value !== false) {
+                    // Plex is enabled - show the divider and button
+                    document.getElementById('user-plex-divider').style.display = 'block';
+                    document.getElementById('plex-login-btn').style.display = 'flex';
+                }
+
+                // Check admin Plex SSO
+                const adminPlexRes = await fetch(`${API_BASE}/auth/plex/config`).catch(() => ({ json: () => ({}) }));
+                const adminPlexData = await adminPlexRes.json().catch(() => ({}));
+
+                if (adminPlexData.success && adminPlexData.enabled) {
+                    document.getElementById('admin-plex-divider').style.display = 'block';
+                    document.getElementById('admin-plex-sso-btn').style.display = 'flex';
+                }
+            } catch (error) {
+                console.log('Error checking Plex availability:', error);
+            }
+        }
+
+        // =====================================================
+        // BRANDING
+        // =====================================================
+        async function loadBrandingSettings() {
+            try {
+                const [titleRes, logoRes, msgRes, faviconRes, hideNameRes] = await Promise.all([
+                    fetch(`${API_BASE}/settings/app_title`).catch(() => ({ json: () => ({}) })),
+                    fetch(`${API_BASE}/settings/app_logo`).catch(() => ({ json: () => ({}) })),
+                    fetch(`${API_BASE}/settings/login_message`).catch(() => ({ json: () => ({}) })),
+                    fetch(`${API_BASE}/settings/app_favicon`).catch(() => ({ json: () => ({}) })),
+                    fetch(`${API_BASE}/settings/hide_login_name`).catch(() => ({ json: () => ({}) }))
+                ]);
+
+                const titleData = await titleRes.json().catch(() => ({}));
+                const logoData = await logoRes.json().catch(() => ({}));
+                const msgData = await msgRes.json().catch(() => ({}));
+                const faviconData = await faviconRes.json().catch(() => ({}));
+                const hideNameData = await hideNameRes.json().catch(() => ({}));
+
+                const appName = titleData.value || 'StreamPanel';
+                const hideLoginName = hideNameData.value === 'true' || hideNameData.value === true;
+
+                document.getElementById('login-title').textContent = appName;
+                document.title = `Login - ${appName}`;
+                document.getElementById('login-footer').textContent = `${appName} - Management System`;
+
+                if (hideLoginName) {
+                    document.getElementById('login-title').style.display = 'none';
+                    document.getElementById('login-subtitle').style.display = 'none';
+                    document.getElementById('login-footer').style.display = 'none';
+                } else {
+                    document.getElementById('login-subtitle').textContent = msgData.value || 'Sign in to your account';
+                }
+
+                if (logoData.value) {
+                    const logoClass = hideLoginName ? 'login-logo login-logo-large' : 'login-logo';
+                    document.getElementById('logo-container').innerHTML =
+                        `<img src="${logoData.value}" alt="${appName}" class="${logoClass}" onerror="this.parentElement.innerHTML='<div class=\\'login-icon ${hideLoginName ? 'login-icon-large' : ''}\\'><i class=\\'fas fa-tv\\'></i></div>'">`;
+                }
+
+                if (faviconData.value) {
+                    let link = document.querySelector("link[rel*='icon']");
+                    if (!link) {
+                        link = document.createElement('link');
+                        link.rel = 'icon';
+                        document.head.appendChild(link);
+                    }
+                    link.href = faviconData.value;
+                }
+            } catch (error) {
+                console.error('Error loading branding:', error);
+            }
+        }
+
+        // =====================================================
+        // SESSION CHECK
+        // =====================================================
+        async function checkExistingSession() {
+            // Check admin session
+            const sessionToken = localStorage.getItem('sessionToken');
+            if (sessionToken) {
+                try {
+                    const response = await fetch(`${API_BASE}/auth/me`, {
+                        headers: { 'Authorization': `Bearer ${sessionToken}` }
+                    });
+                    if (response.ok) {
+                        window.location.href = '/admin/';
+                        return;
+                    }
+                } catch (error) {
+                    localStorage.removeItem('sessionToken');
+                }
+            }
+
+            // Check portal session
+            const portalToken = localStorage.getItem('portal_token');
+            if (portalToken) {
+                try {
+                    const response = await fetch(`${API_BASE}/portal/auth/verify`, {
+                        headers: { 'Authorization': `Bearer ${portalToken}` }
+                    });
+                    if (response.ok) {
+                        window.location.href = redirectUrl;
+                        return;
+                    }
+                } catch (error) {
+                    localStorage.removeItem('portal_token');
+                }
+            }
+        }
+
+        // =====================================================
+        // IPTV LOGIN (End User)
+        // =====================================================
+        document.getElementById('iptv-login-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const username = document.getElementById('iptv-username').value.trim();
+            const password = document.getElementById('iptv-password').value;
+            const submitBtn = document.getElementById('iptv-submit-btn');
+
+            hideAlert();
+
+            if (!username || !password) {
+                showAlert('error', 'Please enter both username and password');
+                return;
+            }
+
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="spinner"></span> Signing in...';
+
+            try {
+                const response = await fetch(`${API_BASE}/portal/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password, method: 'iptv' })
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    localStorage.setItem('portal_token', data.token);
+                    localStorage.setItem('portal_user', JSON.stringify(data.user));
+
+                    showAlert('success', 'Login successful! Redirecting...');
+                    setTimeout(() => {
+                        window.location.href = redirectUrl;
+                    }, 1000);
+                } else {
+                    showAlert('error', data.message || 'Invalid credentials');
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Sign In';
+                }
+            } catch (error) {
+                console.error('IPTV login error:', error);
+                showAlert('error', 'Connection error. Please try again.');
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Sign In';
+            }
+        });
+
+        // =====================================================
+        // EMAIL MY LOGIN (IPTV)
+        // =====================================================
+        document.getElementById('email-my-login-link').addEventListener('click', () => {
+            document.getElementById('iptv-login-form').style.display = 'none';
+            document.querySelector('.forgot-login-link').style.display = 'none';
+            document.getElementById('email-lookup-form').classList.add('show');
+            hideAlert();
+        });
+
+        document.getElementById('back-to-login-link').addEventListener('click', () => {
+            document.getElementById('iptv-login-form').style.display = 'flex';
+            document.querySelector('.forgot-login-link').style.display = 'block';
+            document.getElementById('email-lookup-form').classList.remove('show');
+            hideAlert();
+        });
+
+        document.getElementById('email-lookup-submit-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const email = document.getElementById('lookup-email').value.trim();
+            const submitBtn = document.getElementById('email-lookup-btn');
+
+            hideAlert();
+
+            if (!email) {
+                showAlert('error', 'Please enter your email address');
+                return;
+            }
+
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="spinner"></span> Sending...';
+
+            try {
+                const response = await fetch(`${API_BASE}/portal/auth/email-login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email })
+                });
+
+                const data = await response.json();
+
+                // Always show success message for security (don't reveal if email exists)
+                showAlert('success', data.message || 'If an account exists with this email, your login credentials have been sent.');
+                document.getElementById('lookup-email').value = '';
+
+                // Go back to login after 3 seconds
+                setTimeout(() => {
+                    document.getElementById('iptv-login-form').style.display = 'flex';
+                    document.querySelector('.forgot-login-link').style.display = 'block';
+                    document.getElementById('email-lookup-form').classList.remove('show');
+                }, 3000);
+
+            } catch (error) {
+                console.error('Email lookup error:', error);
+                showAlert('error', 'Connection error. Please try again.');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Send My Login';
+            }
+        });
+
+        // =====================================================
+        // PLEX LOGIN (End User) - Mobile uses native link, Desktop uses popup
+        // =====================================================
+
+        // Helper functions for device detection
+        function isStandaloneMode() {
+            return window.matchMedia('(display-mode: standalone)').matches ||
+                   window.navigator.standalone === true ||
+                   document.referrer.includes('android-app://');
+        }
+
+        function isMobileDevice() {
+            return /iPhone|iPad|iPod|Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+                   (window.innerWidth <= 768);
+        }
+
+        function shouldUseServerRedirect() {
+            return isStandaloneMode() || isMobileDevice();
+        }
+
+        // Only attach JavaScript handler on desktop - let mobile use native <a> link navigation
+        if (!shouldUseServerRedirect()) {
+            console.log('[Plex Auth] Desktop detected - attaching popup handler');
+
+            document.getElementById('plex-login-btn').addEventListener('click', async (e) => {
+                e.preventDefault(); // Only prevent default on desktop
+
+                const plexBtn = document.getElementById('plex-login-btn');
+
+                hideAlert();
+                plexBtn.style.pointerEvents = 'none';
+                plexBtn.innerHTML = '<span class="spinner"></span> Connecting to Plex...';
+
+                try {
+                    const initResponse = await fetch(`${API_BASE}/portal/auth/plex/init`, { method: 'POST' });
+                    const initData = await initResponse.json();
+
+                    if (!initData.success) {
+                        throw new Error(initData.message || 'Failed to initialize Plex login');
+                    }
+
+                    // Open Plex auth popup
+                    const authWindow = window.open(
+                        initData.authUrl,
+                        'PlexAuth',
+                        'width=600,height=700,menubar=no,toolbar=no,location=no,status=no'
+                    );
+
+                    // If popup was blocked, fall back to redirect
+                    if (!authWindow || authWindow.closed || typeof authWindow.closed === 'undefined') {
+                        sessionStorage.setItem('plex_pending_pin', initData.pinId);
+                        sessionStorage.setItem('plex_redirect_url', redirectUrl);
+                        window.location.href = initData.authUrl;
+                        return;
+                    }
+
+                    plexBtn.innerHTML = '<span class="spinner"></span> Waiting for Plex authorization...';
+
+                    // Poll for authentication
+                    const pinId = initData.pinId;
+                    let attempts = 0;
+                    const maxAttempts = 90;
+                    const pollInterval = 2000;
+
+                    const pollForAuth = async () => {
+                        attempts++;
+
+                        if (authWindow && authWindow.closed) {
+                            plexBtn.style.pointerEvents = 'auto';
+                            plexBtn.innerHTML = '<i class="fab fa-plex"></i> Sign in with Plex';
+                            showAlert('error', 'Plex authorization was cancelled');
+                            return;
+                        }
+
+                        try {
+                            const statusResponse = await fetch(`${API_BASE}/portal/auth/plex/status/${pinId}`);
+                            const statusData = await statusResponse.json();
+
+                            if (statusData.authenticated) {
+                                if (authWindow && !authWindow.closed) authWindow.close();
+                                await completeEndUserPlexLogin(pinId);
+                                return;
+                            }
+
+                            if (statusData.expired) {
+                                if (authWindow && !authWindow.closed) authWindow.close();
+                                throw new Error('Plex authorization expired. Please try again.');
+                            }
+
+                            if (attempts < maxAttempts) {
+                                setTimeout(pollForAuth, pollInterval);
+                            } else {
+                                if (authWindow && !authWindow.closed) authWindow.close();
+                                throw new Error('Plex authorization timed out. Please try again.');
+                            }
+                        } catch (pollError) {
+                            plexBtn.style.pointerEvents = 'auto';
+                            plexBtn.innerHTML = '<i class="fab fa-plex"></i> Sign in with Plex';
+                            showAlert('error', pollError.message || 'Failed to check Plex authorization');
+                        }
+                    };
+
+                    setTimeout(pollForAuth, pollInterval);
+
+                } catch (error) {
+                    console.error('End User Plex login error:', error);
+                    plexBtn.style.pointerEvents = 'auto';
+                    plexBtn.innerHTML = '<i class="fab fa-plex"></i> Sign in with Plex';
+                    showAlert('error', error.message || 'Failed to connect to Plex');
+                }
+            });
+        } else {
+            // Mobile: NO JavaScript handler - let native <a> link work
+            console.log('[Plex Auth] Mobile detected - link will navigate natively (no JS handler)');
+        }
+
+        // Check for pending Plex auth on page load (redirect flow returns with plex_pin in URL)
+        (async function checkPendingPlexAuth() {
+            const plexPinFromUrl = urlParams.get('plex_pin');
+            const pendingPin = plexPinFromUrl || sessionStorage.getItem('plex_pending_pin');
+            if (!pendingPin) return;
+
+            // Clean up URL if pin came from URL
+            if (plexPinFromUrl) {
+                const cleanUrl = new URL(window.location.href);
+                cleanUrl.searchParams.delete('plex_pin');
+                window.history.replaceState({}, '', cleanUrl.toString());
+            }
+
+            const plexBtn = document.getElementById('plex-login-btn');
+            plexBtn.style.pointerEvents = 'none';
+            plexBtn.innerHTML = '<span class="spinner"></span> Checking Plex authorization...';
+
+            // Poll for the pending PIN
+            let attempts = 0;
+            const maxAttempts = 30;
+            const pollInterval = 2000;
+
+            const pollPending = async () => {
+                attempts++;
+                try {
+                    const statusResponse = await fetch(`${API_BASE}/portal/auth/plex/status/${pendingPin}`);
+                    const statusData = await statusResponse.json();
+
+                    if (statusData.authenticated) {
+                        sessionStorage.removeItem('plex_pending_pin');
+                        const savedRedirect = sessionStorage.getItem('plex_redirect_url') || redirectUrl;
+                        sessionStorage.removeItem('plex_redirect_url');
+                        await completeEndUserPlexLogin(pendingPin, savedRedirect);
+                        return;
+                    }
+
+                    if (statusData.expired) {
+                        sessionStorage.removeItem('plex_pending_pin');
+                        sessionStorage.removeItem('plex_redirect_url');
+                        plexBtn.style.pointerEvents = 'auto';
+                        plexBtn.innerHTML = '<i class="fab fa-plex"></i> Sign in with Plex';
+                        showAlert('error', 'Plex authorization expired. Please try again.');
+                        return;
+                    }
+
+                    if (attempts < maxAttempts) {
+                        setTimeout(pollPending, pollInterval);
+                    } else {
+                        sessionStorage.removeItem('plex_pending_pin');
+                        sessionStorage.removeItem('plex_redirect_url');
+                        plexBtn.style.pointerEvents = 'auto';
+                        plexBtn.innerHTML = '<i class="fab fa-plex"></i> Sign in with Plex';
+                        showAlert('error', 'Plex authorization timed out. Please try again.');
+                    }
+                } catch (error) {
+                    sessionStorage.removeItem('plex_pending_pin');
+                    sessionStorage.removeItem('plex_redirect_url');
+                    plexBtn.style.pointerEvents = 'auto';
+                    plexBtn.innerHTML = '<i class="fab fa-plex"></i> Sign in with Plex';
+                    showAlert('error', 'Failed to verify Plex authorization');
+                }
+            };
+
+            pollPending();
+        })();
+
+        async function completeEndUserPlexLogin(pinId, customRedirect = null) {
+            const plexBtn = document.getElementById('plex-login-btn');
+            plexBtn.innerHTML = '<span class="spinner"></span> Completing login...';
+
+            try {
+                const response = await fetch(`${API_BASE}/portal/auth/plex/complete`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ pinId })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    localStorage.setItem('portal_token', data.token);
+                    localStorage.setItem('portal_user', JSON.stringify(data.user));
+
+                    showAlert('success', `Welcome, ${data.user.plexUsername || data.user.name}! Redirecting...`);
+                    setTimeout(() => {
+                        window.location.href = customRedirect || redirectUrl;
+                    }, 500);
+                } else {
+                    throw new Error(data.message || 'Plex login failed');
+                }
+            } catch (error) {
+                console.error('Complete end user Plex login error:', error);
+                plexBtn.style.pointerEvents = 'auto';
+                plexBtn.innerHTML = '<i class="fab fa-plex"></i> Sign in with Plex';
+                showAlert('error', error.message || 'Failed to complete Plex login');
+            }
+        }
+
+        // =====================================================
+        // ADMIN LOGIN
+        // =====================================================
+        document.getElementById('admin-login-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const email = document.getElementById('admin-email').value.trim();
+            const password = document.getElementById('admin-password').value;
+            const submitBtn = document.getElementById('admin-submit-btn');
+
+            hideAlert();
+
+            if (!email) {
+                document.getElementById('admin-email-error').textContent = 'Email is required';
+                document.getElementById('admin-email-error').classList.add('show');
+                return;
+            }
+
+            if (!password) {
+                document.getElementById('admin-password-error').textContent = 'Password is required';
+                document.getElementById('admin-password-error').classList.add('show');
+                return;
+            }
+
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="spinner"></span> Signing in...';
+
+            try {
+                const response = await fetch(`${API_BASE}/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    localStorage.setItem('sessionToken', data.sessionToken);
+                    localStorage.setItem('user', JSON.stringify(data.user));
+
+                    showAlert('success', 'Login successful! Redirecting...');
+                    setTimeout(() => {
+                        window.location.href = '/admin/';
+                    }, 500);
+                } else {
+                    showAlert('error', data.message || 'Login failed. Please try again.');
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Sign In';
+                }
+            } catch (error) {
+                console.error('Admin login error:', error);
+                showAlert('error', 'Connection error. Please try again.');
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Sign In';
+            }
+        });
+
+        // =====================================================
+        // ADMIN PLEX SSO - Mobile uses native link, Desktop uses popup
+        // =====================================================
+
+        // Only attach JavaScript handler on desktop - let mobile use native <a> link navigation
+        if (!shouldUseServerRedirect()) {
+            console.log('[Admin Plex Auth] Desktop detected - attaching popup handler');
+
+            document.getElementById('admin-plex-sso-btn').addEventListener('click', async (e) => {
+                e.preventDefault(); // Only prevent default on desktop
+
+                const plexButton = document.getElementById('admin-plex-sso-btn');
+
+                plexButton.style.pointerEvents = 'none';
+                plexButton.innerHTML = '<span class="spinner"></span> Connecting to Plex...';
+
+                try {
+                    const initResponse = await fetch(`${API_BASE}/auth/plex/init`, { method: 'POST' });
+                    const initData = await initResponse.json();
+
+                    if (!initData.success) {
+                        throw new Error(initData.message || 'Failed to initialize Plex login');
+                    }
+
+                    // Open Plex auth popup
+                    const authWindow = window.open(
+                        initData.authUrl,
+                        'PlexAuth',
+                        'width=600,height=700,menubar=no,toolbar=no,location=no,status=no'
+                    );
+
+                    // If popup was blocked, fall back to redirect
+                    if (!authWindow || authWindow.closed || typeof authWindow.closed === 'undefined') {
+                        sessionStorage.setItem('admin_plex_pending_pin', initData.pinId);
+                        window.location.href = initData.authUrl;
+                        return;
+                    }
+
+                    plexButton.innerHTML = '<span class="spinner"></span> Waiting for Plex authorization...';
+
+                    // Poll for authentication
+                    const pinId = initData.pinId;
+                    let attempts = 0;
+                    const maxAttempts = 90;
+                    const pollInterval = 2000;
+
+                    const pollForAuth = async () => {
+                        attempts++;
+
+                        if (authWindow && authWindow.closed) {
+                            plexButton.style.pointerEvents = 'auto';
+                            plexButton.innerHTML = '<i class="fab fa-plex"></i> Sign in with Plex';
+                            showAlert('error', 'Plex authorization was cancelled');
+                            return;
+                        }
+
+                        try {
+                            const statusResponse = await fetch(`${API_BASE}/auth/plex/status/${pinId}`);
+                            const statusData = await statusResponse.json();
+
+                            if (statusData.authenticated) {
+                                if (authWindow && !authWindow.closed) authWindow.close();
+                                await completeAdminPlexLogin(pinId);
+                                return;
+                            }
+
+                            if (statusData.expired) {
+                                if (authWindow && !authWindow.closed) authWindow.close();
+                                throw new Error('Plex authorization expired. Please try again.');
+                            }
+
+                            if (attempts < maxAttempts) {
+                                setTimeout(pollForAuth, pollInterval);
+                            } else {
+                                if (authWindow && !authWindow.closed) authWindow.close();
+                                throw new Error('Plex authorization timed out. Please try again.');
+                            }
+                        } catch (pollError) {
+                            plexButton.style.pointerEvents = 'auto';
+                            plexButton.innerHTML = '<i class="fab fa-plex"></i> Sign in with Plex';
+                            showAlert('error', pollError.message || 'Failed to check Plex authorization');
+                        }
+                    };
+
+                    setTimeout(pollForAuth, pollInterval);
+
+                } catch (error) {
+                    console.error('Admin Plex SSO error:', error);
+                    plexButton.style.pointerEvents = 'auto';
+                    plexButton.innerHTML = '<i class="fab fa-plex"></i> Sign in with Plex';
+                    showAlert('error', error.message || 'Failed to connect to Plex');
+                }
+            });
+        } else {
+            // Mobile: NO JavaScript handler - let native <a> link work
+            console.log('[Admin Plex Auth] Mobile detected - link will navigate natively (no JS handler)');
+        }
+
+        // Check for pending admin Plex auth on page load (redirect flow returns with admin_plex_pin in URL)
+        (async function checkPendingAdminPlexAuth() {
+            const adminPlexPinFromUrl = urlParams.get('admin_plex_pin');
+            const pendingPin = adminPlexPinFromUrl || sessionStorage.getItem('admin_plex_pending_pin');
+            if (!pendingPin) return;
+
+            // Clean up URL if pin came from URL
+            if (adminPlexPinFromUrl) {
+                const cleanUrl = new URL(window.location.href);
+                cleanUrl.searchParams.delete('admin_plex_pin');
+                window.history.replaceState({}, '', cleanUrl.toString());
+            }
+
+            // Switch to admin tab since this is admin Plex SSO
+            document.getElementById('admin-toggle').click();
+
+            const plexButton = document.getElementById('admin-plex-sso-btn');
+            plexButton.style.pointerEvents = 'none';
+            plexButton.innerHTML = '<span class="spinner"></span> Checking Plex authorization...';
+
+            // Poll for the pending PIN
+            let attempts = 0;
+            const maxAttempts = 30;
+            const pollInterval = 2000;
+
+            const pollPending = async () => {
+                attempts++;
+                try {
+                    const statusResponse = await fetch(`${API_BASE}/auth/plex/status/${pendingPin}`);
+                    const statusData = await statusResponse.json();
+
+                    if (statusData.authenticated) {
+                        sessionStorage.removeItem('admin_plex_pending_pin');
+                        await completeAdminPlexLogin(pendingPin);
+                        return;
+                    }
+
+                    if (statusData.expired) {
+                        sessionStorage.removeItem('admin_plex_pending_pin');
+                        plexButton.style.pointerEvents = 'auto';
+                        plexButton.innerHTML = '<i class="fab fa-plex"></i> Sign in with Plex';
+                        showAlert('error', 'Plex authorization expired. Please try again.');
+                        return;
+                    }
+
+                    if (attempts < maxAttempts) {
+                        setTimeout(pollPending, pollInterval);
+                    } else {
+                        sessionStorage.removeItem('admin_plex_pending_pin');
+                        plexButton.style.pointerEvents = 'auto';
+                        plexButton.innerHTML = '<i class="fab fa-plex"></i> Sign in with Plex';
+                        showAlert('error', 'Plex authorization timed out. Please try again.');
+                    }
+                } catch (error) {
+                    sessionStorage.removeItem('admin_plex_pending_pin');
+                    plexButton.style.pointerEvents = 'auto';
+                    plexButton.innerHTML = '<i class="fab fa-plex"></i> Sign in with Plex';
+                    showAlert('error', 'Failed to verify Plex authorization');
+                }
+            };
+
+            pollPending();
+        })();
+
+        async function completeAdminPlexLogin(pinId) {
+            const plexButton = document.getElementById('admin-plex-sso-btn');
+            plexButton.innerHTML = '<span class="spinner"></span> Completing login...';
+
+            try {
+                const response = await fetch(`${API_BASE}/auth/plex/complete`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ pinId })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    localStorage.setItem('sessionToken', data.token);
+                    localStorage.setItem('user', JSON.stringify(data.user));
+
+                    showAlert('success', `Welcome, ${data.user.plexUsername || data.user.name}! Redirecting...`);
+                    setTimeout(() => {
+                        window.location.href = '/admin/';
+                    }, 500);
+                } else {
+                    throw new Error(data.message || 'Plex login failed');
+                }
+            } catch (error) {
+                console.error('Complete admin Plex login error:', error);
+                plexButton.disabled = false;
+                plexButton.innerHTML = '<i class="fab fa-plex"></i> Sign in with Plex';
+                showAlert('error', error.message || 'Failed to complete Plex login');
+            }
+        }
+
+        // =====================================================
+        // HELPERS
+        // =====================================================
+        function showAlert(type, message) {
+            const alert = document.getElementById('alert');
+            const icon = type === 'error' ? 'fas fa-exclamation-circle' : 'fas fa-check-circle';
+            alert.className = `alert alert-${type} show`;
+            alert.innerHTML = `<i class="${icon}"></i>${message}`;
+        }
+
+        function hideAlert() {
+            const alert = document.getElementById('alert');
+            alert.className = 'alert';
+            alert.innerHTML = '';
+        }
+
+        // Clear field errors on input
+        document.querySelectorAll('.form-input').forEach(input => {
+            input.addEventListener('input', () => {
+                const errorElement = document.getElementById(`${input.id}-error`);
+                if (errorElement) {
+                    errorElement.classList.remove('show');
+                    errorElement.textContent = '';
+                }
+            });
+        });
+    </script>
+</body>
+</html>

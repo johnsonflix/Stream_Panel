@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/png" href="/assets/favicon.png">
+    <link rel="apple-touch-icon" href="/assets/favicon.png">
+    <title>My Requests - Request Site</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f172a;
+            color: #f8fafc;
+            min-height: 100vh;
+        }
+
+        /* Navigation - matching request2.html exactly */
+        .request-nav {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 15px 30px;
+            background: rgba(30, 41, 59, 0.8);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid #334155;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        .request-nav-brand {
+            font-size: 22px;
+            font-weight: 700;
+            color: #f8fafc;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex: 0 0 200px;
+            text-decoration: none;
+        }
+        .request-nav-brand i {
+            color: #6366f1;
+        }
+        .request-nav-links {
+            display: flex;
+            gap: 25px;
+            align-items: center;
+            flex: 1;
+            justify-content: center;
+        }
+        .request-nav-link {
+            color: #94a3b8;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            transition: color 0.2s;
+            cursor: pointer;
+        }
+        .request-nav-link:hover,
+        .request-nav-link.active {
+            color: #f8fafc;
+        }
+        .request-nav-user {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex: 0 0 200px;
+            justify-content: flex-end;
+        }
+
+        @media (max-width: 768px) {
+            .request-nav {
+                flex-wrap: nowrap;
+                padding: 12px 15px;
+                gap: 12px;
+            }
+            .request-nav-brand {
+                font-size: 18px;
+                flex: 0 0 auto;
+            }
+            .request-nav-links {
+                flex: 1;
+                gap: 15px;
+                font-size: 13px;
+            }
+            .request-nav-user {
+                flex: 0 0 auto;
+            }
+        }
+
+        /* Page Content - matching request2.html color scheme */
+        .page-content {
+            max-width: 1800px;
+            margin: 0 auto;
+            padding: 0 30px 40px;
+        }
+
+        .page-title {
+            font-size: 20px;
+            font-weight: 700;
+            margin: 40px 0 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #f8fafc;
+        }
+
+        .page-title i {
+            color: #6366f1;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 24px;
+            border-bottom: 1px solid #334155;
+            padding-bottom: 0;
+        }
+
+        .tab {
+            padding: 10px 20px;
+            background: none;
+            border: none;
+            color: #94a3b8;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            border-bottom: 3px solid transparent;
+            margin-bottom: -1px;
+            transition: all 0.2s;
+        }
+
+        .tab:hover {
+            color: #f8fafc;
+        }
+
+        .tab.active {
+            color: #f8fafc;
+            border-bottom-color: #6366f1;
+        }
+
+        .tab-badge {
+            display: inline-block;
+            margin-left: 6px;
+            padding: 2px 8px;
+            background: rgba(99, 102, 241, 0.2);
+            border-radius: 10px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        /* Request Cards - matching request2.html style */
+        .requests-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 16px;
+        }
+
+        .request-card {
+            background: #1e293b;
+            border-radius: 8px;
+            overflow: hidden;
+            transition: all 0.3s;
+            border: 1px solid #334155;
+            cursor: pointer;
+        }
+
+        .request-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+            border-color: #6366f1;
+        }
+
+        .request-poster {
+            width: 100%;
+            aspect-ratio: 2/3;
+            object-fit: cover;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+        }
+
+        .request-info {
+            padding: 10px;
+        }
+
+        .request-title {
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 6px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            color: #f8fafc;
+        }
+
+        .request-meta {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            font-size: 11px;
+            color: #94a3b8;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 10px;
+            font-weight: 600;
+            width: fit-content;
+        }
+
+        .status-pending {
+            background: rgba(251, 191, 36, 0.2);
+            color: #fbbf24;
+        }
+
+        .status-approved {
+            background: rgba(34, 197, 94, 0.2);
+            color: #22c55e;
+        }
+
+        .status-available {
+            background: rgba(59, 130, 246, 0.2);
+            color: #3b82f6;
+        }
+
+        .status-declined {
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #64748b;
+        }
+
+        .empty-state i {
+            font-size: 48px;
+            margin-bottom: 16px;
+            color: #475569;
+        }
+
+        .empty-state h3 {
+            font-size: 20px;
+            margin-bottom: 8px;
+            color: #94a3b8;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 60px 20px;
+            color: #94a3b8;
+        }
+
+        .loading i {
+            font-size: 36px;
+            animation: spin 1s linear infinite;
+            color: #6366f1;
+        }
+
+        @keyframes spin {
+            100% { transform: rotate(360deg); }
+        }
+
+        .request-date {
+            font-size: 10px;
+            color: #64748b;
+        }
+
+        .media-type-badge {
+            display: inline-block;
+            padding: 2px 6px;
+            background: rgba(99, 102, 241, 0.2);
+            color: #a5b4fc;
+            border-radius: 4px;
+            font-size: 9px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        /* Mobile Menu Toggle Button */
+        .mobile-menu-toggle {
+            display: none;
+            background: none;
+            border: none;
+            color: #f8fafc;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 8px;
+            margin-left: auto;
+        }
+
+        /* Mobile Navigation Overlay */
+        .mobile-nav-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 999;
+        }
+        .mobile-nav-overlay.show {
+            display: block;
+        }
+
+        /* Mobile Navigation Panel */
+        .mobile-nav-panel {
+            position: fixed;
+            top: 0;
+            right: -280px;
+            width: 280px;
+            height: 100%;
+            background: #1a1d29;
+            z-index: 1000;
+            transition: right 0.3s ease;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+        }
+        .mobile-nav-panel.show {
+            right: 0;
+        }
+        .mobile-nav-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px;
+            border-bottom: 1px solid #334155;
+        }
+        .mobile-nav-close {
+            background: none;
+            border: none;
+            color: #94a3b8;
+            font-size: 24px;
+            cursor: pointer;
+        }
+        .mobile-nav-links {
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .mobile-nav-link {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 14px 16px;
+            color: #cbd5e1;
+            text-decoration: none;
+            font-size: 16px;
+            font-weight: 500;
+            border-radius: 8px;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+        .mobile-nav-link:hover,
+        .mobile-nav-link.active {
+            background: rgba(99, 102, 241, 0.1);
+            color: #f8fafc;
+        }
+        .mobile-nav-link i {
+            width: 20px;
+            text-align: center;
+            color: #6366f1;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .mobile-menu-toggle {
+                display: block;
+            }
+            .request-nav-links {
+                display: none;
+            }
+            .request-nav-user {
+                display: none;
+            }
+            .request-nav-brand span {
+                display: none;
+            }
+            .request-nav {
+                padding: 10px 8px;
+            }
+
+            .requests-grid {
+                grid-template-columns: repeat(3, 1fr);
+                gap: 6px;
+            }
+
+            .page-content {
+                padding: 0 8px 20px;
+            }
+
+            .request-card {
+                border-radius: 5px;
+            }
+
+            .request-info {
+                padding: 5px 6px;
+            }
+
+            .request-title {
+                font-size: 10px;
+            }
+
+            .request-meta {
+                gap: 2px;
+            }
+
+            .media-type-badge {
+                font-size: 7px;
+                padding: 1px 3px;
+            }
+
+            .status-badge {
+                font-size: 8px;
+                padding: 2px 5px;
+            }
+
+            .request-date {
+                font-size: 8px;
+            }
+
+            .page-title {
+                font-size: 16px;
+                margin: 12px 0 10px;
+            }
+
+            .tabs {
+                gap: 2px;
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+                margin-bottom: 12px;
+            }
+
+            .tab {
+                padding: 6px 10px;
+                font-size: 11px;
+                white-space: nowrap;
+            }
+
+            .tab-badge {
+                font-size: 9px;
+                padding: 1px 5px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .request-nav {
+                padding: 8px 6px;
+            }
+
+            .requests-grid {
+                grid-template-columns: repeat(3, 1fr);
+                gap: 5px;
+            }
+
+            .page-content {
+                padding: 0 6px 16px;
+            }
+
+            .request-title {
+                font-size: 9px;
+            }
+
+            .request-info {
+                padding: 4px 5px;
+            }
+
+            .status-badge {
+                font-size: 7px;
+                padding: 1px 4px;
+            }
+
+            .media-type-badge {
+                display: none;
+            }
+
+            .page-title {
+                font-size: 14px;
+                margin: 10px 0 8px;
+            }
+
+            .tab {
+                padding: 5px 8px;
+                font-size: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation - matching request2.html exactly -->
+    <nav class="request-nav">
+        <a href="request2.html" class="request-nav-brand">
+            <i class="fas fa-film"></i>
+            <span>Request Site</span>
+        </a>
+        <div class="request-nav-links">
+            <a class="request-nav-link" href="request2.html#discover">Discover</a>
+            <a class="request-nav-link" href="request2.html#movies">Movies</a>
+            <a class="request-nav-link" href="request2.html#tv">TV Shows</a>
+            <a class="request-nav-link active" href="my-requests.html">Requests</a>
+        </div>
+        <div class="request-nav-user">
+            <a href="index.html" class="request-nav-link"><i class="fas fa-arrow-left"></i> Portal</a>
+        </div>
+        <!-- Mobile Menu Toggle -->
+        <button class="mobile-menu-toggle" onclick="toggleMobileNav()" aria-label="Toggle menu">
+            <i class="fas fa-bars"></i>
+        </button>
+    </nav>
+
+    <!-- Mobile Navigation Panel -->
+    <div class="mobile-nav-overlay" id="mobile-nav-overlay" onclick="closeMobileNav()"></div>
+    <div class="mobile-nav-panel" id="mobile-nav-panel">
+        <div class="mobile-nav-header">
+            <div class="request-nav-brand">
+                <i class="fas fa-film"></i>
+                <span style="display: inline !important;">Request Site</span>
+            </div>
+            <button class="mobile-nav-close" onclick="closeMobileNav()">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="mobile-nav-links">
+            <a class="mobile-nav-link" href="request2.html#discover">
+                <i class="fas fa-compass"></i> Discover
+            </a>
+            <a class="mobile-nav-link" href="request2.html#movies">
+                <i class="fas fa-film"></i> Movies
+            </a>
+            <a class="mobile-nav-link" href="request2.html#tv">
+                <i class="fas fa-tv"></i> TV Shows
+            </a>
+            <a class="mobile-nav-link active" href="my-requests.html">
+                <i class="fas fa-list"></i> My Requests
+            </a>
+        </div>
+        <div style="padding: 20px; margin-top: auto; border-top: 1px solid #334155;">
+            <a href="index.html" class="mobile-nav-link">
+                <i class="fas fa-arrow-left"></i> Back to Portal
+            </a>
+        </div>
+    </div>
+
+    <!-- Page Content -->
+    <div class="page-content">
+        <h1 class="page-title">
+            <i class="fas fa-list"></i>
+            My Requests
+        </h1>
+
+        <div class="tabs">
+            <button class="tab active" data-status="all">
+                All
+                <span class="tab-badge" id="count-all">0</span>
+            </button>
+            <button class="tab" data-status="pending">
+                Pending
+                <span class="tab-badge" id="count-pending">0</span>
+            </button>
+            <button class="tab" data-status="approved">
+                Approved
+                <span class="tab-badge" id="count-approved">0</span>
+            </button>
+            <button class="tab" data-status="available">
+                Available
+                <span class="tab-badge" id="count-available">0</span>
+            </button>
+        </div>
+
+        <div id="requests-container">
+            <div class="loading">
+                <i class="fas fa-spinner"></i>
+                <p>Loading your requests...</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="../js/api.js"></script>
+    <script>
+        let allRequests = [];
+        let currentFilter = 'all';
+
+        // Check authentication using Bearer token
+        async function checkAuth() {
+            const token = localStorage.getItem('portal_token');
+            const user = localStorage.getItem('portal_user');
+
+            if (!token || !user) {
+                window.location.href = 'login.html?redirect=' + encodeURIComponent(window.location.pathname);
+                return false;
+            }
+
+            try {
+                const response = await fetch('/api/v2/portal/auth/verify', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error('Session expired');
+                }
+
+                const data = await response.json();
+                if (!data.success) {
+                    throw new Error('Invalid session');
+                }
+
+                return true;
+            } catch (error) {
+                console.error('Auth check failed:', error);
+                localStorage.removeItem('portal_token');
+                localStorage.removeItem('portal_user');
+                window.location.href = 'login.html?redirect=' + encodeURIComponent(window.location.pathname);
+                return false;
+            }
+        }
+
+        // Load user requests
+        async function loadRequests() {
+            try {
+                const token = localStorage.getItem('portal_token');
+                const response = await fetch('/api/v2/request-site-api/requests/user', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to load requests');
+                }
+
+                const data = await response.json();
+                allRequests = data.requests || [];
+
+                updateCounts();
+                displayRequests();
+            } catch (error) {
+                console.error('Failed to load requests:', error);
+                document.getElementById('requests-container').innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <h3>Failed to Load Requests</h3>
+                        <p>Please try again later</p>
+                    </div>
+                `;
+            }
+        }
+
+        // Update request counts
+        function updateCounts() {
+            const counts = {
+                all: allRequests.length,
+                pending: allRequests.filter(r => r.status === 1).length,
+                approved: allRequests.filter(r => r.status === 2).length,
+                available: allRequests.filter(r => r.status === 4).length
+            };
+
+            document.getElementById('count-all').textContent = counts.all;
+            document.getElementById('count-pending').textContent = counts.pending;
+            document.getElementById('count-approved').textContent = counts.approved;
+            document.getElementById('count-available').textContent = counts.available;
+        }
+
+        // Display requests based on current filter
+        function displayRequests() {
+            let filtered = allRequests;
+
+            if (currentFilter === 'pending') {
+                filtered = allRequests.filter(r => r.status === 1);
+            } else if (currentFilter === 'approved') {
+                filtered = allRequests.filter(r => r.status === 2);
+            } else if (currentFilter === 'available') {
+                filtered = allRequests.filter(r => r.status === 4);
+            }
+
+            const container = document.getElementById('requests-container');
+
+            if (filtered.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-inbox"></i>
+                        <h3>No Requests Found</h3>
+                        <p>Start requesting your favorite movies and TV shows!</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = `
+                <div class="requests-grid">
+                    ${filtered.map(request => createRequestCard(request)).join('')}
+                </div>
+            `;
+        }
+
+        // Navigate to media details
+        function viewMedia(tmdbId, mediaType) {
+            window.location.href = `request2.html#${mediaType}/${tmdbId}`;
+        }
+
+        // Create request card HTML
+        function createRequestCard(request) {
+            const statusMap = {
+                1: { class: 'pending', text: 'Pending', icon: 'fa-clock' },
+                2: { class: 'approved', text: 'Approved', icon: 'fa-check' },
+                3: { class: 'declined', text: 'Declined', icon: 'fa-times' },
+                4: { class: 'available', text: 'Available', icon: 'fa-check-circle' }
+            };
+
+            const status = statusMap[request.status] || statusMap[1];
+            const posterUrl = request.poster_path
+                ? `https://image.tmdb.org/t/p/w185${request.poster_path}`
+                : 'https://via.placeholder.com/185x278?text=No+Poster';
+
+            const date = new Date(request.created_at).toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric'
+            });
+
+            return `
+                <div class="request-card" onclick="viewMedia(${request.tmdb_id}, '${request.media_type}')">
+                    <img src="${posterUrl}" alt="${request.title}" class="request-poster" loading="lazy">
+                    <div class="request-info">
+                        <div class="request-title" title="${request.title}">${request.title}</div>
+                        <div class="request-meta">
+                            <span class="media-type-badge">${request.media_type === 'movie' ? 'Movie' : 'TV'}</span>
+                            <div class="status-badge status-${status.class}">
+                                <i class="fas ${status.icon}"></i>
+                                ${status.text}
+                            </div>
+                            <div class="request-date">
+                                <i class="fas fa-calendar"></i> ${date}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Tab switching
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                currentFilter = tab.dataset.status;
+                displayRequests();
+            });
+        });
+
+        // Mobile Navigation Functions
+        function toggleMobileNav() {
+            const panel = document.getElementById('mobile-nav-panel');
+            const overlay = document.getElementById('mobile-nav-overlay');
+            panel.classList.add('show');
+            overlay.classList.add('show');
+        }
+
+        function closeMobileNav() {
+            const panel = document.getElementById('mobile-nav-panel');
+            const overlay = document.getElementById('mobile-nav-overlay');
+            panel.classList.remove('show');
+            overlay.classList.remove('show');
+        }
+
+        // Initialize
+        (async () => {
+            const authed = await checkAuth();
+            if (authed) {
+                await loadRequests();
+            }
+        })();
+    </script>
+</body>
+</html>
