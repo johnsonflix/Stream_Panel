@@ -10,7 +10,7 @@ services:
       - POSTGRES_PASSWORD=streampanel_secure_password
       - TZ=America/Chicago
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - ./database/postgres:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U streampanel -d streampanel"]
       interval: 10s
@@ -50,6 +50,3 @@ services:
       postgres:
         condition: service_healthy
     restart: unless-stopped
-
-volumes:
-  postgres_data:
