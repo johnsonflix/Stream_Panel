@@ -1,14 +1,16 @@
 # StreamPanel Production Dockerfile
 FROM node:22-slim
 
-# Install Python, build tools, sqlite3, git, rsync, and Kometa dependencies
+# Install Python, build tools, git, rsync, and Kometa dependencies
+# PostgreSQL client library (libpq) for pg npm package
 RUN apt-get update && apt-get install -y \
     python3 \
     python3-pip \
     python3-requests \
     python3-lxml \
     build-essential \
-    sqlite3 \
+    libpq-dev \
+    postgresql-client \
     git \
     curl \
     unzip \
@@ -43,7 +45,7 @@ COPY backend/package*.json ./backend/
 
 # Install dependencies
 WORKDIR /app/backend
-RUN npm ci --only=production
+RUN npm install --omit=dev
 
 # Copy backend source
 WORKDIR /app

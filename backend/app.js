@@ -71,85 +71,92 @@ app.use(express.static(path.join(__dirname, '../frontend')));
 // Serve uploaded files (branding assets, etc.)
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// API Routes
-const authRoutes = require('./routes/routes-auth');
-const appUsersRoutes = require('./routes/app-users-routes');
-const plexServersRoutes = require('./routes/plex-servers-routes');
-const plexPackagesRoutes = require('./routes/plex-packages-routes');
-const iptvPanelsRoutes = require('./routes/iptv-panels-routes');
-const iptvPlaylistsRoutes = require('./routes/iptv-playlists-routes');
-const iptvEditorRoutes = require('./routes/iptv-editor-routes');
-const iptvEditorPlaylistsRoutes = require('./routes/iptv-editor-playlists-routes');
-const tagsRoutes = require('./routes/tags-routes');
-const usersRoutes = require('./routes/users-routes');
-const csvImportRoutes = require('./routes/csv-import-routes');
-const settingsRoutes = require('./routes/settings-routes');
-const subscriptionPlansRoutes = require('./routes/subscription-plans-routes');
-const paymentProvidersRoutes = require('./routes/payment-providers-routes');
-const emailTemplatesRoutes = require('./routes/email-templates-routes');
-const emailSchedulesRoutes = require('./routes/email-schedules-routes');
-const emailSendRoutes = require('./routes/email-send-routes');
-const plexSsoRoutes = require('./routes/plex-sso-routes');
-const portalAuthRoutes = require('./routes/portal-auth-routes');
-const portalRoutes = require('./routes/portal-routes');
-const portalAdminRoutes = require('./routes/portal-admin-routes');
-const portalPublicRoutes = require('./routes/portal-public-routes');
-const serviceRequestsRoutes = require('./routes/service-requests-routes');
-const jobsRoutes = require('./routes/jobs-routes');
-const ownersRoutes = require('./routes/owners-routes');
-const logsRoutes = require('./routes/logs-routes');
-const updatesRoutes = require('./routes/updates-routes');
-const kometaRoutes = require('./routes/kometa-routes');
-const requestSiteRoutes = require('./routes/request-site-routes'); // Old routes (legacy)
-const requestSiteApiRoutes = require('./routes/request-site-api-routes'); // New core API routes
-const requestSiteWebhooksRoutes = require('./routes/request-site-webhooks-routes');
-const mediaManagersRoutes = require('./routes/media-managers-routes');
-const requestSiteNotificationsRoutes = require('./routes/request-site-notifications-routes');
-const backupRoutes = require('./routes/backup-routes');
+// API Routes - LOADED LAZILY after database initialization
+// Routes are registered in the loadRoutes() function called from startServer()
+function loadRoutes() {
+    console.log('[ROUTES] Loading API routes...');
 
-// Authentication routes (no auth required for these endpoints)
-app.use('/api/v2/auth', authRoutes);
-app.use('/api/v2/auth/plex', plexSsoRoutes);
-app.use('/api/v2/portal/auth', portalAuthRoutes);
+    const authRoutes = require('./routes/routes-auth');
+    const appUsersRoutes = require('./routes/app-users-routes');
+    const plexServersRoutes = require('./routes/plex-servers-routes');
+    const plexPackagesRoutes = require('./routes/plex-packages-routes');
+    const iptvPanelsRoutes = require('./routes/iptv-panels-routes');
+    const iptvPlaylistsRoutes = require('./routes/iptv-playlists-routes');
+    const iptvEditorRoutes = require('./routes/iptv-editor-routes');
+    const iptvEditorPlaylistsRoutes = require('./routes/iptv-editor-playlists-routes');
+    const tagsRoutes = require('./routes/tags-routes');
+    const usersRoutes = require('./routes/users-routes');
+    const csvImportRoutes = require('./routes/csv-import-routes');
+    const settingsRoutes = require('./routes/settings-routes');
+    const subscriptionPlansRoutes = require('./routes/subscription-plans-routes');
+    const paymentProvidersRoutes = require('./routes/payment-providers-routes');
+    const emailTemplatesRoutes = require('./routes/email-templates-routes');
+    const emailSchedulesRoutes = require('./routes/email-schedules-routes');
+    const emailSendRoutes = require('./routes/email-send-routes');
+    const plexSsoRoutes = require('./routes/plex-sso-routes');
+    const portalAuthRoutes = require('./routes/portal-auth-routes');
+    const portalRoutes = require('./routes/portal-routes');
+    const portalAdminRoutes = require('./routes/portal-admin-routes');
+    const portalPublicRoutes = require('./routes/portal-public-routes');
+    const serviceRequestsRoutes = require('./routes/service-requests-routes');
+    const jobsRoutes = require('./routes/jobs-routes');
+    const ownersRoutes = require('./routes/owners-routes');
+    const logsRoutes = require('./routes/logs-routes');
+    const updatesRoutes = require('./routes/updates-routes');
+    const kometaRoutes = require('./routes/kometa-routes');
+    const requestSiteRoutes = require('./routes/request-site-routes'); // Old routes (legacy)
+    const requestSiteApiRoutes = require('./routes/request-site-api-routes'); // New core API routes
+    const requestSiteWebhooksRoutes = require('./routes/request-site-webhooks-routes');
+    const mediaManagersRoutes = require('./routes/media-managers-routes');
+    const requestSiteNotificationsRoutes = require('./routes/request-site-notifications-routes');
+    const backupRoutes = require('./routes/backup-routes');
 
-// Public routes (no auth required - shareable guides, etc.)
-app.use('/api/v2/public', portalPublicRoutes);
+    // Authentication routes (no auth required for these endpoints)
+    app.use('/api/v2/auth', authRoutes);
+    app.use('/api/v2/auth/plex', plexSsoRoutes);
+    app.use('/api/v2/portal/auth', portalAuthRoutes);
 
-// Portal routes (authenticated via portal session)
-app.use('/api/v2/portal', portalRoutes);
+    // Public routes (no auth required - shareable guides, etc.)
+    app.use('/api/v2/public', portalPublicRoutes);
 
-// Admin portal management routes
-app.use('/api/v2/admin/portal', portalAdminRoutes);
+    // Portal routes (authenticated via portal session)
+    app.use('/api/v2/portal', portalRoutes);
 
-// Other API routes (TODO: add auth middleware as needed)
-app.use('/api/v2/app-users', appUsersRoutes); // App login accounts (admins/staff) - also serve as owners/resellers
-app.use('/api/v2/users', usersRoutes); // Subscription users (customers)
-app.use('/api/v2/plex-servers', plexServersRoutes);
-app.use('/api/v2/plex-packages', plexPackagesRoutes);
-app.use('/api/v2/iptv-panels', iptvPanelsRoutes);
-app.use('/api/v2/iptv-playlists', iptvPlaylistsRoutes);
-app.use('/api/v2/iptv-editor', iptvEditorRoutes);
-app.use('/api/v2/iptv-editor/playlists', iptvEditorPlaylistsRoutes);
-app.use('/api/v2/tags', tagsRoutes);
-app.use('/api/v2/csv-import', csvImportRoutes);
-app.use('/api/v2/settings', settingsRoutes);
-app.use('/api/v2/subscription-plans', subscriptionPlansRoutes);
-app.use('/api/v2/payment-providers', paymentProvidersRoutes);
-app.use('/api/v2/email-templates', emailTemplatesRoutes);
-app.use('/api/v2/email-schedules', emailSchedulesRoutes);
-app.use('/api/v2/email/send', emailSendRoutes);
-app.use('/api/v2/service-requests', serviceRequestsRoutes);
-app.use('/api/v2/jobs', jobsRoutes);
-app.use('/api/v2/owners', ownersRoutes);
-app.use('/api/v2/logs', logsRoutes);
-app.use('/api/v2/updates', updatesRoutes);
-app.use('/api/v2/kometa', kometaRoutes);
-app.use('/api/v2/request-site', requestSiteRoutes); // Legacy routes (old schema)
-app.use('/api/v2/request-site-api', requestSiteApiRoutes); // New core API routes
-app.use('/api/v2/webhooks', requestSiteWebhooksRoutes); // No auth required - external webhooks
-app.use('/api/v2/media-managers', mediaManagersRoutes); // Admin tools (Sonarr, Radarr, qBittorrent, SABnzbd)
-app.use('/api/v2/request-site/notifications', requestSiteNotificationsRoutes); // Request Site notification settings
-app.use('/api/v2/backup', backupRoutes); // Backup & restore system
+    // Admin portal management routes
+    app.use('/api/v2/admin/portal', portalAdminRoutes);
+
+    // Other API routes (TODO: add auth middleware as needed)
+    app.use('/api/v2/app-users', appUsersRoutes); // App login accounts (admins/staff) - also serve as owners/resellers
+    app.use('/api/v2/users', usersRoutes); // Subscription users (customers)
+    app.use('/api/v2/plex-servers', plexServersRoutes);
+    app.use('/api/v2/plex-packages', plexPackagesRoutes);
+    app.use('/api/v2/iptv-panels', iptvPanelsRoutes);
+    app.use('/api/v2/iptv-playlists', iptvPlaylistsRoutes);
+    app.use('/api/v2/iptv-editor', iptvEditorRoutes);
+    app.use('/api/v2/iptv-editor/playlists', iptvEditorPlaylistsRoutes);
+    app.use('/api/v2/tags', tagsRoutes);
+    app.use('/api/v2/csv-import', csvImportRoutes);
+    app.use('/api/v2/settings', settingsRoutes);
+    app.use('/api/v2/subscription-plans', subscriptionPlansRoutes);
+    app.use('/api/v2/payment-providers', paymentProvidersRoutes);
+    app.use('/api/v2/email-templates', emailTemplatesRoutes);
+    app.use('/api/v2/email-schedules', emailSchedulesRoutes);
+    app.use('/api/v2/email/send', emailSendRoutes);
+    app.use('/api/v2/service-requests', serviceRequestsRoutes);
+    app.use('/api/v2/jobs', jobsRoutes);
+    app.use('/api/v2/owners', ownersRoutes);
+    app.use('/api/v2/logs', logsRoutes);
+    app.use('/api/v2/updates', updatesRoutes);
+    app.use('/api/v2/kometa', kometaRoutes);
+    app.use('/api/v2/request-site', requestSiteRoutes); // Legacy routes (old schema)
+    app.use('/api/v2/request-site-api', requestSiteApiRoutes); // New core API routes
+    app.use('/api/v2/webhooks', requestSiteWebhooksRoutes); // No auth required - external webhooks
+    app.use('/api/v2/media-managers', mediaManagersRoutes); // Admin tools (Sonarr, Radarr, qBittorrent, SABnzbd)
+    app.use('/api/v2/request-site/notifications', requestSiteNotificationsRoutes); // Request Site notification settings
+    app.use('/api/v2/backup', backupRoutes); // Backup & restore system
+
+    console.log('[ROUTES] ✅ All routes loaded successfully');
+}
 
 // Health check endpoint
 app.get('/api/v2/health', (req, res) => {
@@ -2102,68 +2109,74 @@ app.get('/admin/forgot-password', (req, res) => {
     res.sendFile(path.join(__dirname, '../frontend/admin/forgot-password.html'));
 });
 
-// Redirect old admin login path to unified login page
-app.get('/admin/login', (req, res) => {
-    res.redirect('/login.html');
-});
-
-// Admin SPA catch-all (for hash-based routing within admin)
-app.get('/admin', (req, res) => {
-    res.sendFile(path.join(__dirname, '../frontend/admin/index.html'));
-});
-
-app.get('/admin/*', (req, res) => {
-    res.sendFile(path.join(__dirname, '../frontend/admin/index.html'));
-});
-
-// Redirect old portal login path to unified login page
-app.get('/portal/login', (req, res) => {
-    res.redirect('/login.html');
-});
-
-// Portal SPA catch-all
-app.get('/portal', (req, res) => {
-    res.sendFile(path.join(__dirname, '../frontend/portal/index.html'));
-});
-
-app.get('/portal/*', (req, res) => {
-    res.sendFile(path.join(__dirname, '../frontend/portal/index.html'));
-});
-
-// Unified login page (handles both admin and end-user login)
-app.get('/login.html', (req, res) => {
-    res.sendFile(path.join(__dirname, '../frontend/login.html'));
-});
-app.get('/login', (req, res) => {
-    res.sendFile(path.join(__dirname, '../frontend/login.html'));
-});
-
-app.get('/index.html', (req, res) => {
-    res.redirect('/admin/');
-});
-
-// API 404 catch-all
-app.get('/api/*', (req, res) => {
-    res.status(404).json({
-        success: false,
-        message: 'API endpoint not found'
+// Catch-all routes registered AFTER API routes in registerCatchAllRoutes()
+// This is called from startServer() after loadRoutes()
+function registerCatchAllRoutes() {
+    // Redirect old admin login path to unified login page
+    app.get('/admin/login', (req, res) => {
+        res.redirect('/login.html');
     });
-});
 
-// Final catch-all - redirect to landing page
-app.get('*', (req, res) => {
-    res.redirect('/');
-});
-
-// Error handling middleware
-app.use((err, req, res, next) => {
-    console.error('Unhandled error:', err);
-    res.status(500).json({
-        success: false,
-        message: 'Internal server error',
-        error: process.env.NODE_ENV === 'development' ? err.message : undefined
+    // Admin SPA catch-all (for hash-based routing within admin)
+    app.get('/admin', (req, res) => {
+        res.sendFile(path.join(__dirname, '../frontend/admin/index.html'));
     });
-});
+
+    app.get('/admin/*', (req, res) => {
+        res.sendFile(path.join(__dirname, '../frontend/admin/index.html'));
+    });
+
+    // Redirect old portal login path to unified login page
+    app.get('/portal/login', (req, res) => {
+        res.redirect('/login.html');
+    });
+
+    // Portal SPA catch-all
+    app.get('/portal', (req, res) => {
+        res.sendFile(path.join(__dirname, '../frontend/portal/index.html'));
+    });
+
+    app.get('/portal/*', (req, res) => {
+        res.sendFile(path.join(__dirname, '../frontend/portal/index.html'));
+    });
+
+    // Unified login page (handles both admin and end-user login)
+    app.get('/login.html', (req, res) => {
+        res.sendFile(path.join(__dirname, '../frontend/login.html'));
+    });
+    app.get('/login', (req, res) => {
+        res.sendFile(path.join(__dirname, '../frontend/login.html'));
+    });
+
+    app.get('/index.html', (req, res) => {
+        res.redirect('/admin/');
+    });
+
+    // API 404 catch-all
+    app.get('/api/*', (req, res) => {
+        res.status(404).json({
+            success: false,
+            message: 'API endpoint not found'
+        });
+    });
+
+    // Final catch-all - redirect to landing page
+    app.get('*', (req, res) => {
+        res.redirect('/');
+    });
+
+    // Error handling middleware
+    app.use((err, req, res, next) => {
+        console.error('Unhandled error:', err);
+        res.status(500).json({
+            success: false,
+            message: 'Internal server error',
+            error: process.env.NODE_ENV === 'development' ? err.message : undefined
+        });
+    });
+
+    console.log('[ROUTES] ✅ Catch-all routes registered');
+}
 
 // Start server
 const PORT = process.env.PORT || 3050;
@@ -2252,6 +2265,62 @@ module.exports.startGuideCacheWorker = startGuideCacheWorker;
 
 // Async startup function to load cache before accepting requests
 async function startServer() {
+    // Initialize PostgreSQL database schema
+    const db = require('./database-config');
+    const bcrypt = require('bcrypt');
+    try {
+        console.log('[DB] Testing database connection...');
+        const connected = await db.testConnection();
+        if (connected) {
+            console.log('[DB] ✅ PostgreSQL connection successful');
+            await db.initializeDatabase();
+
+            // Create default admin if this is a fresh install
+            if (process.env.CREATE_DEFAULT_ADMIN === 'true') {
+                console.log('[DB] Creating default admin user...');
+                try {
+                    const hash = await bcrypt.hash('admin', 10);
+                    await db.query(`
+                        INSERT INTO users (name, email, password_hash, role, is_app_user, is_active, created_at, updated_at)
+                        VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
+                        ON CONFLICT (email) DO NOTHING
+                    `, ['Admin', 'admin@streampanel.local', hash, 'admin', 1, 1]);
+                    console.log('[DB] ✅ Default admin created!');
+                    console.log('');
+                    console.log('╔════════════════════════════════════════════╗');
+                    console.log('║     DEFAULT ADMIN CREDENTIALS              ║');
+                    console.log('║                                            ║');
+                    console.log('║     Email: admin@streampanel.local         ║');
+                    console.log('║     Password: admin                        ║');
+                    console.log('║                                            ║');
+                    console.log('║  ⚠️  CHANGE THIS PASSWORD IMMEDIATELY!     ║');
+                    console.log('╚════════════════════════════════════════════╝');
+                    console.log('');
+                } catch (adminErr) {
+                    if (!adminErr.message.includes('duplicate') && !adminErr.message.includes('unique')) {
+                        console.error('[DB] Failed to create default admin:', adminErr.message);
+                    } else {
+                        console.log('[DB] ✅ Admin already exists');
+                    }
+                }
+            }
+        } else {
+            console.error('[DB] ❌ Failed to connect to PostgreSQL');
+            process.exit(1);
+        }
+    } catch (error) {
+        console.error('[DB] ❌ Database initialization failed:', error);
+        process.exit(1);
+    }
+
+    // Load routes AFTER database is initialized
+    // This ensures tables exist before route modules try to query them
+    loadRoutes();
+
+    // Register catch-all routes AFTER API routes
+    // This ensures API routes get matched before the catch-all 404 handler
+    registerCatchAllRoutes();
+
     // Load dashboard cache from database BEFORE starting server
     try {
         console.log('[DASHBOARD] Loading cached stats from database...');

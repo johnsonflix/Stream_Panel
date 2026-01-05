@@ -7,14 +7,13 @@
 
 const express = require('express');
 const router = express.Router();
-const Database = require('better-sqlite3');
 const path = require('path');
 const { fork } = require('child_process');
 const TMDBService = require('../services/tmdb-service');
 const RadarrService = require('../services/radarr-service');
 const SonarrService = require('../services/sonarr-service');
 const { PlexScannerService, MediaStatus } = require('../services/plex-scanner-service');
-const dbQueue = require('../utils/db-write-queue');
+const db = require('../database-config');
 const {
     notifyAdminsNewRequest,
     notifyUserRequestApproved,
@@ -22,17 +21,48 @@ const {
     notifyUserRequestDeclined
 } = require('../services/request-site-notifications');
 
-// Database connection
-const DB_PATH = process.env.DB_PATH || path.join(__dirname, '..', 'data', 'subsapp_v2.db');
-let db;
-
+// Legacy SQLite compatibility layer for PostgreSQL
+// getDb() now returns an object with async query methods
 function getDb() {
-    if (!db) {
-        db = new Database(DB_PATH);
-        db.pragma('journal_mode = WAL');
-        db.pragma('busy_timeout = 30000'); // Wait up to 30 seconds for locks to clear
-    }
-    return db;
+    // Return a compatibility object that mimics better-sqlite3 API
+    // but actually uses PostgreSQL through database-config
+    return {
+        // Simulate prepare().get() - returns a function that returns result
+        prepare: (sql) => ({
+            get: async (...params) => {
+                const results = await db.query(sql, params);
+                return results[0] || null;
+            },
+            all: async (...params) => {
+                return await db.query(sql, params);
+            },
+            run: async (...params) => {
+                const result = await db.query(sql, params);
+                return { changes: result.rowCount || 0, lastInsertRowid: result[0]?.id };
+            }
+        }),
+        exec: async (sql) => {
+            return await db.query(sql);
+        }
+    };
+}
+
+// Async query helper for simpler cases
+async function dbQuery(sql, params = []) {
+    return await db.query(sql, params);
+}
+
+async function dbGet(sql, params = []) {
+    const results = await db.query(sql, params);
+    return results[0] || null;
+}
+
+async function dbAll(sql, params = []) {
+    return await db.query(sql, params);
+}
+
+async function dbRun(sql, params = []) {
+    return await db.query(sql, params);
 }
 
 // Initialize TMDB service
@@ -70,25 +100,20 @@ setInterval(() => {
 /**
  * Get a setting value from request_settings table
  */
-function getSetting(key) {
-    const db = getDb();
-    const row = db.prepare('SELECT setting_value FROM request_settings WHERE setting_key = ?').get(key);
+async function getSetting(key) {
+    const row = await dbGet('SELECT setting_value FROM request_settings WHERE setting_key = ?', [key]);
     return row ? row.setting_value : null;
 }
 
 /**
  * Set a setting value in request_settings table
- * Uses write queue to prevent lock contention
  */
 async function setSetting(key, value) {
-    const db = getDb();
-    return dbQueue.write(() => {
-        db.prepare(`
-            INSERT INTO request_settings (setting_key, setting_value, updated_at)
-            VALUES (?, ?, CURRENT_TIMESTAMP)
-            ON CONFLICT(setting_key) DO UPDATE SET setting_value = ?, updated_at = CURRENT_TIMESTAMP
-        `).run(key, value, value);
-    });
+    await dbRun(`
+        INSERT INTO request_settings (setting_key, setting_value, updated_at)
+        VALUES (?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(setting_key) DO UPDATE SET setting_value = ?, updated_at = CURRENT_TIMESTAMP
+    `, [key, value, value]);
 }
 
 /**
@@ -96,33 +121,31 @@ async function setSetting(key, value) {
  * Internal version for use within routes
  * Falls back to request_settings table for limits if not set in permissions table
  */
-function getUserPermissionsInternal(userId) {
-    const db = getDb();
-
+async function getUserPermissionsInternal(userId) {
     // Get default permissions from permissions table
-    const defaults = db.prepare('SELECT * FROM request_default_permissions WHERE id = 1').get();
+    const defaults = await dbGet('SELECT * FROM request_default_permissions WHERE id = $1', [1]);
 
     // Also check request_settings table as fallback for limits
-    const movieQuotaLimit = parseInt(getSetting('movie_quota_limit')) || 0;
-    const movieQuotaDays = parseInt(getSetting('movie_quota_days')) || 7;
-    const tvQuotaLimit = parseInt(getSetting('tv_quota_limit')) || 0;
-    const tvQuotaDays = parseInt(getSetting('tv_quota_days')) || 7;
-    const seasonQuotaLimit = parseInt(getSetting('season_quota_limit')) || 0;
-    const seasonQuotaDays = parseInt(getSetting('season_quota_days')) || 7;
-    const default4kMovies = getSetting('default_can_request_4k_movies') === '1' ? 1 : 0;
-    const default4kTv = getSetting('default_can_request_4k_tv') === '1' ? 1 : 0;
-    const autoApproveMovies = getSetting('auto_approve_movies') === '1' ? 1 : 0;
-    const autoApproveTv = getSetting('auto_approve_tv') === '1' ? 1 : 0;
+    const movieQuotaLimit = parseInt(await getSetting('movie_quota_limit')) || 0;
+    const movieQuotaDays = parseInt(await getSetting('movie_quota_days')) || 7;
+    const tvQuotaLimit = parseInt(await getSetting('tv_quota_limit')) || 0;
+    const tvQuotaDays = parseInt(await getSetting('tv_quota_days')) || 7;
+    const seasonQuotaLimit = parseInt(await getSetting('season_quota_limit')) || 0;
+    const seasonQuotaDays = parseInt(await getSetting('season_quota_days')) || 7;
+    const default4kMovies = (await getSetting('default_can_request_4k_movies')) === '1' ? 1 : 0;
+    const default4kTv = (await getSetting('default_can_request_4k_tv')) === '1' ? 1 : 0;
+    const autoApproveMovies = (await getSetting('auto_approve_movies')) === '1' ? 1 : 0;
+    const autoApproveTv = (await getSetting('auto_approve_tv')) === '1' ? 1 : 0;
     // 4K limits from settings
-    const movie4kQuotaLimit = parseInt(getSetting('movie_4k_quota_limit')) || 0;
-    const movie4kQuotaDays = parseInt(getSetting('movie_4k_quota_days')) || 7;
-    const tv4kQuotaLimit = parseInt(getSetting('tv_4k_quota_limit')) || 0;
-    const tv4kQuotaDays = parseInt(getSetting('tv_4k_quota_days')) || 7;
-    const season4kQuotaLimit = parseInt(getSetting('season_4k_quota_limit')) || 0;
-    const season4kQuotaDays = parseInt(getSetting('season_4k_quota_days')) || 7;
+    const movie4kQuotaLimit = parseInt(await getSetting('movie_4k_quota_limit')) || 0;
+    const movie4kQuotaDays = parseInt(await getSetting('movie_4k_quota_days')) || 7;
+    const tv4kQuotaLimit = parseInt(await getSetting('tv_4k_quota_limit')) || 0;
+    const tv4kQuotaDays = parseInt(await getSetting('tv_4k_quota_days')) || 7;
+    const season4kQuotaLimit = parseInt(await getSetting('season_4k_quota_limit')) || 0;
+    const season4kQuotaDays = parseInt(await getSetting('season_4k_quota_days')) || 7;
 
     // Get user-specific overrides if any
-    const userPerms = userId ? db.prepare('SELECT * FROM request_user_permissions WHERE user_id = ?').get(userId) : null;
+    const userPerms = userId ? await dbGet('SELECT * FROM request_user_permissions WHERE user_id = $1', [userId]) : null;
 
     // Helper to get effective limit value (prefers permissions table, falls back to settings)
     const getLimit = (permVal, settingsVal) => {
@@ -199,26 +222,25 @@ function getUserPermissionsInternal(userId) {
  * @param {number|null} serverId - Specific server ID to use
  * @param {boolean} is4k - If true, prefer 4K server; if false, prefer non-4K server
  */
-function getRadarrService(serverId = null, is4k = false) {
-    const db = getDb();
+async function getRadarrService(serverId = null, is4k = false) {
     let server;
 
     if (serverId) {
-        server = db.prepare('SELECT * FROM request_servers WHERE id = ? AND type = ?').get(serverId, 'radarr');
+        server = await dbGet('SELECT * FROM request_servers WHERE id = $1 AND type = $2', [serverId, 'radarr']);
     } else if (is4k) {
         // For 4K requests, get the 4K server (is_4k = 1)
-        server = db.prepare('SELECT * FROM request_servers WHERE type = ? AND is_4k = 1 AND is_active = 1').get('radarr');
+        server = await dbGet('SELECT * FROM request_servers WHERE type = $1 AND is_4k = 1 AND is_active = 1', ['radarr']);
         // Fallback to default if no 4K server
         if (!server) {
-            server = db.prepare('SELECT * FROM request_servers WHERE type = ? AND is_default = 1 AND is_active = 1').get('radarr');
+            server = await dbGet('SELECT * FROM request_servers WHERE type = $1 AND is_default = 1 AND is_active = 1', ['radarr']);
         }
     } else {
         // For non-4K requests, get the default non-4K server
-        server = db.prepare('SELECT * FROM request_servers WHERE type = ? AND is_default = 1 AND is_active = 1').get('radarr');
+        server = await dbGet('SELECT * FROM request_servers WHERE type = $1 AND is_default = 1 AND is_active = 1', ['radarr']);
     }
 
     if (!server) {
-        server = db.prepare('SELECT * FROM request_servers WHERE type = ? AND is_active = 1 ORDER BY id LIMIT 1').get('radarr');
+        server = await dbGet('SELECT * FROM request_servers WHERE type = $1 AND is_active = 1 ORDER BY id LIMIT 1', ['radarr']);
     }
 
     if (!server) return null;
@@ -234,26 +256,25 @@ function getRadarrService(serverId = null, is4k = false) {
  * @param {number|null} serverId - Specific server ID to use
  * @param {boolean} is4k - If true, prefer 4K server; if false, prefer non-4K server
  */
-function getSonarrService(serverId = null, is4k = false) {
-    const db = getDb();
+async function getSonarrService(serverId = null, is4k = false) {
     let server;
 
     if (serverId) {
-        server = db.prepare('SELECT * FROM request_servers WHERE id = ? AND type = ?').get(serverId, 'sonarr');
+        server = await dbGet('SELECT * FROM request_servers WHERE id = $1 AND type = $2', [serverId, 'sonarr']);
     } else if (is4k) {
         // For 4K requests, get the 4K server (is_4k = 1)
-        server = db.prepare('SELECT * FROM request_servers WHERE type = ? AND is_4k = 1 AND is_active = 1').get('sonarr');
+        server = await dbGet('SELECT * FROM request_servers WHERE type = $1 AND is_4k = 1 AND is_active = 1', ['sonarr']);
         // Fallback to default if no 4K server
         if (!server) {
-            server = db.prepare('SELECT * FROM request_servers WHERE type = ? AND is_default = 1 AND is_active = 1').get('sonarr');
+            server = await dbGet('SELECT * FROM request_servers WHERE type = $1 AND is_default = 1 AND is_active = 1', ['sonarr']);
         }
     } else {
         // For non-4K requests, get the default non-4K server
-        server = db.prepare('SELECT * FROM request_servers WHERE type = ? AND is_default = 1 AND is_active = 1').get('sonarr');
+        server = await dbGet('SELECT * FROM request_servers WHERE type = $1 AND is_default = 1 AND is_active = 1', ['sonarr']);
     }
 
     if (!server) {
-        server = db.prepare('SELECT * FROM request_servers WHERE type = ? AND is_active = 1 ORDER BY id LIMIT 1').get('sonarr');
+        server = await dbGet('SELECT * FROM request_servers WHERE type = $1 AND is_active = 1 ORDER BY id LIMIT 1', ['sonarr']);
     }
 
     if (!server) return null;
@@ -267,42 +288,38 @@ function getSonarrService(serverId = null, is4k = false) {
 /**
  * Get media status from existing requests
  */
-function getMediaStatus(tmdbId, mediaType, userId = null) {
-    const db = getDb();
-
+async function getMediaStatus(tmdbId, mediaType, userId = null) {
     // Check if there's an existing request
-    let query = 'SELECT * FROM media_requests WHERE tmdb_id = ? AND media_type = ?';
+    let query = 'SELECT * FROM media_requests WHERE tmdb_id = $1 AND media_type = $2';
     const params = [tmdbId, mediaType];
 
     if (userId) {
-        query += ' AND user_id = ?';
+        query += ' AND user_id = $3';
         params.push(userId);
     }
 
     query += ' ORDER BY requested_at DESC LIMIT 1';
 
-    return db.prepare(query).get(...params);
+    return await dbGet(query, params);
 }
 
 /**
  * Get both regular and 4K request status for a media item
  */
-function getMediaRequests(tmdbId, mediaType) {
-    const db = getDb();
-
+async function getMediaRequests(tmdbId, mediaType) {
     // Get non-4K request (is_4k = 0 or NULL)
-    const request = db.prepare(`
+    const request = await dbGet(`
         SELECT * FROM media_requests
-        WHERE tmdb_id = ? AND media_type = ? AND (is_4k = 0 OR is_4k IS NULL)
+        WHERE tmdb_id = $1 AND media_type = $2 AND (is_4k = 0 OR is_4k IS NULL)
         ORDER BY requested_at DESC LIMIT 1
-    `).get(tmdbId, mediaType);
+    `, [tmdbId, mediaType]);
 
     // Get 4K request
-    const request4k = db.prepare(`
+    const request4k = await dbGet(`
         SELECT * FROM media_requests
-        WHERE tmdb_id = ? AND media_type = ? AND is_4k = 1
+        WHERE tmdb_id = $1 AND media_type = $2 AND is_4k = 1
         ORDER BY requested_at DESC LIMIT 1
-    `).get(tmdbId, mediaType);
+    `, [tmdbId, mediaType]);
 
     return { request, request4k };
 }
@@ -313,10 +330,9 @@ function getMediaRequests(tmdbId, mediaType) {
  * GET /api/v2/request-site/settings
  * Get all request site settings
  */
-router.get('/settings', (req, res) => {
+router.get('/settings', async (req, res) => {
     try {
-        const db = getDb();
-        const settings = db.prepare('SELECT setting_key, setting_value FROM request_settings').all();
+        const settings = await dbAll('SELECT setting_key, setting_value FROM request_settings');
         const settingsObj = {};
         for (const s of settings) {
             settingsObj[s.setting_key] = s.setting_value;
@@ -335,7 +351,6 @@ router.get('/settings', (req, res) => {
 router.put('/settings', async (req, res) => {
     try {
         const settings = req.body;
-        const db = getDb();
 
         // Save settings through write queue
         for (const [key, value] of Object.entries(settings)) {
@@ -358,70 +373,50 @@ router.put('/settings', async (req, res) => {
 
         if (hasLimitSettings) {
             try {
-                await dbQueue.write(() => {
-                    db.prepare(`
-                        INSERT INTO request_default_permissions (
-                            id, can_request_movies, can_request_tv, can_request_4k_movie, can_request_4k_tv,
-                            auto_approve_movies, auto_approve_tv, movie_limit_per_week, movie_limit_days,
-                            tv_show_limit, tv_show_limit_days, tv_season_limit, tv_season_limit_days,
-                            movie_4k_limit, movie_4k_limit_days, tv_show_4k_limit, tv_show_4k_limit_days,
-                            tv_season_4k_limit, tv_season_4k_limit_days, updated_at
-                        ) VALUES (1, 1, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-                        ON CONFLICT(id) DO UPDATE SET
-                            can_request_4k_movie = ?,
-                            can_request_4k_tv = ?,
-                            auto_approve_movies = ?,
-                            auto_approve_tv = ?,
-                            movie_limit_per_week = ?,
-                            movie_limit_days = ?,
-                            tv_show_limit = ?,
-                            tv_show_limit_days = ?,
-                            tv_season_limit = ?,
-                            tv_season_limit_days = ?,
-                            movie_4k_limit = ?,
-                            movie_4k_limit_days = ?,
-                            tv_show_4k_limit = ?,
-                            tv_show_4k_limit_days = ?,
-                            tv_season_4k_limit = ?,
-                            tv_season_4k_limit_days = ?,
-                            updated_at = CURRENT_TIMESTAMP
-                    `).run(
-                        // INSERT values
-                        settings.default_can_request_4k_movies === '1' ? 1 : 0,
-                        settings.default_can_request_4k_tv === '1' ? 1 : 0,
-                        settings.auto_approve_movies === '1' ? 1 : 0,
-                        settings.auto_approve_tv === '1' ? 1 : 0,
-                        parseInt(settings.movie_quota_limit) || 0,
-                        parseInt(settings.movie_quota_days) || 7,
-                        parseInt(settings.tv_quota_limit) || 0,
-                        parseInt(settings.tv_quota_days) || 7,
-                        parseInt(settings.season_quota_limit) || 0,
-                        parseInt(settings.season_quota_days) || 7,
-                        parseInt(settings.movie_4k_quota_limit) || 0,
-                        parseInt(settings.movie_4k_quota_days) || 7,
-                        parseInt(settings.tv_4k_quota_limit) || 0,
-                        parseInt(settings.tv_4k_quota_days) || 7,
-                        parseInt(settings.season_4k_quota_limit) || 0,
-                        parseInt(settings.season_4k_quota_days) || 7,
-                        // UPDATE values
-                        settings.default_can_request_4k_movies === '1' ? 1 : 0,
-                        settings.default_can_request_4k_tv === '1' ? 1 : 0,
-                        settings.auto_approve_movies === '1' ? 1 : 0,
-                        settings.auto_approve_tv === '1' ? 1 : 0,
-                        parseInt(settings.movie_quota_limit) || 0,
-                        parseInt(settings.movie_quota_days) || 7,
-                        parseInt(settings.tv_quota_limit) || 0,
-                        parseInt(settings.tv_quota_days) || 7,
-                        parseInt(settings.season_quota_limit) || 0,
-                        parseInt(settings.season_quota_days) || 7,
-                        parseInt(settings.movie_4k_quota_limit) || 0,
-                        parseInt(settings.movie_4k_quota_days) || 7,
-                        parseInt(settings.tv_4k_quota_limit) || 0,
-                        parseInt(settings.tv_4k_quota_days) || 7,
-                        parseInt(settings.season_4k_quota_limit) || 0,
-                        parseInt(settings.season_4k_quota_days) || 7
-                    );
-                });
+                await dbRun(`
+                    INSERT INTO request_default_permissions (
+                        id, can_request_movies, can_request_tv, can_request_4k_movie, can_request_4k_tv,
+                        auto_approve_movies, auto_approve_tv, movie_limit_per_week, movie_limit_days,
+                        tv_show_limit, tv_show_limit_days, tv_season_limit, tv_season_limit_days,
+                        movie_4k_limit, movie_4k_limit_days, tv_show_4k_limit, tv_show_4k_limit_days,
+                        tv_season_4k_limit, tv_season_4k_limit_days, updated_at
+                    ) VALUES (1, 1, 1, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, CURRENT_TIMESTAMP)
+                    ON CONFLICT(id) DO UPDATE SET
+                        can_request_4k_movie = $1,
+                        can_request_4k_tv = $2,
+                        auto_approve_movies = $3,
+                        auto_approve_tv = $4,
+                        movie_limit_per_week = $5,
+                        movie_limit_days = $6,
+                        tv_show_limit = $7,
+                        tv_show_limit_days = $8,
+                        tv_season_limit = $9,
+                        tv_season_limit_days = $10,
+                        movie_4k_limit = $11,
+                        movie_4k_limit_days = $12,
+                        tv_show_4k_limit = $13,
+                        tv_show_4k_limit_days = $14,
+                        tv_season_4k_limit = $15,
+                        tv_season_4k_limit_days = $16,
+                        updated_at = CURRENT_TIMESTAMP
+                `, [
+                    settings.default_can_request_4k_movies === '1' ? 1 : 0,
+                    settings.default_can_request_4k_tv === '1' ? 1 : 0,
+                    settings.auto_approve_movies === '1' ? 1 : 0,
+                    settings.auto_approve_tv === '1' ? 1 : 0,
+                    parseInt(settings.movie_quota_limit) || 0,
+                    parseInt(settings.movie_quota_days) || 7,
+                    parseInt(settings.tv_quota_limit) || 0,
+                    parseInt(settings.tv_quota_days) || 7,
+                    parseInt(settings.season_quota_limit) || 0,
+                    parseInt(settings.season_quota_days) || 7,
+                    parseInt(settings.movie_4k_quota_limit) || 0,
+                    parseInt(settings.movie_4k_quota_days) || 7,
+                    parseInt(settings.tv_4k_quota_limit) || 0,
+                    parseInt(settings.tv_4k_quota_days) || 7,
+                    parseInt(settings.season_4k_quota_limit) || 0,
+                    parseInt(settings.season_4k_quota_days) || 7
+                ]);
                 console.log('[Request Site] Synced limit settings to request_default_permissions');
             } catch (syncError) {
                 console.error('[Request Site] Failed to sync to permissions table:', syncError);
@@ -769,18 +764,17 @@ router.get('/movie/:id', async (req, res) => {
         const movie = await tmdb.getMovie(movieId);
 
         // Get both regular and 4K request status
-        const { request, request4k } = getMediaRequests(movieId, 'movie');
+        const { request, request4k } = await getMediaRequests(movieId, 'movie');
 
         // Check Radarr status from CACHE (not live API - that was causing 12 second delays!)
         let radarrStatus = null;
-        const db = getDb();
-        const cached = db.prepare(`
+        const cached = await dbGet(`
             SELECT c.*, s.name as server_name
             FROM radarr_library_cache c
             JOIN request_servers s ON s.id = c.server_id
-            WHERE c.tmdb_id = ? AND s.is_active = 1
+            WHERE c.tmdb_id = $1 AND s.is_active = 1
             LIMIT 1
-        `).get(movieId);
+        `, [movieId]);
 
         if (cached) {
             radarrStatus = {
@@ -816,18 +810,17 @@ router.get('/tv/:id', async (req, res) => {
         const show = await tmdb.getTvShow(tvId);
 
         // Get both regular and 4K request status
-        const { request, request4k } = getMediaRequests(tvId, 'tv');
+        const { request, request4k } = await getMediaRequests(tvId, 'tv');
 
         // Check Sonarr status from CACHE (not live API)
         let sonarrStatus = null;
-        const db = getDb();
-        const cached = db.prepare(`
+        const cached = await dbGet(`
             SELECT c.*, s.name as server_name
             FROM sonarr_library_cache c
             JOIN request_servers s ON s.id = c.server_id
-            WHERE c.tmdb_id = ? AND s.is_active = 1
+            WHERE c.tmdb_id = $1 AND s.is_active = 1
             LIMIT 1
-        `).get(tvId);
+        `, [tvId]);
 
         if (cached) {
             const totalEpisodes = cached.total_episodes || 0;
@@ -902,16 +895,15 @@ router.get('/person/:id', async (req, res) => {
  * GET /api/v2/request-site/servers
  * Get all configured servers
  */
-router.get('/servers', (req, res) => {
+router.get('/servers', async (req, res) => {
     try {
-        const db = getDb();
-        const servers = db.prepare(`
+        const servers = await dbAll(`
             SELECT id, name, type, url, is_default, is_4k, quality_profile_id, quality_profile_name,
                    root_folder_path, language_profile_id, tags, minimum_availability,
                    search_on_add, is_active, created_at
             FROM request_servers
             ORDER BY type, name
-        `).all();
+        `);
 
         // Parse tags JSON
         servers.forEach(s => {
@@ -933,12 +925,11 @@ router.get('/servers', (req, res) => {
  * GET /api/v2/request-site/servers/:id
  * Get a single server by ID
  */
-router.get('/servers/:id', (req, res) => {
+router.get('/servers/:id', async (req, res) => {
     try {
         const serverId = parseInt(req.params.id);
-        const db = getDb();
 
-        const server = db.prepare(`
+        const server = await dbGet(`
             SELECT id, name, type, url, api_key, is_default, is_4k,
                    quality_profile_id, quality_profile_name, root_folder_path,
                    language_profile_id, tags, minimum_availability,
@@ -948,8 +939,8 @@ router.get('/servers/:id', (req, res) => {
                    anime_root_folder_path, anime_language_profile_id, anime_tags,
                    enable_season_folders, external_url, tag_requests, enable_scan
             FROM request_servers
-            WHERE id = ?
-        `).get(serverId);
+            WHERE id = $1
+        `, [serverId]);
 
         if (!server) {
             return res.status(404).json({ error: 'Server not found' });
@@ -1031,40 +1022,36 @@ router.post('/servers', async (req, res) => {
             return res.status(400).json({ error: `Connection failed: ${testResult.error}` });
         }
 
-        const db = getDb();
+        // If setting as default, clear other defaults
+        if (isDefault) {
+            await dbRun('UPDATE request_servers SET is_default = 0 WHERE type = $1', [type]);
+        }
 
-        // Perform all writes through the queue
-        const result = await dbQueue.write(() => {
-            // If setting as default, clear other defaults
-            if (isDefault) {
-                db.prepare('UPDATE request_servers SET is_default = 0 WHERE type = ?').run(type);
-            }
-
-            return db.prepare(`
-                INSERT INTO request_servers (
-                    name, type, url, api_key, is_default, is_4k, quality_profile_id,
-                    quality_profile_name, root_folder_path, language_profile_id, tags,
-                    minimum_availability, search_on_add, is_active, enable_scan,
-                    use_ssl, base_url, series_type, anime_series_type,
-                    anime_quality_profile_id, anime_quality_profile_name, anime_root_folder_path,
-                    anime_language_profile_id, anime_tags, enable_season_folders,
-                    external_url, tag_requests
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            `).run(
-                name, type, url, apiKey, isDefault ? 1 : 0, is4k ? 1 : 0,
-                qualityProfileId, qualityProfileName, rootFolderPath,
-                languageProfileId, JSON.stringify(tags), minimumAvailability,
-                searchOnAdd ? 1 : 0, isActive ? 1 : 0, enableScan ? 1 : 0,
-                useSsl ? 1 : 0, baseUrl, seriesType, animeSeriesType,
-                animeQualityProfileId, animeQualityProfileName, animeRootFolderPath,
-                animeLanguageProfileId, JSON.stringify(animeTags), enableSeasonFolders ? 1 : 0,
-                externalUrl, tagRequests ? 1 : 0
-            );
-        });
+        const result = await dbRun(`
+            INSERT INTO request_servers (
+                name, type, url, api_key, is_default, is_4k, quality_profile_id,
+                quality_profile_name, root_folder_path, language_profile_id, tags,
+                minimum_availability, search_on_add, is_active, enable_scan,
+                use_ssl, base_url, series_type, anime_series_type,
+                anime_quality_profile_id, anime_quality_profile_name, anime_root_folder_path,
+                anime_language_profile_id, anime_tags, enable_season_folders,
+                external_url, tag_requests
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27)
+            RETURNING id
+        `, [
+            name, type, url, apiKey, isDefault ? 1 : 0, is4k ? 1 : 0,
+            qualityProfileId, qualityProfileName, rootFolderPath,
+            languageProfileId, JSON.stringify(tags), minimumAvailability,
+            searchOnAdd ? 1 : 0, isActive ? 1 : 0, enableScan ? 1 : 0,
+            useSsl ? 1 : 0, baseUrl, seriesType, animeSeriesType,
+            animeQualityProfileId, animeQualityProfileName, animeRootFolderPath,
+            animeLanguageProfileId, JSON.stringify(animeTags), enableSeasonFolders ? 1 : 0,
+            externalUrl, tagRequests ? 1 : 0
+        ]);
 
         res.json({
             success: true,
-            id: result.lastInsertRowid,
+            id: result[0]?.id,
             version: testResult.version
         });
     } catch (error) {
@@ -1080,9 +1067,8 @@ router.post('/servers', async (req, res) => {
 router.put('/servers/:id', async (req, res) => {
     try {
         const serverId = parseInt(req.params.id);
-        const db = getDb();
 
-        const existing = db.prepare('SELECT * FROM request_servers WHERE id = ?').get(serverId);
+        const existing = await dbGet('SELECT * FROM request_servers WHERE id = $1', [serverId]);
         if (!existing) {
             return res.status(404).json({ error: 'Server not found' });
         }
@@ -1129,35 +1115,32 @@ router.put('/servers/:id', async (req, res) => {
             }
         }
 
-        // Perform all writes through the queue
-        await dbQueue.write(() => {
-            // If setting as default, clear other defaults
-            if (isDefault && !existing.is_default) {
-                db.prepare('UPDATE request_servers SET is_default = 0 WHERE type = ?').run(existing.type);
-            }
+        // If setting as default, clear other defaults
+        if (isDefault && !existing.is_default) {
+            await dbRun('UPDATE request_servers SET is_default = 0 WHERE type = $1', [existing.type]);
+        }
 
-            db.prepare(`
-                UPDATE request_servers SET
-                    name = ?, url = ?, api_key = ?, is_default = ?, is_4k = ?,
-                    quality_profile_id = ?, quality_profile_name = ?, root_folder_path = ?,
-                    language_profile_id = ?, tags = ?, minimum_availability = ?,
-                    search_on_add = ?, is_active = ?, enable_scan = ?,
-                    use_ssl = ?, base_url = ?, series_type = ?, anime_series_type = ?,
-                    anime_quality_profile_id = ?, anime_quality_profile_name = ?, anime_root_folder_path = ?,
-                    anime_language_profile_id = ?, anime_tags = ?, enable_season_folders = ?,
-                    external_url = ?, tag_requests = ?, updated_at = CURRENT_TIMESTAMP
-                WHERE id = ?
-            `).run(
-                name, url, apiKey, isDefault ? 1 : 0, is4k ? 1 : 0,
-                qualityProfileId, qualityProfileName, rootFolderPath,
-                languageProfileId, JSON.stringify(tags), minimumAvailability,
-                searchOnAdd ? 1 : 0, isActive ? 1 : 0, enableScan ? 1 : 0,
-                useSsl ? 1 : 0, baseUrl, seriesType, animeSeriesType,
-                animeQualityProfileId, animeQualityProfileName, animeRootFolderPath,
-                animeLanguageProfileId, JSON.stringify(animeTags), enableSeasonFolders ? 1 : 0,
-                externalUrl, tagRequests ? 1 : 0, serverId
-            );
-        });
+        await dbRun(`
+            UPDATE request_servers SET
+                name = $1, url = $2, api_key = $3, is_default = $4, is_4k = $5,
+                quality_profile_id = $6, quality_profile_name = $7, root_folder_path = $8,
+                language_profile_id = $9, tags = $10, minimum_availability = $11,
+                search_on_add = $12, is_active = $13, enable_scan = $14,
+                use_ssl = $15, base_url = $16, series_type = $17, anime_series_type = $18,
+                anime_quality_profile_id = $19, anime_quality_profile_name = $20, anime_root_folder_path = $21,
+                anime_language_profile_id = $22, anime_tags = $23, enable_season_folders = $24,
+                external_url = $25, tag_requests = $26, updated_at = CURRENT_TIMESTAMP
+            WHERE id = $27
+        `, [
+            name, url, apiKey, isDefault ? 1 : 0, is4k ? 1 : 0,
+            qualityProfileId, qualityProfileName, rootFolderPath,
+            languageProfileId, JSON.stringify(tags), minimumAvailability,
+            searchOnAdd ? 1 : 0, isActive ? 1 : 0, enableScan ? 1 : 0,
+            useSsl ? 1 : 0, baseUrl, seriesType, animeSeriesType,
+            animeQualityProfileId, animeQualityProfileName, animeRootFolderPath,
+            animeLanguageProfileId, JSON.stringify(animeTags), enableSeasonFolders ? 1 : 0,
+            externalUrl, tagRequests ? 1 : 0, serverId
+        ]);
 
         res.json({ success: true });
     } catch (error) {
@@ -1173,15 +1156,14 @@ router.put('/servers/:id', async (req, res) => {
 router.delete('/servers/:id', async (req, res) => {
     try {
         const serverId = parseInt(req.params.id);
-        const db = getDb();
 
-        const result = await dbQueue.write(() => {
-            return db.prepare('DELETE FROM request_servers WHERE id = ?').run(serverId);
-        });
-
-        if (result.changes === 0) {
+        // Check if server exists first
+        const existing = await dbGet('SELECT id FROM request_servers WHERE id = $1', [serverId]);
+        if (!existing) {
             return res.status(404).json({ error: 'Server not found' });
         }
+
+        await dbRun('DELETE FROM request_servers WHERE id = $1', [serverId]);
 
         res.json({ success: true });
     } catch (error) {
@@ -1249,9 +1231,8 @@ router.post('/servers/test-connection', async (req, res) => {
 router.post('/servers/:id/test', async (req, res) => {
     try {
         const serverId = parseInt(req.params.id);
-        const db = getDb();
 
-        const server = db.prepare('SELECT * FROM request_servers WHERE id = ?').get(serverId);
+        const server = await dbGet('SELECT * FROM request_servers WHERE id = $1', [serverId]);
         if (!server) {
             return res.status(404).json({ error: 'Server not found' });
         }
@@ -1274,9 +1255,8 @@ router.post('/servers/:id/test', async (req, res) => {
 router.get('/servers/:id/profiles', async (req, res) => {
     try {
         const serverId = parseInt(req.params.id);
-        const db = getDb();
 
-        const server = db.prepare('SELECT * FROM request_servers WHERE id = ?').get(serverId);
+        const server = await dbGet('SELECT * FROM request_servers WHERE id = $1', [serverId]);
         if (!server) {
             return res.status(404).json({ error: 'Server not found' });
         }
@@ -1320,9 +1300,8 @@ router.get('/servers/:id/profiles', async (req, res) => {
  * GET /api/v2/request-site/requests
  * Get all requests (admin) or user's requests
  */
-router.get('/requests', (req, res) => {
+router.get('/requests', async (req, res) => {
     try {
-        const db = getDb();
         const { status, mediaType, userId, page = 1, limit = 20 } = req.query;
 
         let query = `
@@ -1332,41 +1311,44 @@ router.get('/requests', (req, res) => {
             WHERE 1=1
         `;
         const params = [];
+        let paramIndex = 1;
 
         if (status) {
-            query += ' AND r.status = ?';
+            query += ` AND r.status = $${paramIndex++}`;
             params.push(status);
         }
         if (mediaType) {
-            query += ' AND r.media_type = ?';
+            query += ` AND r.media_type = $${paramIndex++}`;
             params.push(mediaType);
         }
         if (userId) {
-            query += ' AND r.user_id = ?';
+            query += ` AND r.user_id = $${paramIndex++}`;
             params.push(parseInt(userId));
         }
 
-        query += ' ORDER BY r.requested_at DESC LIMIT ? OFFSET ?';
+        query += ` ORDER BY r.requested_at DESC LIMIT $${paramIndex++} OFFSET $${paramIndex++}`;
         params.push(parseInt(limit), (parseInt(page) - 1) * parseInt(limit));
 
-        const requests = db.prepare(query).all(...params);
+        const requests = await dbAll(query, params);
 
         // Get total count
         let countQuery = 'SELECT COUNT(*) as count FROM media_requests WHERE 1=1';
         const countParams = [];
+        let countParamIndex = 1;
         if (status) {
-            countQuery += ' AND status = ?';
+            countQuery += ` AND status = $${countParamIndex++}`;
             countParams.push(status);
         }
         if (mediaType) {
-            countQuery += ' AND media_type = ?';
+            countQuery += ` AND media_type = $${countParamIndex++}`;
             countParams.push(mediaType);
         }
         if (userId) {
-            countQuery += ' AND user_id = ?';
+            countQuery += ` AND user_id = $${countParamIndex++}`;
             countParams.push(parseInt(userId));
         }
-        const total = db.prepare(countQuery).get(...countParams).count;
+        const totalResult = await dbGet(countQuery, countParams);
+        const total = totalResult?.count || 0;
 
         res.json({
             requests,
@@ -1395,10 +1377,8 @@ router.post('/requests', async (req, res) => {
             return res.status(400).json({ error: 'userId, tmdbId, mediaType, and title are required' });
         }
 
-        const db = getDb();
-
         // Get user permissions
-        const permissions = getUserPermissionsInternal(userId);
+        const permissions = await getUserPermissionsInternal(userId);
 
         // Check media type permission
         if (mediaType === 'movie' && !permissions.can_request_movies) {
@@ -1428,10 +1408,11 @@ router.post('/requests', async (req, res) => {
         const movieLimitDays = permissions.movie_limit_days || 7;
         if (mediaType === 'movie' && movieLimit > 0) {
             const cutoffDate = new Date(Date.now() - movieLimitDays * 24 * 60 * 60 * 1000).toISOString();
-            const recentMovieCount = db.prepare(`
+            const recentMovieResult = await dbGet(`
                 SELECT COUNT(*) as count FROM media_requests
-                WHERE user_id = ? AND media_type = 'movie' AND requested_at > ?
-            `).get(userId, cutoffDate)?.count || 0;
+                WHERE user_id = $1 AND media_type = 'movie' AND requested_at > $2
+            `, [userId, cutoffDate]);
+            const recentMovieCount = recentMovieResult?.count || 0;
 
             if (recentMovieCount >= movieLimit) {
                 return res.status(403).json({ error: `You have reached your movie request limit (${movieLimit} per ${movieLimitDays} days)` });
@@ -1443,10 +1424,11 @@ router.post('/requests', async (req, res) => {
         const tvShowLimitDays = permissions.tv_show_limit_days || 7;
         if (mediaType === 'tv' && tvShowLimit > 0) {
             const cutoffDate = new Date(Date.now() - tvShowLimitDays * 24 * 60 * 60 * 1000).toISOString();
-            const recentTvShowCount = db.prepare(`
+            const recentTvShowResult = await dbGet(`
                 SELECT COUNT(*) as count FROM media_requests
-                WHERE user_id = ? AND media_type = 'tv' AND requested_at > ?
-            `).get(userId, cutoffDate)?.count || 0;
+                WHERE user_id = $1 AND media_type = 'tv' AND requested_at > $2
+            `, [userId, cutoffDate]);
+            const recentTvShowCount = recentTvShowResult?.count || 0;
 
             if (recentTvShowCount >= tvShowLimit) {
                 return res.status(403).json({ error: `You have reached your TV show request limit (${tvShowLimit} shows per ${tvShowLimitDays} days)` });
@@ -1460,10 +1442,10 @@ router.post('/requests', async (req, res) => {
             const cutoffDate = new Date(Date.now() - tvSeasonLimitDays * 24 * 60 * 60 * 1000).toISOString();
 
             // Count total seasons requested in time period
-            const recentTvRequests = db.prepare(`
+            const recentTvRequests = await dbAll(`
                 SELECT seasons FROM media_requests
-                WHERE user_id = ? AND media_type = 'tv' AND requested_at > ?
-            `).all(userId, cutoffDate);
+                WHERE user_id = $1 AND media_type = 'tv' AND requested_at > $2
+            `, [userId, cutoffDate]);
 
             let totalRecentSeasons = 0;
             for (const req of recentTvRequests) {
@@ -1491,10 +1473,10 @@ router.post('/requests', async (req, res) => {
         }
 
         // Check if already requested (same media, same 4K status)
-        const existing = db.prepare(`
+        const existing = await dbGet(`
             SELECT * FROM media_requests
-            WHERE tmdb_id = ? AND media_type = ? AND is_4k = ? AND status NOT IN ('declined', 'failed')
-        `).get(tmdbId, mediaType, is4k ? 1 : 0);
+            WHERE tmdb_id = $1 AND media_type = $2 AND is_4k = $3 AND status NOT IN ('declined', 'failed')
+        `, [tmdbId, mediaType, is4k ? 1 : 0]);
 
         if (existing) {
             return res.status(400).json({ error: 'This media has already been requested', existingRequest: existing });
@@ -1509,35 +1491,26 @@ router.post('/requests', async (req, res) => {
         } else {
             // Fall back to global settings
             autoApprove = mediaType === 'movie'
-                ? getSetting('auto_approve_movies') === '1'
-                : getSetting('auto_approve_tv') === '1';
+                ? (await getSetting('auto_approve_movies')) === '1'
+                : (await getSetting('auto_approve_tv')) === '1';
         }
 
         const status = autoApprove ? 'approved' : 'pending';
 
-        // Insert request through write queue
-        const result = await dbQueue.write(() => {
-            // Disable foreign key checks temporarily (user_id references users table, not app_users)
-            db.pragma('foreign_keys = OFF');
+        // Insert request
+        const result = await dbRun(`
+            INSERT INTO media_requests (
+                user_id, tmdb_id, media_type, title, poster_path, backdrop_path,
+                overview, release_date, status, seasons, is_4k, requested_by
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+            RETURNING id
+        `, [
+            userId, tmdbId, mediaType, title, posterPath, backdropPath,
+            overview, releaseDate, status, seasons ? JSON.stringify(seasons) : null,
+            is4k ? 1 : 0, requestedBy
+        ]);
 
-            const insertResult = db.prepare(`
-                INSERT INTO media_requests (
-                    user_id, tmdb_id, media_type, title, poster_path, backdrop_path,
-                    overview, release_date, status, seasons, is_4k, requested_by
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            `).run(
-                userId, tmdbId, mediaType, title, posterPath, backdropPath,
-                overview, releaseDate, status, seasons ? JSON.stringify(seasons) : null,
-                is4k ? 1 : 0, requestedBy
-            );
-
-            // Re-enable foreign key checks
-            db.pragma('foreign_keys = ON');
-
-            return insertResult;
-        });
-
-        const requestId = result.lastInsertRowid;
+        const requestId = result[0]?.id;
 
         // If auto-approved, send to Radarr/Sonarr
         if (autoApprove) {
@@ -1558,9 +1531,7 @@ router.post('/requests', async (req, res) => {
             } catch (processError) {
                 console.error('[Request Site] Auto-process failed:', processError);
                 // Update status to pending if auto-process failed
-                await dbQueue.write(() => {
-                    db.prepare('UPDATE media_requests SET status = ? WHERE id = ?').run('pending', requestId);
-                });
+                await dbRun('UPDATE media_requests SET status = $1 WHERE id = $2', ['pending', requestId]);
                 // Since it reverted to pending, notify admins instead
                 console.log('[Request Site] Auto-process failed, notifying admins of pending request');
                 await notifyAdminsNewRequest({
@@ -1589,7 +1560,7 @@ router.post('/requests', async (req, res) => {
             });
         }
 
-        const newRequest = db.prepare('SELECT * FROM media_requests WHERE id = ?').get(requestId);
+        const newRequest = await dbGet('SELECT * FROM media_requests WHERE id = $1', [requestId]);
         res.json(newRequest);
     } catch (error) {
         console.error('[Request Site] Failed to create request:', error);
@@ -1605,9 +1576,8 @@ router.put('/requests/:id/approve', async (req, res) => {
     try {
         const requestId = parseInt(req.params.id);
         const { approvedBy, serverId } = req.body;
-        const db = getDb();
 
-        const request = db.prepare('SELECT * FROM media_requests WHERE id = ?').get(requestId);
+        const request = await dbGet('SELECT * FROM media_requests WHERE id = $1', [requestId]);
         if (!request) {
             return res.status(404).json({ error: 'Request not found' });
         }
@@ -1621,7 +1591,7 @@ router.put('/requests/:id/approve', async (req, res) => {
         const isAdmin = req.session?.role === 'admin';
 
         if (!isAdmin && userId) {
-            const userPerms = getUserPermissionsInternal(userId);
+            const userPerms = await getUserPermissionsInternal(userId);
             const is4k = request.is_4k === 1;
             const isMovie = request.media_type === 'movie';
 
@@ -1638,12 +1608,10 @@ router.put('/requests/:id/approve', async (req, res) => {
         }
 
         // Update status to approved
-        await dbQueue.write(() => {
-            db.prepare(`
-                UPDATE media_requests SET status = ?, approved_by = ?, processed_at = CURRENT_TIMESTAMP
-                WHERE id = ?
-            `).run('approved', approvedBy, requestId);
-        });
+        await dbRun(`
+            UPDATE media_requests SET status = $1, approved_by = $2, processed_at = CURRENT_TIMESTAMP
+            WHERE id = $3
+        `, ['approved', approvedBy, requestId]);
 
         // Process the request
         try {
@@ -1654,15 +1622,10 @@ router.put('/requests/:id/approve', async (req, res) => {
                 await processTvRequest(requestId, seasons, serverId);
             }
 
-            await dbQueue.write(() => {
-                db.prepare('UPDATE media_requests SET status = ? WHERE id = ?').run('processing', requestId);
-            });
+            await dbRun('UPDATE media_requests SET status = $1 WHERE id = $2', ['processing', requestId]);
         } catch (processError) {
             console.error('[Request Site] Process failed:', processError);
-            await dbQueue.write(() => {
-                db.prepare('UPDATE media_requests SET status = ?, notes = ? WHERE id = ?')
-                    .run('failed', processError.message, requestId);
-            });
+            await dbRun('UPDATE media_requests SET status = $1, notes = $2 WHERE id = $3', ['failed', processError.message, requestId]);
         }
 
         // Notify user of approval
@@ -1674,7 +1637,7 @@ router.put('/requests/:id/approve', async (req, res) => {
             is4k: request.is_4k === 1
         });
 
-        const updatedRequest = db.prepare('SELECT * FROM media_requests WHERE id = ?').get(requestId);
+        const updatedRequest = await dbGet('SELECT * FROM media_requests WHERE id = $1', [requestId]);
         res.json(updatedRequest);
     } catch (error) {
         console.error('[Request Site] Failed to approve request:', error);
@@ -1690,9 +1653,8 @@ router.put('/requests/:id/decline', async (req, res) => {
     try {
         const requestId = parseInt(req.params.id);
         const { reason } = req.body;
-        const db = getDb();
 
-        const request = db.prepare('SELECT * FROM media_requests WHERE id = ?').get(requestId);
+        const request = await dbGet('SELECT * FROM media_requests WHERE id = $1', [requestId]);
         if (!request) {
             return res.status(404).json({ error: 'Request not found' });
         }
@@ -1702,7 +1664,7 @@ router.put('/requests/:id/decline', async (req, res) => {
         const isAdmin = req.session?.role === 'admin';
 
         if (!isAdmin && userId) {
-            const userPerms = getUserPermissionsInternal(userId);
+            const userPerms = await getUserPermissionsInternal(userId);
             const is4k = request.is_4k === 1;
             const isMovie = request.media_type === 'movie';
 
@@ -1718,12 +1680,10 @@ router.put('/requests/:id/decline', async (req, res) => {
             }
         }
 
-        await dbQueue.write(() => {
-            db.prepare(`
-                UPDATE media_requests SET status = ?, notes = ?, processed_at = CURRENT_TIMESTAMP
-                WHERE id = ?
-            `).run('declined', reason || 'Request declined', requestId);
-        });
+        await dbRun(`
+            UPDATE media_requests SET status = $1, notes = $2, processed_at = CURRENT_TIMESTAMP
+            WHERE id = $3
+        `, ['declined', reason || 'Request declined', requestId]);
 
         // Notify user of decline
         console.log('[Request Site] Sending decline notification to user:', request.user_id);
@@ -1734,7 +1694,7 @@ router.put('/requests/:id/decline', async (req, res) => {
             is4k: request.is_4k === 1
         });
 
-        const updatedRequest = db.prepare('SELECT * FROM media_requests WHERE id = ?').get(requestId);
+        const updatedRequest = await dbGet('SELECT * FROM media_requests WHERE id = $1', [requestId]);
         res.json(updatedRequest);
     } catch (error) {
         console.error('[Request Site] Failed to decline request:', error);
@@ -1749,15 +1709,14 @@ router.put('/requests/:id/decline', async (req, res) => {
 router.delete('/requests/:id', async (req, res) => {
     try {
         const requestId = parseInt(req.params.id);
-        const db = getDb();
 
-        const result = await dbQueue.write(() => {
-            return db.prepare('DELETE FROM media_requests WHERE id = ?').run(requestId);
-        });
-
-        if (result.changes === 0) {
+        // Check if request exists first
+        const existing = await dbGet('SELECT id FROM media_requests WHERE id = $1', [requestId]);
+        if (!existing) {
             return res.status(404).json({ error: 'Request not found' });
         }
+
+        await dbRun('DELETE FROM media_requests WHERE id = $1', [requestId]);
 
         res.json({ success: true });
     } catch (error) {
@@ -1772,8 +1731,7 @@ router.delete('/requests/:id', async (req, res) => {
  * Process a movie request through Radarr
  */
 async function processMovieRequest(requestId, serverId = null) {
-    const db = getDb();
-    const request = db.prepare('SELECT * FROM media_requests WHERE id = ?').get(requestId);
+    const request = await dbGet('SELECT * FROM media_requests WHERE id = $1', [requestId]);
 
     if (!request) {
         throw new Error('Request not found');
@@ -1781,7 +1739,7 @@ async function processMovieRequest(requestId, serverId = null) {
 
     // Get appropriate Radarr server based on 4K flag
     const is4k = request.is_4k === 1;
-    const radarr = getRadarrService(serverId, is4k);
+    const radarr = await getRadarrService(serverId, is4k);
     if (!radarr) {
         throw new Error(`No ${is4k ? '4K ' : ''}Radarr server configured`);
     }
@@ -1802,13 +1760,19 @@ async function processMovieRequest(requestId, serverId = null) {
         // Check if movie already has file - mark as available immediately
         const newStatus = result.hasFile ? 'available' : 'processing';
 
-        await dbQueue.write(() => {
-            db.prepare(`
+        if (result.hasFile) {
+            await dbRun(`
                 UPDATE media_requests SET
-                    server_id = ?, external_id = ?, status = ?${result.hasFile ? ', available_at = CURRENT_TIMESTAMP' : ''}
-                WHERE id = ?
-            `).run(radarr.server.id, result.movie?.id, newStatus, requestId);
-        });
+                    server_id = $1, external_id = $2, status = $3, available_at = CURRENT_TIMESTAMP
+                WHERE id = $4
+            `, [radarr.server.id, result.movie?.id, newStatus, requestId]);
+        } else {
+            await dbRun(`
+                UPDATE media_requests SET
+                    server_id = $1, external_id = $2, status = $3
+                WHERE id = $4
+            `, [radarr.server.id, result.movie?.id, newStatus, requestId]);
+        }
 
         // If already downloaded, also update request_site_media table
         if (result.hasFile) {
@@ -1816,18 +1780,13 @@ async function processMovieRequest(requestId, serverId = null) {
 
             // Update or insert request_site_media record
             const statusField = is4k ? 'status_4k' : 'status';
-            await dbQueue.write(() => {
-                const existing = db.prepare('SELECT id FROM request_site_media WHERE tmdb_id = ? AND media_type = ?')
-                    .get(request.tmdb_id, 'movie');
+            const existing = await dbGet('SELECT id FROM request_site_media WHERE tmdb_id = $1 AND media_type = $2', [request.tmdb_id, 'movie']);
 
-                if (existing) {
-                    db.prepare(`UPDATE request_site_media SET ${statusField} = 4, media_added_at = COALESCE(media_added_at, CURRENT_TIMESTAMP), updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
-                        .run(existing.id);
-                } else {
-                    db.prepare(`INSERT INTO request_site_media (tmdb_id, media_type, ${statusField}, media_added_at, created_at, updated_at) VALUES (?, 'movie', 4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`)
-                        .run(request.tmdb_id);
-                }
-            });
+            if (existing) {
+                await dbRun(`UPDATE request_site_media SET ${statusField} = 4, media_added_at = COALESCE(media_added_at, CURRENT_TIMESTAMP), updated_at = CURRENT_TIMESTAMP WHERE id = $1`, [existing.id]);
+            } else {
+                await dbRun(`INSERT INTO request_site_media (tmdb_id, media_type, ${statusField}, media_added_at, created_at, updated_at) VALUES ($1, 'movie', 4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`, [request.tmdb_id]);
+            }
         }
     } else {
         throw new Error(result.error || 'Failed to add to Radarr');
@@ -1840,8 +1799,7 @@ async function processMovieRequest(requestId, serverId = null) {
  * Process a TV request through Sonarr
  */
 async function processTvRequest(requestId, seasons = null, serverId = null) {
-    const db = getDb();
-    const request = db.prepare('SELECT * FROM media_requests WHERE id = ?').get(requestId);
+    const request = await dbGet('SELECT * FROM media_requests WHERE id = $1', [requestId]);
 
     if (!request) {
         throw new Error('Request not found');
@@ -1849,7 +1807,7 @@ async function processTvRequest(requestId, seasons = null, serverId = null) {
 
     // Get appropriate Sonarr server based on 4K flag
     const is4k = request.is_4k === 1;
-    const sonarr = getSonarrService(serverId, is4k);
+    const sonarr = await getSonarrService(serverId, is4k);
     if (!sonarr) {
         throw new Error(`No ${is4k ? '4K ' : ''}Sonarr server configured`);
     }
@@ -1857,8 +1815,8 @@ async function processTvRequest(requestId, seasons = null, serverId = null) {
     console.log(`[Request Site] Processing TV request #${requestId} (4K: ${is4k}) using server: ${sonarr.server.name}`);
 
     // First get TVDB ID from TMDB
-    const tmdb = new TMDBService();
-    const externalIds = await tmdb.getTvExternalIds(request.tmdb_id);
+    const tmdbService = new TMDBService();
+    const externalIds = await tmdbService.getTvExternalIds(request.tmdb_id);
     const tvdbId = externalIds?.tvdb_id;
 
     if (!tvdbId) {
@@ -1892,13 +1850,19 @@ async function processTvRequest(requestId, seasons = null, serverId = null) {
             newStatus = 'processing';
         }
 
-        await dbQueue.write(() => {
-            db.prepare(`
+        if (newStatus === 'available') {
+            await dbRun(`
                 UPDATE media_requests SET
-                    server_id = ?, external_id = ?, tvdb_id = ?, status = ?${newStatus === 'available' ? ', available_at = CURRENT_TIMESTAMP' : ''}
-                WHERE id = ?
-            `).run(sonarr.server.id, result.series?.id, tvdbId, newStatus, requestId);
-        });
+                    server_id = $1, external_id = $2, tvdb_id = $3, status = $4, available_at = CURRENT_TIMESTAMP
+                WHERE id = $5
+            `, [sonarr.server.id, result.series?.id, tvdbId, newStatus, requestId]);
+        } else {
+            await dbRun(`
+                UPDATE media_requests SET
+                    server_id = $1, external_id = $2, tvdb_id = $3, status = $4
+                WHERE id = $5
+            `, [sonarr.server.id, result.series?.id, tvdbId, newStatus, requestId]);
+        }
 
         // If already has files, update request_site_media table
         if (hasFiles) {
@@ -1907,18 +1871,13 @@ async function processTvRequest(requestId, seasons = null, serverId = null) {
             const mediaStatus = isFullyAvailable ? 4 : 3; // 4 = AVAILABLE, 3 = PARTIALLY_AVAILABLE
             const statusField = is4k ? 'status_4k' : 'status';
 
-            await dbQueue.write(() => {
-                const existing = db.prepare('SELECT id FROM request_site_media WHERE tmdb_id = ? AND media_type = ?')
-                    .get(request.tmdb_id, 'tv');
+            const existing = await dbGet('SELECT id FROM request_site_media WHERE tmdb_id = $1 AND media_type = $2', [request.tmdb_id, 'tv']);
 
-                if (existing) {
-                    db.prepare(`UPDATE request_site_media SET ${statusField} = ?, media_added_at = COALESCE(media_added_at, CURRENT_TIMESTAMP), updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
-                        .run(mediaStatus, existing.id);
-                } else {
-                    db.prepare(`INSERT INTO request_site_media (tmdb_id, media_type, ${statusField}, media_added_at, created_at, updated_at) VALUES (?, 'tv', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`)
-                        .run(request.tmdb_id, mediaStatus);
-                }
-            });
+            if (existing) {
+                await dbRun(`UPDATE request_site_media SET ${statusField} = $1, media_added_at = COALESCE(media_added_at, CURRENT_TIMESTAMP), updated_at = CURRENT_TIMESTAMP WHERE id = $2`, [mediaStatus, existing.id]);
+            } else {
+                await dbRun(`INSERT INTO request_site_media (tmdb_id, media_type, ${statusField}, media_added_at, created_at, updated_at) VALUES ($1, 'tv', $2, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`, [request.tmdb_id, mediaStatus]);
+            }
         }
     } else {
         throw new Error(result.error || 'Failed to add to Sonarr');
@@ -2196,15 +2155,14 @@ router.get('/tv/:tmdbId/season/:seasonNumber/episodes/availability', async (req,
         const axios = require('axios');
         const tmdbId = parseInt(req.params.tmdbId);
         const seasonNumber = parseInt(req.params.seasonNumber);
-        const db = getDb();
 
         console.log(`[Episode Availability] Checking TMDB ${tmdbId}, Season ${seasonNumber}`);
 
         // Find the show in our media database
-        const mediaRecord = db.prepare(`
+        const mediaRecord = await dbGet(`
             SELECT id, tmdb_id, plex_rating_key, plex_server_id, status FROM request_site_media
-            WHERE tmdb_id = ? AND media_type = 'tv'
-        `).get(tmdbId);
+            WHERE tmdb_id = $1 AND media_type = 'tv'
+        `, [tmdbId]);
 
         console.log(`[Episode Availability] Media record:`, mediaRecord);
 
@@ -2215,9 +2173,9 @@ router.get('/tv/:tmdbId/season/:seasonNumber/episodes/availability', async (req,
         }
 
         // Get the Plex server details
-        const server = db.prepare(`
-            SELECT url, token FROM plex_servers WHERE id = ?
-        `).get(mediaRecord.plex_server_id);
+        const server = await dbGet(`
+            SELECT url, token FROM plex_servers WHERE id = $1
+        `, [mediaRecord.plex_server_id]);
 
         if (!server) {
             return res.json({ available: [], status: 'server_not_found' });
@@ -2496,14 +2454,13 @@ function startPlexScanWorker(options = {}) {
  * GET /api/v2/request-site/plex/servers
  * Get available Plex servers for scanning (includes auto-scan setting)
  */
-router.get('/plex/servers', (req, res) => {
+router.get('/plex/servers', async (req, res) => {
     try {
-        const db = getDb();
-        const servers = db.prepare(`
+        const servers = await dbAll(`
             SELECT id, name, url, last_scan, last_recent_scan,
                    COALESCE(enable_auto_scan, 1) as enable_auto_scan
             FROM plex_servers WHERE is_active = 1 ORDER BY name
-        `).all();
+        `);
         res.json({ servers });
     } catch (error) {
         console.error('[Request Site] Failed to get Plex servers:', error);
@@ -2520,12 +2477,9 @@ router.put('/plex/servers/:id/auto-scan', async (req, res) => {
         const { id } = req.params;
         const { enabled } = req.body;
 
-        const db = getDb();
-        await dbQueue.write(() => {
-            db.prepare(`
-                UPDATE plex_servers SET enable_auto_scan = ? WHERE id = ?
-            `).run(enabled ? 1 : 0, id);
-        });
+        await dbRun(`
+            UPDATE plex_servers SET enable_auto_scan = $1 WHERE id = $2
+        `, [enabled ? 1 : 0, id]);
 
         console.log(`[Request Site] Plex server ${id} auto-scan set to ${enabled}`);
         res.json({ success: true, serverId: id, enableAutoScan: enabled });
@@ -2547,13 +2501,9 @@ router.put('/plex/servers/auto-scan-bulk', async (req, res) => {
             return res.status(400).json({ error: 'servers must be an array' });
         }
 
-        const db = getDb();
-        await dbQueue.write(() => {
-            const stmt = db.prepare(`UPDATE plex_servers SET enable_auto_scan = ? WHERE id = ?`);
-            for (const server of servers) {
-                stmt.run(server.enabled ? 1 : 0, server.id);
-            }
-        });
+        for (const server of servers) {
+            await dbRun(`UPDATE plex_servers SET enable_auto_scan = $1 WHERE id = $2`, [server.enabled ? 1 : 0, server.id]);
+        }
 
         console.log(`[Request Site] Updated auto-scan settings for ${servers.length} servers`);
         res.json({ success: true, updated: servers.length });
@@ -2605,16 +2555,13 @@ router.post('/plex/scan', async (req, res) => {
 
             // Handle completion in background
             scanPromise.then(async () => {
-                const db = getDb();
-                await dbQueue.write(() => {
-                    db.prepare(`
-                        INSERT INTO request_settings (setting_key, setting_value, updated_at)
-                        VALUES ('plex_last_scan', datetime('now'), CURRENT_TIMESTAMP)
-                        ON CONFLICT(setting_key) DO UPDATE SET
-                            setting_value = datetime('now'),
-                            updated_at = CURRENT_TIMESTAMP
-                    `).run();
-                });
+                await dbRun(`
+                    INSERT INTO request_settings (setting_key, setting_value, updated_at)
+                    VALUES ('plex_last_scan', NOW(), CURRENT_TIMESTAMP)
+                    ON CONFLICT(setting_key) DO UPDATE SET
+                        setting_value = NOW(),
+                        updated_at = CURRENT_TIMESTAMP
+                `);
             }).catch(err => {
                 console.error('[Plex Scan] Background scan failed:', err);
             });
@@ -2625,16 +2572,13 @@ router.post('/plex/scan', async (req, res) => {
         await scanPromise;
 
         // Update last scan timestamp in settings
-        const db = getDb();
-        await dbQueue.write(() => {
-            db.prepare(`
-                INSERT INTO request_settings (setting_key, setting_value, updated_at)
-                VALUES ('plex_last_scan', datetime('now'), CURRENT_TIMESTAMP)
-                ON CONFLICT(setting_key) DO UPDATE SET
-                    setting_value = datetime('now'),
-                    updated_at = CURRENT_TIMESTAMP
-            `).run();
-        });
+        await dbRun(`
+            INSERT INTO request_settings (setting_key, setting_value, updated_at)
+            VALUES ('plex_last_scan', NOW(), CURRENT_TIMESTAMP)
+            ON CONFLICT(setting_key) DO UPDATE SET
+                setting_value = NOW(),
+                updated_at = CURRENT_TIMESTAMP
+        `);
 
         res.json({
             success: true,
@@ -2719,17 +2663,16 @@ router.post('/plex/availability-sync', async (req, res) => {
     const axios = require('axios');
 
     try {
-        const db = getDb();
         let removedCount = 0;
         let checkedCount = 0;
 
         // Get all media marked as available
-        const availableMedia = db.prepare(`
+        const availableMedia = await dbAll(`
             SELECT m.id, m.tmdb_id, m.media_type, m.plex_rating_key, m.plex_server_id, s.url, s.token
             FROM request_site_media m
             JOIN plex_servers s ON m.plex_server_id = s.id
-            WHERE m.status >= ? AND m.plex_rating_key IS NOT NULL
-        `).all(MediaStatus.PARTIALLY_AVAILABLE);
+            WHERE m.status >= $1 AND m.plex_rating_key IS NOT NULL
+        `, [MediaStatus.PARTIALLY_AVAILABLE]);
 
         console.log(`[Availability Sync] Checking ${availableMedia.length} items...`);
 
@@ -2747,23 +2690,19 @@ router.post('/plex/availability-sync', async (req, res) => {
                     timeout: 5000
                 });
                 // Item still exists, update last check time
-                await dbQueue.write(() => {
-                    db.prepare(`
-                        UPDATE request_site_media SET last_availability_check = CURRENT_TIMESTAMP WHERE id = ?
-                    `).run(item.id);
-                });
+                await dbRun(`
+                    UPDATE request_site_media SET last_availability_check = CURRENT_TIMESTAMP WHERE id = $1
+                `, [item.id]);
 
             } catch (error) {
                 if (error.response && error.response.status === 404) {
                     // Item no longer exists on Plex - mark as deleted
                     console.log(`[Availability Sync] Marking as removed: TMDB ${item.tmdb_id} (${item.media_type})`);
-                    await dbQueue.write(() => {
-                        db.prepare(`
-                            UPDATE request_site_media
-                            SET status = ?, plex_rating_key = NULL, last_availability_check = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-                            WHERE id = ?
-                        `).run(MediaStatus.DELETED, item.id);
-                    });
+                    await dbRun(`
+                        UPDATE request_site_media
+                        SET status = $1, plex_rating_key = NULL, last_availability_check = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+                        WHERE id = $2
+                    `, [MediaStatus.DELETED, item.id]);
                     removedCount++;
                 }
             }
@@ -2790,17 +2729,14 @@ router.post('/plex/availability-sync', async (req, res) => {
 router.delete('/plex/cache', async (req, res) => {
     try {
         const { serverId } = req.query;
-        const db = getDb();
 
-        await dbQueue.write(() => {
-            if (serverId) {
-                db.prepare('DELETE FROM plex_guid_cache WHERE plex_server_id = ?').run(parseInt(serverId));
-                console.log(`[Plex Cache] Cleared cache for server ${serverId}`);
-            } else {
-                db.prepare('DELETE FROM plex_guid_cache').run();
-                console.log('[Plex Cache] Cleared all cache');
-            }
-        });
+        if (serverId) {
+            await dbRun('DELETE FROM plex_guid_cache WHERE plex_server_id = $1', [parseInt(serverId)]);
+            console.log(`[Plex Cache] Cleared cache for server ${serverId}`);
+        } else {
+            await dbRun('DELETE FROM plex_guid_cache');
+            console.log('[Plex Cache] Cleared all cache');
+        }
 
         res.json({ success: true });
 
@@ -2814,21 +2750,19 @@ router.delete('/plex/cache', async (req, res) => {
  * GET /api/v2/request-site/plex/cache/stats
  * Get cache statistics
  */
-router.get('/plex/cache/stats', (req, res) => {
+router.get('/plex/cache/stats', async (req, res) => {
     try {
-        const db = getDb();
-
-        const stats = db.prepare(`
+        const stats = await dbAll(`
             SELECT
                 plex_server_id,
                 COUNT(*) as total,
                 SUM(CASE WHEN tmdb_id IS NOT NULL THEN 1 ELSE 0 END) as with_tmdb
             FROM plex_guid_cache
             GROUP BY plex_server_id
-        `).all();
+        `);
 
-        const totalCached = stats.reduce((sum, s) => sum + s.total, 0);
-        const totalWithTmdb = stats.reduce((sum, s) => sum + s.with_tmdb, 0);
+        const totalCached = stats.reduce((sum, s) => sum + parseInt(s.total), 0);
+        const totalWithTmdb = stats.reduce((sum, s) => sum + parseInt(s.with_tmdb), 0);
 
         res.json({
             totalCached,
@@ -2847,14 +2781,12 @@ router.get('/plex/cache/stats', (req, res) => {
  * GET /api/v2/request-site/plex/recently-added
  * Get recently added content from Plex (from request_site_media with actual addedAt from Plex)
  */
-router.get('/plex/recently-added', (req, res) => {
+router.get('/plex/recently-added', async (req, res) => {
     try {
-        const db = getDb();
         const limit = Math.min(parseInt(req.query.limit) || 20, 50);
 
         // Get recently added media from request_site_media using actual Plex addedAt timestamp
-        // Status 4 = AVAILABLE on Plex
-        const items = db.prepare(`
+        const items = await dbAll(`
             SELECT DISTINCT
                 m.tmdb_id,
                 m.media_type,
@@ -2863,11 +2795,11 @@ router.get('/plex/recently-added', (req, res) => {
                 m.media_added_at as added_at
             FROM request_site_media m
             LEFT JOIN plex_guid_cache g ON m.tmdb_id = g.tmdb_id AND m.media_type = g.media_type
-            WHERE m.status = 4
+            WHERE m.status = 'available'
               AND m.media_added_at IS NOT NULL
             ORDER BY m.media_added_at DESC
-            LIMIT ?
-        `).all(limit);
+            LIMIT $1
+        `, [limit]);
 
         // Format the results (frontend will fetch poster from TMDB if title missing)
         const formattedItems = items.map(item => ({
@@ -2890,27 +2822,25 @@ router.get('/plex/recently-added', (req, res) => {
  * GET /api/v2/request-site/plex/scan-status
  * Get the last scan timestamp and stats
  */
-router.get('/plex/scan-status', (req, res) => {
+router.get('/plex/scan-status', async (req, res) => {
     try {
-        const db = getDb();
-
         // Get last scan timestamp
-        const lastScan = db.prepare(`
+        const lastScan = await dbGet(`
             SELECT setting_value FROM request_settings WHERE setting_key = 'plex_last_scan'
-        `).get();
+        `);
 
         // Get count of available media
-        const stats = db.prepare(`
+        const stats = await dbAll(`
             SELECT
                 media_type,
                 COUNT(*) as count
             FROM request_site_media
-            WHERE status = 4
+            WHERE status = 'available'
             GROUP BY media_type
-        `).all();
+        `);
 
-        const movieCount = stats.find(s => s.media_type === 'movie')?.count || 0;
-        const tvCount = stats.find(s => s.media_type === 'tv')?.count || 0;
+        const movieCount = parseInt(stats.find(s => s.media_type === 'movie')?.count) || 0;
+        const tvCount = parseInt(stats.find(s => s.media_type === 'tv')?.count) || 0;
 
         res.json({
             lastScan: lastScan?.setting_value || null,
@@ -2929,15 +2859,14 @@ router.get('/plex/scan-status', (req, res) => {
  * GET /api/v2/request-site/media/:type/:tmdbId/status
  * Check if a specific media is available on Plex
  */
-router.get('/media/:type/:tmdbId/status', (req, res) => {
+router.get('/media/:type/:tmdbId/status', async (req, res) => {
     try {
         const { type, tmdbId } = req.params;
-        const db = getDb();
 
-        const media = db.prepare(`
+        const media = await dbGet(`
             SELECT * FROM request_site_media
-            WHERE tmdb_id = ? AND media_type = ?
-        `).get(tmdbId, type);
+            WHERE tmdb_id = $1 AND media_type = $2
+        `, [tmdbId, type]);
 
         if (media && media.status === 4) {
             res.json({
@@ -2964,27 +2893,26 @@ router.get('/media/:type/:tmdbId/status', (req, res) => {
  * Get season-level availability for a TV show
  * Returns status for each season (0=unknown, 3=partial, 4=available)
  */
-router.get('/tv/:tmdbId/seasons/availability', (req, res) => {
+router.get('/tv/:tmdbId/seasons/availability', async (req, res) => {
     try {
         const { tmdbId } = req.params;
-        const db = getDb();
 
         // First find the media record
-        const media = db.prepare(`
+        const media = await dbGet(`
             SELECT id, status FROM request_site_media
-            WHERE tmdb_id = ? AND media_type = 'tv'
-        `).get(tmdbId);
+            WHERE tmdb_id = $1 AND media_type = 'tv'
+        `, [tmdbId]);
 
         if (!media) {
             return res.json({ seasons: {} });
         }
 
         // Get all seasons for this show
-        const seasons = db.prepare(`
+        const seasons = await dbAll(`
             SELECT season_number, status
             FROM request_site_seasons
-            WHERE media_id = ?
-        `).all(media.id);
+            WHERE media_id = $1
+        `, [media.id]);
 
         const seasonStatus = {};
         for (const season of seasons) {
@@ -3016,7 +2944,7 @@ router.get('/tv/:tmdbId/seasons/availability', (req, res) => {
  * 4 = Available (on Plex)
  * 5 = Deleted
  */
-router.get('/media/batch-status', (req, res) => {
+router.get('/media/batch-status', async (req, res) => {
     try {
         const { type, ids } = req.query;
 
@@ -3030,14 +2958,12 @@ router.get('/media/batch-status', (req, res) => {
             return res.json({ statuses: {} });
         }
 
-        const db = getDb();
-
         // Get all matching media records (Plex availability)
-        const placeholders = idList.map(() => '?').join(',');
-        const mediaRecords = db.prepare(`
+        const placeholders = idList.map((_, i) => `$${i + 1}`).join(',');
+        const mediaRecords = await db.query(`
             SELECT tmdb_id, status FROM request_site_media
-            WHERE tmdb_id IN (${placeholders}) AND media_type = ?
-        `).all(...idList, type);
+            WHERE tmdb_id IN (${placeholders}) AND media_type = $${idList.length + 1}
+        `, [...idList, type]);
 
         // Build status map from Plex data
         const statuses = {};
@@ -3051,11 +2977,11 @@ router.get('/media/batch-status', (req, res) => {
         if (missingIds.length > 0) {
             if (type === 'movie') {
                 // Check Radarr cache
-                const radarrPlaceholders = missingIds.map(() => '?').join(',');
-                const radarrRecords = db.prepare(`
+                const radarrPlaceholders = missingIds.map((_, i) => `$${i + 1}`).join(',');
+                const radarrRecords = await db.query(`
                     SELECT tmdb_id, has_file FROM radarr_library_cache
                     WHERE tmdb_id IN (${radarrPlaceholders})
-                `).all(...missingIds);
+                `, missingIds);
 
                 for (const record of radarrRecords) {
                     // If has file, mark as available (4), else processing (2)
@@ -3063,11 +2989,11 @@ router.get('/media/batch-status', (req, res) => {
                 }
             } else if (type === 'tv') {
                 // Check Sonarr cache by TMDB ID
-                const sonarrPlaceholders = missingIds.map(() => '?').join(',');
-                const sonarrRecords = db.prepare(`
+                const sonarrPlaceholders = missingIds.map((_, i) => `$${i + 1}`).join(',');
+                const sonarrRecords = await db.query(`
                     SELECT tmdb_id, total_episodes, episode_file_count FROM sonarr_library_cache
                     WHERE tmdb_id IN (${sonarrPlaceholders})
-                `).all(...missingIds);
+                `, missingIds);
 
                 for (const record of sonarrRecords) {
                     if (record.episode_file_count >= record.total_episodes && record.total_episodes > 0) {
@@ -3124,15 +3050,14 @@ router.post('/arr/sync', async (req, res) => {
  * GET /api/v2/request-site/arr/sync/status
  * Get Sonarr/Radarr sync status and cache statistics
  */
-router.get('/arr/sync/status', (req, res) => {
+router.get('/arr/sync/status', async (req, res) => {
     try {
         const { arrLibrarySyncJob } = require('../jobs/arr-library-sync');
-        const db = getDb();
 
         // Get last sync times for each server
-        const servers = db.prepare(`
+        const servers = await dbAll(`
             SELECT id, name, type, last_library_sync FROM request_servers WHERE is_active = 1
-        `).all();
+        `);
 
         const stats = arrLibrarySyncJob.getStats();
 
@@ -3163,24 +3088,23 @@ router.get('/arr/sync/status', (req, res) => {
 router.get('/media/:type/:tmdbId/monitoring', async (req, res) => {
     try {
         const { type, tmdbId } = req.params;
-        const db = getDb();
 
         if (type === 'movie') {
             // Check cached Radarr library data for BOTH regular and 4K servers
-            const allCached = db.prepare(`
+            const allCached = await dbAll(`
                 SELECT c.*, s.name as server_name, s.is_4k
                 FROM radarr_library_cache c
                 JOIN request_servers s ON s.id = c.server_id
-                WHERE c.tmdb_id = ? AND s.is_active = 1
-            `).all(parseInt(tmdbId));
+                WHERE c.tmdb_id = $1 AND s.is_active = 1
+            `, [parseInt(tmdbId)]);
 
             // Also check Plex availability from request_site_media
             // This provides immediate status when Plex detects the file before Radarr cache syncs
-            const plexMedia = db.prepare(`
+            const plexMedia = await dbGet(`
                 SELECT plex_rating_key, media_added_at
                 FROM request_site_media
-                WHERE tmdb_id = ? AND media_type = 'movie' AND plex_rating_key IS NOT NULL
-            `).get(parseInt(tmdbId));
+                WHERE tmdb_id = $1 AND media_type = 'movie' AND plex_rating_key IS NOT NULL
+            `, [parseInt(tmdbId)]);
             const isOnPlex = !!plexMedia;
 
             // Separate regular and 4K status
@@ -3228,19 +3152,19 @@ router.get('/media/:type/:tmdbId/monitoring', async (req, res) => {
 
         } else if (type === 'tv') {
             // Check cached Sonarr library data for BOTH regular and 4K servers
-            const allCached = db.prepare(`
+            const allCached = await dbAll(`
                 SELECT c.*, s.name as server_name, s.is_4k
                 FROM sonarr_library_cache c
                 JOIN request_servers s ON s.id = c.server_id
-                WHERE c.tmdb_id = ? AND s.is_active = 1
-            `).all(parseInt(tmdbId));
+                WHERE c.tmdb_id = $1 AND s.is_active = 1
+            `, [parseInt(tmdbId)]);
 
             // Also check Plex availability from request_site_media
-            const plexMedia = db.prepare(`
+            const plexMedia = await dbGet(`
                 SELECT plex_rating_key, media_added_at
                 FROM request_site_media
-                WHERE tmdb_id = ? AND media_type = 'tv' AND plex_rating_key IS NOT NULL
-            `).get(parseInt(tmdbId));
+                WHERE tmdb_id = $1 AND media_type = 'tv' AND plex_rating_key IS NOT NULL
+            `, [parseInt(tmdbId)]);
             const isOnPlex = !!plexMedia;
 
             const regularServer = allCached.find(c => !c.is_4k || c.is_4k === 0);
@@ -3477,8 +3401,7 @@ async function fetchIMDbRating(imdbId) {
 
     // Fallback to OMDb API (requires API key in settings)
     try {
-        const db = getDb();
-        const omdbKey = db.prepare(`SELECT setting_value FROM request_settings WHERE setting_key = 'omdb_api_key'`).get();
+        const omdbKey = await dbGet(`SELECT setting_value FROM request_settings WHERE setting_key = 'omdb_api_key'`);
 
         if (omdbKey?.setting_value) {
             const omdbResponse = await axios.get(`https://www.omdbapi.com/?i=${imdbId}&apikey=${omdbKey.setting_value}`, {
@@ -3506,40 +3429,37 @@ async function fetchIMDbRating(imdbId) {
  */
 router.post('/sync-availability', async (req, res) => {
     try {
-        const db = getDb();
         let updated = 0;
 
         // Get all media_requests in 'processing' or 'approved' status
-        const pendingRequests = db.prepare(`
+        const pendingRequests = await dbAll(`
             SELECT id, tmdb_id, media_type, title, status
             FROM media_requests
             WHERE status IN ('processing', 'approved')
-        `).all();
+        `);
 
         for (const request of pendingRequests) {
             let isAvailable = false;
 
             if (request.media_type === 'movie') {
                 // Check Radarr cache
-                const radarrEntry = db.prepare(`
-                    SELECT * FROM radarr_library_cache WHERE tmdb_id = ? AND has_file = 1
-                `).get(request.tmdb_id);
+                const radarrEntry = await dbGet(`
+                    SELECT * FROM radarr_library_cache WHERE tmdb_id = $1 AND has_file = 1
+                `, [request.tmdb_id]);
                 isAvailable = !!radarrEntry;
             } else if (request.media_type === 'tv') {
                 // Check Sonarr cache
-                const sonarrEntry = db.prepare(`
-                    SELECT * FROM sonarr_library_cache WHERE tmdb_id = ? AND episode_file_count > 0
-                `).get(request.tmdb_id);
+                const sonarrEntry = await dbGet(`
+                    SELECT * FROM sonarr_library_cache WHERE tmdb_id = $1 AND episode_file_count > 0
+                `, [request.tmdb_id]);
                 isAvailable = !!sonarrEntry;
             }
 
             if (isAvailable) {
-                await dbQueue.write(() => {
-                    db.prepare(`
-                        UPDATE media_requests SET status = 'available', available_at = CURRENT_TIMESTAMP
-                        WHERE id = ?
-                    `).run(request.id);
-                });
+                await dbRun(`
+                    UPDATE media_requests SET status = 'available', available_at = CURRENT_TIMESTAMP
+                    WHERE id = $1
+                `, [request.id]);
                 updated++;
                 console.log(`[Availability Sync] ${request.title} (TMDB ${request.tmdb_id}) marked as available`);
             }
@@ -3557,114 +3477,19 @@ router.post('/sync-availability', async (req, res) => {
 /**
  * Get effective permissions for a user (merges defaults with overrides)
  * Falls back to request_settings table for limits if not set in permissions table
+ * NOTE: This is the exported version - uses the internal async version
  */
-function getUserPermissions(userId) {
-    const db = getDb();
-
-    // Get default permissions from permissions table
-    const defaults = db.prepare('SELECT * FROM request_default_permissions WHERE id = 1').get();
-
-    // Also check request_settings table as fallback for limits
-    // (This handles settings saved before the sync was implemented)
-    const movieQuotaLimit = parseInt(getSetting('movie_quota_limit')) || 0;
-    const movieQuotaDays = parseInt(getSetting('movie_quota_days')) || 7;
-    const tvQuotaLimit = parseInt(getSetting('tv_quota_limit')) || 0;
-    const tvQuotaDays = parseInt(getSetting('tv_quota_days')) || 7;
-    const seasonQuotaLimit = parseInt(getSetting('season_quota_limit')) || 0;
-    const seasonQuotaDays = parseInt(getSetting('season_quota_days')) || 7;
-    const default4kMovies = getSetting('default_can_request_4k_movies') === '1' ? 1 : 0;
-    const default4kTv = getSetting('default_can_request_4k_tv') === '1' ? 1 : 0;
-    const autoApproveMovies = getSetting('auto_approve_movies') === '1' ? 1 : 0;
-    const autoApproveTv = getSetting('auto_approve_tv') === '1' ? 1 : 0;
-    // 4K limits from settings
-    const movie4kQuotaLimit = parseInt(getSetting('movie_4k_quota_limit')) || 0;
-    const movie4kQuotaDays = parseInt(getSetting('movie_4k_quota_days')) || 7;
-    const tv4kQuotaLimit = parseInt(getSetting('tv_4k_quota_limit')) || 0;
-    const tv4kQuotaDays = parseInt(getSetting('tv_4k_quota_days')) || 7;
-    const season4kQuotaLimit = parseInt(getSetting('season_4k_quota_limit')) || 0;
-    const season4kQuotaDays = parseInt(getSetting('season_4k_quota_days')) || 7;
-
-    // Get user-specific overrides if any
-    const userPerms = userId ? db.prepare('SELECT * FROM request_user_permissions WHERE user_id = ?').get(userId) : null;
-
-    // Helper to get effective limit value (prefers permissions table, falls back to settings)
-    const getLimit = (permVal, settingsVal) => {
-        if (permVal !== null && permVal !== undefined && permVal > 0) return permVal;
-        return settingsVal;
-    };
-
-    // If user has custom permissions, use those; otherwise use defaults
-    if (userPerms && userPerms.has_custom_permissions) {
-        return {
-            can_request_movies: userPerms.can_request_movies ?? defaults?.can_request_movies ?? 1,
-            can_request_tv: userPerms.can_request_tv ?? defaults?.can_request_tv ?? 1,
-            can_request_4k: userPerms.can_request_4k ?? defaults?.can_request_4k ?? 0,
-            can_request_4k_movie: userPerms.can_request_4k_movie ?? defaults?.can_request_4k_movie ?? default4kMovies,
-            can_request_4k_tv: userPerms.can_request_4k_tv ?? defaults?.can_request_4k_tv ?? default4kTv,
-            auto_approve_movies: userPerms.auto_approve_movies ?? defaults?.auto_approve_movies ?? autoApproveMovies,
-            auto_approve_tv: userPerms.auto_approve_tv ?? defaults?.auto_approve_tv ?? autoApproveTv,
-            movie_limit_per_week: userPerms.movie_limit_per_week ?? getLimit(defaults?.movie_limit_per_week, movieQuotaLimit),
-            movie_limit_days: userPerms.movie_limit_days ?? defaults?.movie_limit_days ?? movieQuotaDays,
-            tv_limit_per_week: userPerms.tv_limit_per_week ?? defaults?.tv_limit_per_week ?? 0,
-            tv_show_limit: userPerms.tv_show_limit ?? getLimit(defaults?.tv_show_limit, tvQuotaLimit),
-            tv_show_limit_days: userPerms.tv_show_limit_days ?? defaults?.tv_show_limit_days ?? tvQuotaDays,
-            tv_season_limit: userPerms.tv_season_limit ?? getLimit(defaults?.tv_season_limit, seasonQuotaLimit),
-            tv_season_limit_days: userPerms.tv_season_limit_days ?? defaults?.tv_season_limit_days ?? seasonQuotaDays,
-            // 4K limits
-            movie_4k_limit: userPerms.movie_4k_limit ?? getLimit(defaults?.movie_4k_limit, movie4kQuotaLimit),
-            movie_4k_limit_days: userPerms.movie_4k_limit_days ?? defaults?.movie_4k_limit_days ?? movie4kQuotaDays,
-            tv_show_4k_limit: userPerms.tv_show_4k_limit ?? getLimit(defaults?.tv_show_4k_limit, tv4kQuotaLimit),
-            tv_show_4k_limit_days: userPerms.tv_show_4k_limit_days ?? defaults?.tv_show_4k_limit_days ?? tv4kQuotaDays,
-            tv_season_4k_limit: userPerms.tv_season_4k_limit ?? getLimit(defaults?.tv_season_4k_limit, season4kQuotaLimit),
-            tv_season_4k_limit_days: userPerms.tv_season_4k_limit_days ?? defaults?.tv_season_4k_limit_days ?? season4kQuotaDays,
-            // Approval rights (only from user permissions, not defaults)
-            can_approve_movies: userPerms.can_approve_movies ?? 0,
-            can_approve_tv: userPerms.can_approve_tv ?? 0,
-            can_approve_4k_movies: userPerms.can_approve_4k_movies ?? 0,
-            can_approve_4k_tv: userPerms.can_approve_4k_tv ?? 0,
-            has_custom_permissions: true
-        };
-    }
-
-    return {
-        can_request_movies: defaults?.can_request_movies ?? 1,
-        can_request_tv: defaults?.can_request_tv ?? 1,
-        can_request_4k: defaults?.can_request_4k ?? 0,
-        can_request_4k_movie: defaults?.can_request_4k_movie ?? default4kMovies,
-        can_request_4k_tv: defaults?.can_request_4k_tv ?? default4kTv,
-        auto_approve_movies: defaults?.auto_approve_movies ?? autoApproveMovies,
-        auto_approve_tv: defaults?.auto_approve_tv ?? autoApproveTv,
-        movie_limit_per_week: getLimit(defaults?.movie_limit_per_week, movieQuotaLimit),
-        movie_limit_days: defaults?.movie_limit_days ?? movieQuotaDays,
-        tv_limit_per_week: defaults?.tv_limit_per_week ?? 0,
-        tv_show_limit: getLimit(defaults?.tv_show_limit, tvQuotaLimit),
-        tv_show_limit_days: defaults?.tv_show_limit_days ?? tvQuotaDays,
-        tv_season_limit: getLimit(defaults?.tv_season_limit, seasonQuotaLimit),
-        tv_season_limit_days: defaults?.tv_season_limit_days ?? seasonQuotaDays,
-        // 4K limits
-        movie_4k_limit: getLimit(defaults?.movie_4k_limit, movie4kQuotaLimit),
-        movie_4k_limit_days: defaults?.movie_4k_limit_days ?? movie4kQuotaDays,
-        tv_show_4k_limit: getLimit(defaults?.tv_show_4k_limit, tv4kQuotaLimit),
-        tv_show_4k_limit_days: defaults?.tv_show_4k_limit_days ?? tv4kQuotaDays,
-        tv_season_4k_limit: getLimit(defaults?.tv_season_4k_limit, season4kQuotaLimit),
-        tv_season_4k_limit_days: defaults?.tv_season_4k_limit_days ?? season4kQuotaDays,
-        // Approval rights (default users have none)
-        can_approve_movies: 0,
-        can_approve_tv: 0,
-        can_approve_4k_movies: 0,
-        can_approve_4k_tv: 0,
-        has_custom_permissions: false
-    };
+async function getUserPermissions(userId) {
+    return await getUserPermissionsInternal(userId);
 }
 
 /**
  * GET /api/v2/request-site/permissions/defaults
  * Get default permission settings
  */
-router.get('/permissions/defaults', (req, res) => {
+router.get('/permissions/defaults', async (req, res) => {
     try {
-        const db = getDb();
-        let defaults = db.prepare('SELECT * FROM request_default_permissions WHERE id = 1').get();
+        let defaults = await dbGet('SELECT * FROM request_default_permissions WHERE id = $1', [1]);
 
         // If no defaults exist, return sensible defaults
         if (!defaults) {
@@ -3699,7 +3524,6 @@ router.get('/permissions/defaults', (req, res) => {
  */
 router.put('/permissions/defaults', async (req, res) => {
     try {
-        const db = getDb();
         const {
             can_request_movies,
             can_request_tv,
@@ -3717,60 +3541,44 @@ router.put('/permissions/defaults', async (req, res) => {
             tv_season_limit_days
         } = req.body;
 
-        await dbQueue.write(() => {
-            db.prepare(`
-                INSERT INTO request_default_permissions (
-                    id, can_request_movies, can_request_tv, can_request_4k, can_request_4k_movie, can_request_4k_tv,
-                    auto_approve_movies, auto_approve_tv, movie_limit_per_week, movie_limit_days,
-                    tv_limit_per_week, tv_show_limit, tv_show_limit_days, tv_season_limit, tv_season_limit_days, updated_at
-                ) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-                ON CONFLICT(id) DO UPDATE SET
-                    can_request_movies = ?,
-                    can_request_tv = ?,
-                    can_request_4k = ?,
-                    can_request_4k_movie = ?,
-                    can_request_4k_tv = ?,
-                    auto_approve_movies = ?,
-                    auto_approve_tv = ?,
-                    movie_limit_per_week = ?,
-                    movie_limit_days = ?,
-                    tv_limit_per_week = ?,
-                    tv_show_limit = ?,
-                    tv_show_limit_days = ?,
-                    tv_season_limit = ?,
-                    tv_season_limit_days = ?,
-                    updated_at = CURRENT_TIMESTAMP
-            `).run(
-                can_request_movies ? 1 : 0,
-                can_request_tv ? 1 : 0,
-                can_request_4k ? 1 : 0,
-                can_request_4k_movie ? 1 : 0,
-                can_request_4k_tv ? 1 : 0,
-                auto_approve_movies ? 1 : 0,
-                auto_approve_tv ? 1 : 0,
-                movie_limit_per_week || 0,
-                movie_limit_days || 7,
-                tv_limit_per_week || 0,
-                tv_show_limit || 0,
-                tv_show_limit_days || 7,
-                tv_season_limit || 0,
-                tv_season_limit_days || 7,
-                can_request_movies ? 1 : 0,
-                can_request_tv ? 1 : 0,
-                can_request_4k ? 1 : 0,
-                can_request_4k_movie ? 1 : 0,
-                can_request_4k_tv ? 1 : 0,
-                auto_approve_movies ? 1 : 0,
-                auto_approve_tv ? 1 : 0,
-                movie_limit_per_week || 0,
-                movie_limit_days || 7,
-                tv_limit_per_week || 0,
-                tv_show_limit || 0,
-                tv_show_limit_days || 7,
-                tv_season_limit || 0,
-                tv_season_limit_days || 7
-            );
-        });
+        await dbRun(`
+            INSERT INTO request_default_permissions (
+                id, can_request_movies, can_request_tv, can_request_4k, can_request_4k_movie, can_request_4k_tv,
+                auto_approve_movies, auto_approve_tv, movie_limit_per_week, movie_limit_days,
+                tv_limit_per_week, tv_show_limit, tv_show_limit_days, tv_season_limit, tv_season_limit_days, updated_at
+            ) VALUES (1, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, CURRENT_TIMESTAMP)
+            ON CONFLICT(id) DO UPDATE SET
+                can_request_movies = $1,
+                can_request_tv = $2,
+                can_request_4k = $3,
+                can_request_4k_movie = $4,
+                can_request_4k_tv = $5,
+                auto_approve_movies = $6,
+                auto_approve_tv = $7,
+                movie_limit_per_week = $8,
+                movie_limit_days = $9,
+                tv_limit_per_week = $10,
+                tv_show_limit = $11,
+                tv_show_limit_days = $12,
+                tv_season_limit = $13,
+                tv_season_limit_days = $14,
+                updated_at = CURRENT_TIMESTAMP
+        `, [
+            can_request_movies ? 1 : 0,
+            can_request_tv ? 1 : 0,
+            can_request_4k ? 1 : 0,
+            can_request_4k_movie ? 1 : 0,
+            can_request_4k_tv ? 1 : 0,
+            auto_approve_movies ? 1 : 0,
+            auto_approve_tv ? 1 : 0,
+            movie_limit_per_week || 0,
+            movie_limit_days || 7,
+            tv_limit_per_week || 0,
+            tv_show_limit || 0,
+            tv_show_limit_days || 7,
+            tv_season_limit || 0,
+            tv_season_limit_days || 7
+        ]);
 
         res.json({ success: true });
     } catch (error) {
@@ -3783,15 +3591,14 @@ router.put('/permissions/defaults', async (req, res) => {
  * GET /api/v2/request-site/permissions/users
  * Get all users with Request Site access (admins + users with Plex access)
  */
-router.get('/permissions/users', (req, res) => {
+router.get('/permissions/users', async (req, res) => {
     try {
-        const db = getDb();
         const { filter } = req.query; // 'all', 'overrides'
 
         // Get all users who have Request Site access OR are admins
         // users table has plex_enabled, rs_has_access, and role columns
         // rs_has_access: NULL = auto (based on plex_enabled), 1 = explicitly enabled, 0 = explicitly disabled
-        const users = db.prepare(`
+        const users = await dbAll(`
             SELECT
                 u.id,
                 u.name,
@@ -3823,11 +3630,11 @@ router.get('/permissions/users', (req, res) => {
             WHERE u.role = 'admin'
                OR u.rs_has_access = 1
                OR (u.rs_has_access IS NULL AND u.plex_enabled = 1)
-            ORDER BY u.name COLLATE NOCASE
-        `).all();
+            ORDER BY u.name
+        `);
 
         // Get default permissions for comparison
-        const defaults = db.prepare('SELECT * FROM request_default_permissions WHERE id = 1').get() || {
+        const defaults = await dbGet('SELECT * FROM request_default_permissions WHERE id = 1') || {
             can_request_movies: 1,
             can_request_tv: 1,
             can_request_4k: 0,
@@ -3897,10 +3704,10 @@ router.get('/permissions/users', (req, res) => {
  * GET /api/v2/request-site/permissions/users/:userId
  * Get permissions for a specific user
  */
-router.get('/permissions/users/:userId', (req, res) => {
+router.get('/permissions/users/:userId', async (req, res) => {
     try {
         const { userId } = req.params;
-        const permissions = getUserPermissions(parseInt(userId));
+        const permissions = await getUserPermissions(parseInt(userId));
         res.json(permissions);
     } catch (error) {
         console.error('[Request Site] Failed to get user permissions:', error);
@@ -3945,108 +3752,77 @@ router.put('/permissions/users/:userId', async (req, res) => {
     } = req.body;
 
     try {
-        const db = getDb();
-
         // If clearing custom permissions, delete the row
         if (!has_custom_permissions) {
-            await dbQueue.write(() => {
-                db.prepare('DELETE FROM request_user_permissions WHERE user_id = ?').run(parseInt(userId));
-            });
+            await dbRun('DELETE FROM request_user_permissions WHERE user_id = $1', [parseInt(userId)]);
             return res.json({ success: true, message: 'User reset to defaults' });
         }
 
-        // Upsert user permissions through write queue
-        await dbQueue.write(() => {
-            db.prepare(`
-                INSERT INTO request_user_permissions (
-                    user_id, has_custom_permissions, can_request_movies, can_request_tv, can_request_4k,
-                    can_request_4k_movie, can_request_4k_tv,
-                    auto_approve_movies, auto_approve_tv, movie_limit_per_week, movie_limit_days,
-                    tv_limit_per_week, tv_show_limit, tv_show_limit_days, tv_season_limit, tv_season_limit_days,
-                    movie_4k_limit, movie_4k_limit_days, tv_show_4k_limit, tv_show_4k_limit_days, tv_season_4k_limit, tv_season_4k_limit_days,
-                    can_approve_movies, can_approve_tv, can_approve_4k_movies, can_approve_4k_tv,
-                    updated_at
-                ) VALUES (?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-                ON CONFLICT(user_id) DO UPDATE SET
-                    has_custom_permissions = 1,
-                    can_request_movies = ?,
-                    can_request_tv = ?,
-                    can_request_4k = ?,
-                    can_request_4k_movie = ?,
-                    can_request_4k_tv = ?,
-                    auto_approve_movies = ?,
-                    auto_approve_tv = ?,
-                    movie_limit_per_week = ?,
-                    movie_limit_days = ?,
-                    tv_limit_per_week = ?,
-                    tv_show_limit = ?,
-                    tv_show_limit_days = ?,
-                    tv_season_limit = ?,
-                    tv_season_limit_days = ?,
-                    movie_4k_limit = ?,
-                    movie_4k_limit_days = ?,
-                    tv_show_4k_limit = ?,
-                    tv_show_4k_limit_days = ?,
-                    tv_season_4k_limit = ?,
-                    tv_season_4k_limit_days = ?,
-                    can_approve_movies = ?,
-                    can_approve_tv = ?,
-                    can_approve_4k_movies = ?,
-                    can_approve_4k_tv = ?,
-                    updated_at = CURRENT_TIMESTAMP
-            `).run(
-                parseInt(userId),
-                can_request_movies ? 1 : 0,
-                can_request_tv ? 1 : 0,
-                can_request_4k ? 1 : 0,
-                can_request_4k_movie ? 1 : 0,
-                can_request_4k_tv ? 1 : 0,
-                auto_approve_movies ? 1 : 0,
-                auto_approve_tv ? 1 : 0,
-                movie_limit_per_week || 0,
-                movie_limit_days || 7,
-                tv_limit_per_week || 0,
-                tv_show_limit || 0,
-                tv_show_limit_days || 7,
-                tv_season_limit || 0,
-                tv_season_limit_days || 7,
-                movie_4k_limit || 0,
-                movie_4k_limit_days || 7,
-                tv_show_4k_limit || 0,
-                tv_show_4k_limit_days || 7,
-                tv_season_4k_limit || 0,
-                tv_season_4k_limit_days || 7,
-                can_approve_movies ? 1 : 0,
-                can_approve_tv ? 1 : 0,
-                can_approve_4k_movies ? 1 : 0,
-                can_approve_4k_tv ? 1 : 0,
-                // ON CONFLICT values
-                can_request_movies ? 1 : 0,
-                can_request_tv ? 1 : 0,
-                can_request_4k ? 1 : 0,
-                can_request_4k_movie ? 1 : 0,
-                can_request_4k_tv ? 1 : 0,
-                auto_approve_movies ? 1 : 0,
-                auto_approve_tv ? 1 : 0,
-                movie_limit_per_week || 0,
-                movie_limit_days || 7,
-                tv_limit_per_week || 0,
-                tv_show_limit || 0,
-                tv_show_limit_days || 7,
-                tv_season_limit || 0,
-                tv_season_limit_days || 7,
-                movie_4k_limit || 0,
-                movie_4k_limit_days || 7,
-                tv_show_4k_limit || 0,
-                tv_show_4k_limit_days || 7,
-                tv_season_4k_limit || 0,
-                tv_season_4k_limit_days || 7,
-                can_approve_movies ? 1 : 0,
-                can_approve_tv ? 1 : 0,
-                can_approve_4k_movies ? 1 : 0,
-                can_approve_4k_tv ? 1 : 0
-            );
-        });
+        // Upsert user permissions
+        await dbRun(`
+            INSERT INTO request_user_permissions (
+                user_id, has_custom_permissions, can_request_movies, can_request_tv, can_request_4k,
+                can_request_4k_movie, can_request_4k_tv,
+                auto_approve_movies, auto_approve_tv, movie_limit_per_week, movie_limit_days,
+                tv_limit_per_week, tv_show_limit, tv_show_limit_days, tv_season_limit, tv_season_limit_days,
+                movie_4k_limit, movie_4k_limit_days, tv_show_4k_limit, tv_show_4k_limit_days, tv_season_4k_limit, tv_season_4k_limit_days,
+                can_approve_movies, can_approve_tv, can_approve_4k_movies, can_approve_4k_tv,
+                updated_at
+            ) VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, CURRENT_TIMESTAMP)
+            ON CONFLICT(user_id) DO UPDATE SET
+                has_custom_permissions = 1,
+                can_request_movies = $2,
+                can_request_tv = $3,
+                can_request_4k = $4,
+                can_request_4k_movie = $5,
+                can_request_4k_tv = $6,
+                auto_approve_movies = $7,
+                auto_approve_tv = $8,
+                movie_limit_per_week = $9,
+                movie_limit_days = $10,
+                tv_limit_per_week = $11,
+                tv_show_limit = $12,
+                tv_show_limit_days = $13,
+                tv_season_limit = $14,
+                tv_season_limit_days = $15,
+                movie_4k_limit = $16,
+                movie_4k_limit_days = $17,
+                tv_show_4k_limit = $18,
+                tv_show_4k_limit_days = $19,
+                tv_season_4k_limit = $20,
+                tv_season_4k_limit_days = $21,
+                can_approve_movies = $22,
+                can_approve_tv = $23,
+                can_approve_4k_movies = $24,
+                can_approve_4k_tv = $25,
+                updated_at = CURRENT_TIMESTAMP
+        `, [
+            parseInt(userId),
+            can_request_movies ? 1 : 0,
+            can_request_tv ? 1 : 0,
+            can_request_4k ? 1 : 0,
+            can_request_4k_movie ? 1 : 0,
+            can_request_4k_tv ? 1 : 0,
+            auto_approve_movies ? 1 : 0,
+            auto_approve_tv ? 1 : 0,
+            movie_limit_per_week || 0,
+            movie_limit_days || 7,
+            tv_limit_per_week || 0,
+            tv_show_limit || 0,
+            tv_show_limit_days || 7,
+            tv_season_limit || 0,
+            tv_season_limit_days || 7,
+            movie_4k_limit || 0,
+            movie_4k_limit_days || 7,
+            tv_show_4k_limit || 0,
+            tv_show_4k_limit_days || 7,
+            tv_season_4k_limit || 0,
+            tv_season_4k_limit_days || 7,
+            can_approve_movies ? 1 : 0,
+            can_approve_tv ? 1 : 0,
+            can_approve_4k_movies ? 1 : 0,
+            can_approve_4k_tv ? 1 : 0
+        ]);
 
         res.json({ success: true });
     } catch (error) {
@@ -4063,10 +3839,7 @@ router.delete('/permissions/users/:userId', async (req, res) => {
     const { userId } = req.params;
 
     try {
-        const db = getDb();
-        await dbQueue.write(() => {
-            db.prepare('DELETE FROM request_user_permissions WHERE user_id = ?').run(parseInt(userId));
-        });
+        await dbRun('DELETE FROM request_user_permissions WHERE user_id = $1', [parseInt(userId)]);
         res.json({ success: true, message: 'User permissions reset to defaults' });
     } catch (error) {
         console.error('[Request Site] Failed to reset user permissions:', error);
@@ -4078,18 +3851,18 @@ router.delete('/permissions/users/:userId', async (req, res) => {
  * GET /api/v2/request-site/permissions/my
  * Get the current user's permissions (for portal users)
  */
-router.get('/permissions/my', (req, res) => {
+router.get('/permissions/my', async (req, res) => {
     try {
         // Get user ID from session (portal auth)
         const userId = req.session?.portalUserId || req.session?.userId;
 
         if (!userId) {
             // If no user, return defaults
-            const permissions = getUserPermissions(null);
+            const permissions = await getUserPermissions(null);
             return res.json(permissions);
         }
 
-        const permissions = getUserPermissions(userId);
+        const permissions = await getUserPermissions(userId);
         res.json(permissions);
     } catch (error) {
         console.error('[Request Site] Failed to get my permissions:', error);
@@ -4101,20 +3874,18 @@ router.get('/permissions/my', (req, res) => {
  * GET /api/v2/request-site/auth/me
  * Get current user info and permissions (for portal frontend)
  */
-router.get('/auth/me', (req, res) => {
+router.get('/auth/me', async (req, res) => {
     try {
-        const db = getDb();
-
         // Get token from Authorization header or session
         const token = req.headers.authorization?.replace('Bearer ', '');
         let userId = req.session?.portalUserId || req.session?.userId;
 
         // If no session, try portal_sessions table with token
         if (!userId && token) {
-            const session = db.prepare(`
+            const session = await dbGet(`
                 SELECT user_id FROM portal_sessions
-                WHERE token = ? AND datetime(expires_at) > datetime('now')
-            `).get(token);
+                WHERE token = $1 AND expires_at > NOW()
+            `, [token]);
 
             if (session) {
                 userId = session.user_id;
@@ -4123,10 +3894,10 @@ router.get('/auth/me', (req, res) => {
 
         // Also try admin sessions table
         if (!userId && token) {
-            const session = db.prepare(`
+            const session = await dbGet(`
                 SELECT user_id FROM sessions
-                WHERE session_token = ? AND datetime(expires_at) > datetime('now')
-            `).get(token);
+                WHERE session_token = $1 AND expires_at > NOW()
+            `, [token]);
 
             if (session) {
                 userId = session.user_id;
@@ -4138,14 +3909,14 @@ router.get('/auth/me', (req, res) => {
         }
 
         // Get user info
-        const user = db.prepare('SELECT id, name, email, plex_username, role FROM users WHERE id = ?').get(userId);
+        const user = await dbGet('SELECT id, name, email, plex_username, role FROM users WHERE id = $1', [userId]);
 
         if (!user) {
             return res.status(404).json({ error: 'User not found' });
         }
 
         // Get permissions
-        const permissions = getUserPermissions(userId);
+        const permissions = await getUserPermissions(userId);
 
         res.json({
             id: user.id,
@@ -4165,9 +3936,8 @@ router.get('/auth/me', (req, res) => {
  * GET /api/v2/request-site/my-requests
  * Get requests for the current user only (for end users)
  */
-router.get('/my-requests', (req, res) => {
+router.get('/my-requests', async (req, res) => {
     try {
-        const db = getDb();
         const { status, page = 1, limit = 20 } = req.query;
 
         // Get user ID from session
@@ -4178,21 +3948,19 @@ router.get('/my-requests', (req, res) => {
         }
 
         // Get user from users table
-        const user = db.prepare('SELECT id, name, plex_username FROM users WHERE id = ?').get(userId);
+        const user = await dbGet('SELECT id, name, plex_username FROM users WHERE id = $1', [userId]);
 
         if (!user) {
             return res.status(404).json({ error: 'User not found' });
         }
 
-        // Build query for user's requests only
-        let query = `
-            SELECT * FROM media_requests
-            WHERE user_id = ?
-        `;
+        // Build query for user's requests only - use parameterized query
+        let paramIndex = 1;
         const params = [userId];
+        let query = `SELECT * FROM media_requests WHERE user_id = $${paramIndex++}`;
 
         if (status && status !== 'all') {
-            query += ' AND status = ?';
+            query += ` AND status = $${paramIndex++}`;
             params.push(status);
         }
 
@@ -4200,19 +3968,21 @@ router.get('/my-requests', (req, res) => {
 
         // Add pagination
         const offset = (parseInt(page) - 1) * parseInt(limit);
-        query += ` LIMIT ? OFFSET ?`;
+        query += ` LIMIT $${paramIndex++} OFFSET $${paramIndex++}`;
         params.push(parseInt(limit), offset);
 
-        const requests = db.prepare(query).all(...params);
+        const requests = await dbAll(query, params);
 
         // Get total count for pagination
-        let countQuery = 'SELECT COUNT(*) as count FROM media_requests WHERE user_id = ?';
+        let countParamIndex = 1;
         const countParams = [userId];
+        let countQuery = `SELECT COUNT(*) as count FROM media_requests WHERE user_id = $${countParamIndex++}`;
         if (status && status !== 'all') {
-            countQuery += ' AND status = ?';
+            countQuery += ` AND status = $${countParamIndex++}`;
             countParams.push(status);
         }
-        const total = db.prepare(countQuery).get(...countParams).count;
+        const totalResult = await dbGet(countQuery, countParams);
+        const total = parseInt(totalResult.count);
 
         res.json({
             requests,
@@ -4233,20 +4003,18 @@ router.get('/my-requests', (req, res) => {
  * GET /api/v2/request-site/my-usage
  * Get current user's request usage stats against their limits
  */
-router.get('/my-usage', (req, res) => {
+router.get('/my-usage', async (req, res) => {
     try {
-        const db = getDb();
-
         // Get token from Authorization header or session
         const token = req.headers.authorization?.replace('Bearer ', '');
         let userId = req.session?.portalUserId || req.session?.userId;
 
         // If no session, try portal_sessions table with token
         if (!userId && token) {
-            const session = db.prepare(`
+            const session = await dbGet(`
                 SELECT user_id FROM portal_sessions
-                WHERE token = ? AND datetime(expires_at) > datetime('now')
-            `).get(token);
+                WHERE token = $1 AND expires_at > NOW()
+            `, [token]);
 
             if (session) {
                 userId = session.user_id;
@@ -4255,10 +4023,10 @@ router.get('/my-usage', (req, res) => {
 
         // Also try admin sessions table
         if (!userId && token) {
-            const session = db.prepare(`
+            const session = await dbGet(`
                 SELECT user_id FROM sessions
-                WHERE session_token = ? AND datetime(expires_at) > datetime('now')
-            `).get(token);
+                WHERE session_token = $1 AND expires_at > NOW()
+            `, [token]);
 
             if (session) {
                 userId = session.user_id;
@@ -4270,7 +4038,7 @@ router.get('/my-usage', (req, res) => {
         }
 
         // Get user's permissions (includes limits)
-        const permissions = getUserPermissions(userId);
+        const permissions = await getUserPermissions(userId);
 
         // Calculate usage for each limit type
         const now = Date.now();
@@ -4278,26 +4046,26 @@ router.get('/my-usage', (req, res) => {
         // Movie usage (non-4K)
         const movieLimitDays = permissions.movie_limit_days || 7;
         const movieCutoff = new Date(now - movieLimitDays * 24 * 60 * 60 * 1000).toISOString();
-        const movieUsage = db.prepare(`
+        const movieUsage = await dbGet(`
             SELECT COUNT(*) as count FROM media_requests
-            WHERE user_id = ? AND media_type = 'movie' AND (is_4k = 0 OR is_4k IS NULL) AND requested_at > ?
-        `).get(userId, movieCutoff);
+            WHERE user_id = $1 AND media_type = 'movie' AND (is_4k = 0 OR is_4k IS NULL) AND requested_at > $2
+        `, [userId, movieCutoff]);
 
         // TV Show usage (non-4K, unique shows, not seasons)
         const tvShowLimitDays = permissions.tv_show_limit_days || 7;
         const tvShowCutoff = new Date(now - tvShowLimitDays * 24 * 60 * 60 * 1000).toISOString();
-        const tvShowUsage = db.prepare(`
+        const tvShowUsage = await dbGet(`
             SELECT COUNT(*) as count FROM media_requests
-            WHERE user_id = ? AND media_type = 'tv' AND (is_4k = 0 OR is_4k IS NULL) AND requested_at > ?
-        `).get(userId, tvShowCutoff);
+            WHERE user_id = $1 AND media_type = 'tv' AND (is_4k = 0 OR is_4k IS NULL) AND requested_at > $2
+        `, [userId, tvShowCutoff]);
 
         // TV Season usage (non-4K, total seasons across all shows)
         const tvSeasonLimitDays = permissions.tv_season_limit_days || 7;
         const tvSeasonCutoff = new Date(now - tvSeasonLimitDays * 24 * 60 * 60 * 1000).toISOString();
-        const tvRequests = db.prepare(`
+        const tvRequests = await dbAll(`
             SELECT seasons FROM media_requests
-            WHERE user_id = ? AND media_type = 'tv' AND (is_4k = 0 OR is_4k IS NULL) AND requested_at > ?
-        `).all(userId, tvSeasonCutoff);
+            WHERE user_id = $1 AND media_type = 'tv' AND (is_4k = 0 OR is_4k IS NULL) AND requested_at > $2
+        `, [userId, tvSeasonCutoff]);
 
         let totalSeasons = 0;
         for (const req of tvRequests) {
@@ -4314,26 +4082,26 @@ router.get('/my-usage', (req, res) => {
         // 4K Movie usage
         const movie4kLimitDays = permissions.movie_4k_limit_days || 7;
         const movie4kCutoff = new Date(now - movie4kLimitDays * 24 * 60 * 60 * 1000).toISOString();
-        const movie4kUsage = db.prepare(`
+        const movie4kUsage = await dbGet(`
             SELECT COUNT(*) as count FROM media_requests
-            WHERE user_id = ? AND media_type = 'movie' AND is_4k = 1 AND requested_at > ?
-        `).get(userId, movie4kCutoff);
+            WHERE user_id = $1 AND media_type = 'movie' AND is_4k = 1 AND requested_at > $2
+        `, [userId, movie4kCutoff]);
 
         // 4K TV Show usage
         const tvShow4kLimitDays = permissions.tv_show_4k_limit_days || 7;
         const tvShow4kCutoff = new Date(now - tvShow4kLimitDays * 24 * 60 * 60 * 1000).toISOString();
-        const tvShow4kUsage = db.prepare(`
+        const tvShow4kUsage = await dbGet(`
             SELECT COUNT(*) as count FROM media_requests
-            WHERE user_id = ? AND media_type = 'tv' AND is_4k = 1 AND requested_at > ?
-        `).get(userId, tvShow4kCutoff);
+            WHERE user_id = $1 AND media_type = 'tv' AND is_4k = 1 AND requested_at > $2
+        `, [userId, tvShow4kCutoff]);
 
         // 4K TV Season usage
         const tvSeason4kLimitDays = permissions.tv_season_4k_limit_days || 7;
         const tvSeason4kCutoff = new Date(now - tvSeason4kLimitDays * 24 * 60 * 60 * 1000).toISOString();
-        const tv4kRequests = db.prepare(`
+        const tv4kRequests = await dbAll(`
             SELECT seasons FROM media_requests
-            WHERE user_id = ? AND media_type = 'tv' AND is_4k = 1 AND requested_at > ?
-        `).all(userId, tvSeason4kCutoff);
+            WHERE user_id = $1 AND media_type = 'tv' AND is_4k = 1 AND requested_at > $2
+        `, [userId, tvSeason4kCutoff]);
 
         let total4kSeasons = 0;
         for (const req of tv4kRequests) {
@@ -4349,13 +4117,13 @@ router.get('/my-usage', (req, res) => {
 
         res.json({
             movies: {
-                used: movieUsage.count,
+                used: parseInt(movieUsage.count),
                 limit: permissions.movie_limit_per_week || 0,
                 days: movieLimitDays,
                 unlimited: !permissions.movie_limit_per_week
             },
             tvShows: {
-                used: tvShowUsage.count,
+                used: parseInt(tvShowUsage.count),
                 limit: permissions.tv_show_limit || 0,
                 days: tvShowLimitDays,
                 unlimited: !permissions.tv_show_limit
@@ -4367,13 +4135,13 @@ router.get('/my-usage', (req, res) => {
                 unlimited: !permissions.tv_season_limit
             },
             movies4k: {
-                used: movie4kUsage.count,
+                used: parseInt(movie4kUsage.count),
                 limit: permissions.movie_4k_limit || 0,
                 days: movie4kLimitDays,
                 unlimited: !permissions.movie_4k_limit
             },
             tvShows4k: {
-                used: tvShow4kUsage.count,
+                used: parseInt(tvShow4kUsage.count),
                 limit: permissions.tv_show_4k_limit || 0,
                 days: tvShow4kLimitDays,
                 unlimited: !permissions.tv_show_4k_limit
@@ -4400,38 +4168,25 @@ router.get('/my-usage', (req, res) => {
 // ============ Admin Media Management Routes ============
 
 /**
- * Ensure blocked_media table exists
+ * Ensure blocked_media table exists (handled by migrations in PostgreSQL)
  */
-function ensureBlockedMediaTable() {
-    const db = getDb();
-    db.exec(`
-        CREATE TABLE IF NOT EXISTS blocked_media (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            tmdb_id INTEGER NOT NULL,
-            media_type TEXT NOT NULL,
-            title TEXT,
-            poster_path TEXT,
-            blocked_by INTEGER,
-            blocked_reason TEXT,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(tmdb_id, media_type)
-        )
-    `);
+async function ensureBlockedMediaTable() {
+    // Table creation is handled by migrations - this is a no-op for PostgreSQL
+    // Kept for backward compatibility with existing code structure
 }
 
 /**
  * GET /api/v2/request-site/media/:type/:id/blocked
  * Check if media is blocked from requests
  */
-router.get('/media/:type/:id/blocked', (req, res) => {
+router.get('/media/:type/:id/blocked', async (req, res) => {
     try {
-        ensureBlockedMediaTable();
-        const db = getDb();
+        await ensureBlockedMediaTable();
         const { type, id } = req.params;
 
-        const blocked = db.prepare(`
-            SELECT * FROM blocked_media WHERE tmdb_id = ? AND media_type = ?
-        `).get(parseInt(id), type);
+        const blocked = await dbGet(`
+            SELECT * FROM blocked_media WHERE tmdb_id = $1 AND media_type = $2
+        `, [parseInt(id), type]);
 
         res.json({
             blocked: !!blocked,
@@ -4450,18 +4205,17 @@ router.get('/media/:type/:id/blocked', (req, res) => {
  */
 router.post('/media/:type/:id/block', async (req, res) => {
     try {
-        ensureBlockedMediaTable();
-        const db = getDb();
+        await ensureBlockedMediaTable();
         const { type, id } = req.params;
         const { title, poster_path, reason } = req.body;
         const adminId = req.user?.id;
 
-        await dbQueue.write(() => {
-            db.prepare(`
-                INSERT OR REPLACE INTO blocked_media (tmdb_id, media_type, title, poster_path, blocked_by, blocked_reason, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-            `).run(parseInt(id), type, title, poster_path, adminId, reason || null);
-        });
+        await dbRun(`
+            INSERT INTO blocked_media (tmdb_id, media_type, title, poster_path, blocked_by, blocked_reason, created_at)
+            VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
+            ON CONFLICT (tmdb_id, media_type) DO UPDATE SET
+                title = $3, poster_path = $4, blocked_by = $5, blocked_reason = $6, created_at = CURRENT_TIMESTAMP
+        `, [parseInt(id), type, title, poster_path, adminId, reason || null]);
 
         console.log(`[Request Site] Media blocked: ${title} (TMDB ${id}, ${type})`);
         res.json({ success: true, message: 'Media blocked successfully' });
@@ -4477,15 +4231,12 @@ router.post('/media/:type/:id/block', async (req, res) => {
  */
 router.delete('/media/:type/:id/block', async (req, res) => {
     try {
-        ensureBlockedMediaTable();
-        const db = getDb();
+        await ensureBlockedMediaTable();
         const { type, id } = req.params;
 
-        await dbQueue.write(() => {
-            db.prepare(`
-                DELETE FROM blocked_media WHERE tmdb_id = ? AND media_type = ?
-            `).run(parseInt(id), type);
-        });
+        await dbRun(`
+            DELETE FROM blocked_media WHERE tmdb_id = $1 AND media_type = $2
+        `, [parseInt(id), type]);
 
         console.log(`[Request Site] Media unblocked: TMDB ${id}, ${type}`);
         res.json({ success: true, message: 'Media unblocked successfully' });
@@ -4502,32 +4253,28 @@ router.delete('/media/:type/:id/block', async (req, res) => {
  */
 router.delete('/media/:type/:id/clear-data', async (req, res) => {
     try {
-        const db = getDb();
         const { type, id } = req.params;
 
         // Delete all requests for this media
-        const result = await dbQueue.write(() => {
-            return db.prepare(`
-                DELETE FROM media_requests WHERE tmdb_id = ? AND media_type = ?
-            `).run(parseInt(id), type);
-        });
+        const result = await dbRun(`
+            DELETE FROM media_requests WHERE tmdb_id = $1 AND media_type = $2
+        `, [parseInt(id), type]);
 
         // Also clear from request_site_media cache if exists
         try {
-            await dbQueue.write(() => {
-                db.prepare(`
-                    DELETE FROM request_site_media WHERE tmdb_id = ? AND media_type = ?
-                `).run(parseInt(id), type);
-            });
+            await dbRun(`
+                DELETE FROM request_site_media WHERE tmdb_id = $1 AND media_type = $2
+            `, [parseInt(id), type]);
         } catch (e) {
             // Table might not exist, ignore
         }
 
-        console.log(`[Request Site] Cleared data for TMDB ${id} (${type}): ${result.changes} requests deleted`);
+        const deletedCount = result.rowCount || 0;
+        console.log(`[Request Site] Cleared data for TMDB ${id} (${type}): ${deletedCount} requests deleted`);
         res.json({
             success: true,
-            message: `Cleared ${result.changes} request(s)`,
-            deletedCount: result.changes
+            message: `Cleared ${deletedCount} request(s)`,
+            deletedCount: deletedCount
         });
     } catch (error) {
         console.error('[Request Site] Failed to clear media data:', error);
@@ -4542,43 +4289,40 @@ router.delete('/media/:type/:id/clear-data', async (req, res) => {
  */
 router.post('/sync-deleted-media', async (req, res) => {
     try {
-        const db = getDb();
         let resetCount = 0;
 
         // Get all media_requests in 'processing' or 'approved' status
-        const processingRequests = db.prepare(`
+        const processingRequests = await dbAll(`
             SELECT id, tmdb_id, media_type, title, status, is_4k
             FROM media_requests
             WHERE status IN ('processing', 'approved')
-        `).all();
+        `);
 
         for (const request of processingRequests) {
             let stillExists = false;
 
             if (request.media_type === 'movie') {
                 // Check if movie is still in Radarr (either regular or 4K servers)
-                const radarrEntry = db.prepare(`
-                    SELECT * FROM radarr_library_cache WHERE tmdb_id = ?
-                `).get(request.tmdb_id);
+                const radarrEntry = await dbGet(`
+                    SELECT * FROM radarr_library_cache WHERE tmdb_id = $1
+                `, [request.tmdb_id]);
                 stillExists = !!radarrEntry;
             } else if (request.media_type === 'tv') {
                 // Check if TV show is still in Sonarr
-                const sonarrEntry = db.prepare(`
-                    SELECT * FROM sonarr_library_cache WHERE tmdb_id = ?
-                `).get(request.tmdb_id);
+                const sonarrEntry = await dbGet(`
+                    SELECT * FROM sonarr_library_cache WHERE tmdb_id = $1
+                `, [request.tmdb_id]);
                 stillExists = !!sonarrEntry;
             }
 
             // If not in arr anymore, reset the request status to allow new requests
             if (!stillExists) {
-                await dbQueue.write(() => {
-                    // Mark the existing request as "removed" so it doesn't block new requests
-                    db.prepare(`
-                        UPDATE media_requests
-                        SET status = 'removed', notes = 'Media was deleted from server'
-                        WHERE id = ?
-                    `).run(request.id);
-                });
+                // Mark the existing request as "removed" so it doesn't block new requests
+                await dbRun(`
+                    UPDATE media_requests
+                    SET status = 'removed', notes = 'Media was deleted from server'
+                    WHERE id = $1
+                `, [request.id]);
                 resetCount++;
                 console.log(`[Deleted Media Sync] Reset status for ${request.title} (TMDB ${request.tmdb_id}) - removed from server`);
             }
@@ -4600,14 +4344,13 @@ router.post('/sync-deleted-media', async (req, res) => {
  * GET /api/v2/request-site/blocked-media
  * Get list of all blocked media (admin only)
  */
-router.get('/blocked-media', (req, res) => {
+router.get('/blocked-media', async (req, res) => {
     try {
-        ensureBlockedMediaTable();
-        const db = getDb();
+        await ensureBlockedMediaTable();
 
-        const blocked = db.prepare(`
+        const blocked = await dbAll(`
             SELECT * FROM blocked_media ORDER BY created_at DESC
-        `).all();
+        `);
 
         res.json({ blocked });
     } catch (error) {

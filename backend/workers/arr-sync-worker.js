@@ -8,11 +8,7 @@
  */
 
 const path = require('path');
-const Database = require('better-sqlite3');
-
-// Set up paths relative to this worker file
-const BACKEND_DIR = path.join(__dirname, '..');
-const DB_PATH = process.env.DB_PATH || path.join(BACKEND_DIR, 'data', 'subsapp_v2.db');
+const db = require('../database-config');
 
 /**
  * Send progress update to parent process
@@ -24,27 +20,14 @@ function sendProgress(type, data) {
 }
 
 /**
- * Get database connection with proper configuration to avoid lock contention
- */
-function getDb() {
-    const db = new Database(DB_PATH);
-    db.pragma('journal_mode = WAL');
-    // CRITICAL: Set busy_timeout to wait for locks instead of failing immediately
-    // This prevents SQLITE_BUSY errors when main app is also writing
-    db.pragma('busy_timeout = 10000'); // Wait up to 10 seconds for locks
-    return db;
-}
-
-/**
  * Sync all Radarr servers
  */
 async function syncRadarr() {
     const RadarrService = require('../services/radarr-service');
-    const db = getDb();
 
-    const servers = db.prepare(`
+    const servers = await db.query(`
         SELECT * FROM request_servers WHERE is_active = 1 AND type = 'radarr'
-    `).all();
+    `);
 
     sendProgress('status', {
         status: 'running',
@@ -63,28 +46,30 @@ async function syncRadarr() {
             const movies = await radarr.getMovies();
             console.log(`[Arr Sync Worker] Syncing ${movies.length} movies from Radarr: ${server.name}`);
 
-            const insertStmt = db.prepare(`
-                INSERT INTO radarr_library_cache (
-                    server_id, radarr_id, tmdb_id, imdb_id, title, year,
-                    has_file, monitored, quality_profile_id, path, size_on_disk, added_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-                ON CONFLICT(server_id, tmdb_id) DO UPDATE SET
-                    radarr_id = excluded.radarr_id,
-                    imdb_id = excluded.imdb_id,
-                    title = excluded.title,
-                    year = excluded.year,
-                    has_file = excluded.has_file,
-                    monitored = excluded.monitored,
-                    quality_profile_id = excluded.quality_profile_id,
-                    path = excluded.path,
-                    size_on_disk = excluded.size_on_disk,
-                    added_at = excluded.added_at,
-                    updated_at = CURRENT_TIMESTAMP
-            `);
+            // Use transaction for better performance
+            const conn = await db.getConnection();
+            try {
+                await conn.beginTransaction();
 
-            const insertMany = db.transaction((movies) => {
                 for (const movie of movies) {
-                    insertStmt.run(
+                    await conn.execute(`
+                        INSERT INTO radarr_library_cache (
+                            server_id, radarr_id, tmdb_id, imdb_id, title, year,
+                            has_file, monitored, quality_profile_id, path, size_on_disk, added_at, updated_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+                        ON CONFLICT(server_id, tmdb_id) DO UPDATE SET
+                            radarr_id = EXCLUDED.radarr_id,
+                            imdb_id = EXCLUDED.imdb_id,
+                            title = EXCLUDED.title,
+                            year = EXCLUDED.year,
+                            has_file = EXCLUDED.has_file,
+                            monitored = EXCLUDED.monitored,
+                            quality_profile_id = EXCLUDED.quality_profile_id,
+                            path = EXCLUDED.path,
+                            size_on_disk = EXCLUDED.size_on_disk,
+                            added_at = EXCLUDED.added_at,
+                            updated_at = NOW()
+                    `, [
                         server.id,
                         movie.id,
                         movie.tmdbId,
@@ -97,16 +82,22 @@ async function syncRadarr() {
                         movie.path || null,
                         movie.sizeOnDisk || 0,
                         movie.added || null
-                    );
+                    ]);
                 }
-            });
 
-            insertMany(movies);
+                await conn.commit();
+            } catch (txError) {
+                await conn.rollback();
+                throw txError;
+            } finally {
+                conn.release();
+            }
+
             totalMovies += movies.length;
 
-            db.prepare(`
-                UPDATE request_servers SET last_library_sync = CURRENT_TIMESTAMP WHERE id = ?
-            `).run(server.id);
+            await db.query(`
+                UPDATE request_servers SET last_library_sync = NOW() WHERE id = ?
+            `, [server.id]);
 
             sendProgress('progress', {
                 stage: 'radarr',
@@ -124,7 +115,6 @@ async function syncRadarr() {
         }
     }
 
-    db.close();
     return totalMovies;
 }
 
@@ -133,11 +123,10 @@ async function syncRadarr() {
  */
 async function syncSonarr() {
     const SonarrService = require('../services/sonarr-service');
-    const db = getDb();
 
-    const servers = db.prepare(`
+    const servers = await db.query(`
         SELECT * FROM request_servers WHERE is_active = 1 AND type = 'sonarr'
-    `).all();
+    `);
 
     sendProgress('status', {
         status: 'running',
@@ -156,33 +145,35 @@ async function syncSonarr() {
             const series = await sonarr.getSeries();
             console.log(`[Arr Sync Worker] Syncing ${series.length} series from Sonarr: ${server.name}`);
 
-            const insertStmt = db.prepare(`
-                INSERT INTO sonarr_library_cache (
-                    server_id, sonarr_id, tvdb_id, tmdb_id, imdb_id, title, year,
-                    total_episodes, episode_file_count, monitored, quality_profile_id,
-                    path, size_on_disk, added_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-                ON CONFLICT(server_id, tvdb_id) DO UPDATE SET
-                    sonarr_id = excluded.sonarr_id,
-                    tmdb_id = excluded.tmdb_id,
-                    imdb_id = excluded.imdb_id,
-                    title = excluded.title,
-                    year = excluded.year,
-                    total_episodes = excluded.total_episodes,
-                    episode_file_count = excluded.episode_file_count,
-                    monitored = excluded.monitored,
-                    quality_profile_id = excluded.quality_profile_id,
-                    path = excluded.path,
-                    size_on_disk = excluded.size_on_disk,
-                    added_at = excluded.added_at,
-                    updated_at = CURRENT_TIMESTAMP
-            `);
+            // Use transaction for better performance
+            const conn = await db.getConnection();
+            try {
+                await conn.beginTransaction();
 
-            const insertMany = db.transaction((seriesList) => {
-                for (const show of seriesList) {
+                for (const show of series) {
                     if (!show.tvdbId) continue;
 
-                    insertStmt.run(
+                    await conn.execute(`
+                        INSERT INTO sonarr_library_cache (
+                            server_id, sonarr_id, tvdb_id, tmdb_id, imdb_id, title, year,
+                            total_episodes, episode_file_count, monitored, quality_profile_id,
+                            path, size_on_disk, added_at, updated_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+                        ON CONFLICT(server_id, tvdb_id) DO UPDATE SET
+                            sonarr_id = EXCLUDED.sonarr_id,
+                            tmdb_id = EXCLUDED.tmdb_id,
+                            imdb_id = EXCLUDED.imdb_id,
+                            title = EXCLUDED.title,
+                            year = EXCLUDED.year,
+                            total_episodes = EXCLUDED.total_episodes,
+                            episode_file_count = EXCLUDED.episode_file_count,
+                            monitored = EXCLUDED.monitored,
+                            quality_profile_id = EXCLUDED.quality_profile_id,
+                            path = EXCLUDED.path,
+                            size_on_disk = EXCLUDED.size_on_disk,
+                            added_at = EXCLUDED.added_at,
+                            updated_at = NOW()
+                    `, [
                         server.id,
                         show.id,
                         show.tvdbId,
@@ -197,16 +188,22 @@ async function syncSonarr() {
                         show.path || null,
                         show.statistics?.sizeOnDisk || 0,
                         show.added || null
-                    );
+                    ]);
                 }
-            });
 
-            insertMany(series);
+                await conn.commit();
+            } catch (txError) {
+                await conn.rollback();
+                throw txError;
+            } finally {
+                conn.release();
+            }
+
             totalSeries += series.length;
 
-            db.prepare(`
-                UPDATE request_servers SET last_library_sync = CURRENT_TIMESTAMP WHERE id = ?
-            `).run(server.id);
+            await db.query(`
+                UPDATE request_servers SET last_library_sync = NOW() WHERE id = ?
+            `, [server.id]);
 
             sendProgress('progress', {
                 stage: 'sonarr',
@@ -224,7 +221,6 @@ async function syncSonarr() {
         }
     }
 
-    db.close();
     return totalSeries;
 }
 

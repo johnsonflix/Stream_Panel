@@ -27,7 +27,7 @@ router.get('/config', async (req, res) => {
         const users = await query(`
             SELECT COUNT(*) as count FROM users
             WHERE is_app_user = 1
-            AND (plex_sso_enabled = 1 OR plex_sso_enabled = 'true')
+            AND plex_sso_enabled = 1
         `);
 
         const enabled = users[0]?.count > 0;
@@ -114,7 +114,7 @@ router.get('/redirect', async (req, res) => {
         const users = await query(`
             SELECT COUNT(*) as count FROM users
             WHERE is_app_user = 1
-            AND (plex_sso_enabled = 1 OR plex_sso_enabled = 'true')
+            AND plex_sso_enabled = 1
         `);
 
         if (users[0]?.count === 0) {
@@ -304,7 +304,7 @@ router.post('/complete', async (req, res) => {
         const users = await query(`
             SELECT * FROM users
             WHERE is_app_user = 1
-            AND (plex_sso_enabled = 1 OR plex_sso_enabled = 'true')
+            AND plex_sso_enabled = 1
             AND (LOWER(plex_email) = ? OR LOWER(plex_sso_email) = ?)
         `, [plexEmail, plexEmail]);
 

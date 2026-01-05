@@ -198,7 +198,7 @@ async function checkQuota(userId, mediaType) {
             WHERE user_id = ?
             AND media_id IN (SELECT id FROM request_site_media WHERE media_type = ?)
             AND created_at >= ?
-            AND status != 3
+            AND status != 'declined'
         `, [userId, mediaType, cutoffDate.toISOString()]);
 
         const used = requests[0].count;
@@ -323,14 +323,13 @@ router.post('/media/availability', async (req, res) => {
                 const m = media[0];
                 availability[tmdbId] = {
                     status: m.status,
-                    status_4k: m.status_4k,
                     plex_server_id: m.plex_server_id,
-                    available: m.status === 4, // AVAILABLE
-                    available_4k: m.status_4k === 4
+                    available: m.status === 'available',
+                    available_4k: false // 4K tracking not currently supported
                 };
 
                 // Check for active downloads
-                if (m.status === 2 || m.status_4k === 2) { // PROCESSING
+                if (m.status === 'processing') {
                     const downloadProgress = mediaType === 'movie'
                         ? await getMovieDownloadProgress(tmdbId)
                         : await getSeriesDownloadProgress(tmdbId);
@@ -342,8 +341,7 @@ router.post('/media/availability', async (req, res) => {
                 }
             } else {
                 availability[tmdbId] = {
-                    status: 0, // UNKNOWN
-                    status_4k: 0,
+                    status: 'unknown',
                     available: false,
                     available_4k: false
                 };
@@ -402,7 +400,7 @@ router.get('/media/:tmdbId/:mediaType', async (req, res) => {
 
         // Check download progress
         let downloadProgress = null;
-        if (mediaInfo && (mediaInfo.status === 2 || mediaInfo.status_4k === 2)) {
+        if (mediaInfo && mediaInfo.status === 'processing') {
             downloadProgress = mediaType === 'movie'
                 ? await getMovieDownloadProgress(tmdbId)
                 : await getSeriesDownloadProgress(tmdbId);
@@ -481,14 +479,14 @@ router.post('/requests', async (req, res) => {
             [tmdbId, mediaType]
         );
 
-        if (existingMedia.length > 0 && existingMedia[0].status === 4) {
+        if (existingMedia.length > 0 && existingMedia[0].status === 'available') {
             return res.status(400).json({ success: false, message: 'This media is already available on Plex' });
         }
 
         // Check if user already has a pending request
         if (existingMedia.length > 0) {
             const existingRequest = await query(
-                'SELECT * FROM request_site_requests WHERE user_id = ? AND media_id = ? AND status IN (1, 2)',
+                `SELECT * FROM request_site_requests WHERE user_id = ? AND media_id = ? AND status IN ('approved', 'processing')`,
                 [user.id, existingMedia[0].id]
             );
 
@@ -503,11 +501,11 @@ router.post('/requests', async (req, res) => {
             mediaId = existingMedia[0].id;
         } else {
             const result = await query(`
-                INSERT INTO request_site_media (tmdb_id, media_type, status, status_4k, created_at, updated_at)
-                VALUES (?, ?, 1, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-            `, [tmdbId, mediaType]); // 1 = PENDING
+                INSERT INTO request_site_media (tmdb_id, media_type, status, created_at, updated_at)
+                VALUES (?, ?, 'pending', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            `, [tmdbId, mediaType]);
 
-            mediaId = result.lastID;
+            mediaId = result.insertId;
         }
 
         // Determine if auto-approve
@@ -530,7 +528,7 @@ router.post('/requests', async (req, res) => {
             }
         }
 
-        const requestStatus = shouldAutoApprove ? 2 : 1; // 2=APPROVED, 1=PENDING
+        const requestStatus = shouldAutoApprove ? 'processing' : 'pending';
 
         // Create request
         const requestResult = await query(`
@@ -539,7 +537,7 @@ router.post('/requests', async (req, res) => {
             ) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         `, [mediaId, user.id, is4k ? 1 : 0, requestStatus, seasons || null]);
 
-        const requestId = requestResult.lastID;
+        const requestId = requestResult.insertId;
 
         // Get media info from TMDB for notifications
         const mediaInfo = await getMediaInfoFromTmdb(tmdbId, mediaType);
@@ -559,7 +557,7 @@ router.post('/requests', async (req, res) => {
             } else {
                 console.error(`[Request Site] Failed to send auto-approved request to ${mediaType === 'movie' ? 'Radarr' : 'Sonarr'}:`, submitResult.error);
                 // Revert to pending if submission failed
-                await query('UPDATE request_site_requests SET status = 1 WHERE id = ?', [requestId]);
+                await query(`UPDATE request_site_requests SET status = 'pending' WHERE id = ?`, [requestId]);
             }
         } else {
             // Notify admins of new pending request
@@ -658,10 +656,9 @@ router.get('/requests/all', async (req, res) => {
                 return res.status(401).json({ success: false, message: 'Authentication required' });
             }
 
-            // Get user permissions from request-site-routes
-            const db = require('better-sqlite3')(process.env.DB_PATH || require('path').join(__dirname, '..', 'data', 'subsapp_v2.db'));
-            const userPerms = db.prepare('SELECT * FROM request_user_permissions WHERE user_id = ?').get(user.id);
-            db.close();
+            // Get user permissions from request_user_permissions table
+            const userPermsResult = await query('SELECT * FROM request_user_permissions WHERE user_id = $1', [user.id]);
+            const userPerms = userPermsResult.length > 0 ? userPermsResult[0] : null;
 
             const hasApprovalRights = userPerms && (
                 userPerms.can_approve_movies ||
@@ -693,11 +690,11 @@ router.get('/requests/all', async (req, res) => {
                 COALESCE(
                     NULLIF(u.name, ''),
                     NULLIF(r.requested_by, ''),
-                    CASE WHEN r.user_id = 'admin' THEN 'Admin' ELSE 'Unknown' END
+                    'Unknown'
                 ) as requested_by,
                 r.requested_at as created_at
             FROM media_requests r
-            LEFT JOIN users u ON CAST(r.user_id AS INTEGER) = u.id AND r.user_id != 'admin'
+            LEFT JOIN users u ON u.id = r.user_id
             ORDER BY r.requested_at DESC
         `);
 
@@ -737,7 +734,7 @@ router.get('/requests/pending', async (req, res) => {
             FROM request_site_requests r
             JOIN request_site_media m ON r.media_id = m.id
             JOIN users u ON r.user_id = u.id
-            WHERE r.status = 1
+            WHERE r.status = 'pending'
             ORDER BY r.created_at ASC
         `);
 
@@ -780,9 +777,9 @@ router.put('/requests/:id/approve', async (req, res) => {
 
         const request = requests[0];
 
-        // Update request status to APPROVED
+        // Update request status to PROCESSING (approved and being processed)
         await query(
-            'UPDATE request_site_requests SET status = 2, modified_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+            `UPDATE request_site_requests SET status = 'processing', modified_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
             [user.id, requestId]
         );
 
@@ -821,7 +818,7 @@ router.put('/requests/:id/approve', async (req, res) => {
             console.error(`[Request Site] Failed to send request to ${request.media_type === 'movie' ? 'Radarr' : 'Sonarr'}:`, submitResult.error);
 
             // Revert to pending if submission failed
-            await query('UPDATE request_site_requests SET status = 1 WHERE id = ?', [requestId]);
+            await query(`UPDATE request_site_requests SET status = 'pending' WHERE id = ?`, [requestId]);
 
             res.status(500).json({ success: false, message: `Failed to submit to ${request.media_type === 'movie' ? 'Radarr' : 'Sonarr'}: ${submitResult.error}` });
         }
@@ -868,7 +865,7 @@ router.put('/requests/:id/decline', async (req, res) => {
 
         // Update request status to DECLINED
         await query(
-            'UPDATE request_site_requests SET status = 3, modified_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+            `UPDATE request_site_requests SET status = 'declined', modified_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
             [user.id, requestId]
         );
 

@@ -38,11 +38,13 @@ const upload = multer({
     }
 });
 
-// Initialize service managers
+// Initialize service managers lazily on first use
 let plexManager;
 let iptvManager;
+let managersInitialized = false;
 
-(async () => {
+async function initializeManagers() {
+    if (managersInitialized) return;
     try {
         plexManager = new PlexServiceManager(db);
         await plexManager.initialize();
@@ -50,11 +52,12 @@ let iptvManager;
         iptvManager = new IPTVServiceManager(db);
         await iptvManager.initialize();
 
+        managersInitialized = true;
         console.log('CSV Import: Service managers initialized');
     } catch (error) {
         console.error('CSV Import: Failed to initialize service managers:', error);
     }
-})();
+}
 
 /**
  * CSV Format:

@@ -9,19 +9,15 @@
  */
 
 const path = require('path');
-const Database = require('better-sqlite3');
+const db = require('../database-config');
 const { fetchFullGuideData, testConnection, fetchXMLTV, getVodCategories, getVodStreams, getSeriesCategories, getSeries } = require('../utils/xtream-api');
 const { parseXMLTVFromString } = require('../utils/xmltv-parser');
 
-const DB_PATH = process.env.DB_PATH || path.join(__dirname, '..', 'subsapp_v2.db');
 const EPG_DAYS_TO_CACHE = 7; // Cache 7 days of EPG data
 
 class GuideCacheRefreshJob {
     constructor() {
-        this.db = new Database(DB_PATH);
-        // CRITICAL: Set busy_timeout to wait for locks instead of failing immediately
-        // This prevents SQLITE_BUSY errors when main app is also writing
-        this.db.pragma('busy_timeout = 10000'); // Wait up to 10 seconds for locks
+        // PostgreSQL uses connection pool - no need for instance-level connection
     }
 
     /**
@@ -66,6 +62,21 @@ class GuideCacheRefreshJob {
         }
 
         return vodData;
+    }
+
+    /**
+     * Check if VOD columns exist in guide_cache table
+     */
+    async hasVodColumns() {
+        try {
+            const result = await db.query(`
+                SELECT column_name FROM information_schema.columns
+                WHERE table_name = 'guide_cache' AND column_name = 'vod_categories_json'
+            `);
+            return result.length > 0;
+        } catch (e) {
+            return false;
+        }
     }
 
     /**
@@ -128,15 +139,13 @@ class GuideCacheRefreshJob {
             // Fetch VOD data (movies and series)
             const vodData = await this.fetchVodData(baseUrl, username, password);
 
-            // Check if VOD columns exist before trying to insert
-            const columns = this.db.pragma('table_info(guide_cache)');
-            const columnNames = columns.map(c => c.name);
-            const hasVodColumns = columnNames.includes('vod_categories_json');
+            // Check if VOD columns exist
+            const hasVodColumns = await this.hasVodColumns();
 
             // Store in cache
             if (hasVodColumns) {
                 // Use extended schema with VOD columns
-                const stmt = this.db.prepare(`
+                await db.query(`
                     INSERT INTO guide_cache (
                         source_type, source_id,
                         categories_json, channels_json, total_categories, total_channels,
@@ -145,28 +154,26 @@ class GuideCacheRefreshJob {
                         series_categories_json, series_json, series_count, vod_last_updated,
                         last_updated
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?, ?, ?, ?, ?, NOW(), NOW())
                     ON CONFLICT(source_type, source_id) DO UPDATE SET
-                        categories_json = excluded.categories_json,
-                        channels_json = excluded.channels_json,
-                        total_categories = excluded.total_categories,
-                        total_channels = excluded.total_channels,
-                        epg_json = excluded.epg_json,
-                        epg_channel_count = excluded.epg_channel_count,
-                        epg_program_count = excluded.epg_program_count,
-                        epg_last_updated = excluded.epg_last_updated,
-                        vod_categories_json = excluded.vod_categories_json,
-                        vod_movies_json = excluded.vod_movies_json,
-                        vod_movies_count = excluded.vod_movies_count,
-                        series_categories_json = excluded.series_categories_json,
-                        series_json = excluded.series_json,
-                        series_count = excluded.series_count,
-                        vod_last_updated = excluded.vod_last_updated,
-                        last_updated = datetime('now'),
+                        categories_json = EXCLUDED.categories_json,
+                        channels_json = EXCLUDED.channels_json,
+                        total_categories = EXCLUDED.total_categories,
+                        total_channels = EXCLUDED.total_channels,
+                        epg_json = EXCLUDED.epg_json,
+                        epg_channel_count = EXCLUDED.epg_channel_count,
+                        epg_program_count = EXCLUDED.epg_program_count,
+                        epg_last_updated = EXCLUDED.epg_last_updated,
+                        vod_categories_json = EXCLUDED.vod_categories_json,
+                        vod_movies_json = EXCLUDED.vod_movies_json,
+                        vod_movies_count = EXCLUDED.vod_movies_count,
+                        series_categories_json = EXCLUDED.series_categories_json,
+                        series_json = EXCLUDED.series_json,
+                        series_count = EXCLUDED.series_count,
+                        vod_last_updated = EXCLUDED.vod_last_updated,
+                        last_updated = NOW(),
                         last_error = NULL
-                `);
-
-                stmt.run(
+                `, [
                     sourceType,
                     sourceId,
                     JSON.stringify(guideData.categories),
@@ -182,27 +189,25 @@ class GuideCacheRefreshJob {
                     vodData.seriesCategories.length > 0 ? JSON.stringify(vodData.seriesCategories) : null,
                     vodData.series.length > 0 ? JSON.stringify(vodData.series) : null,
                     vodData.series.length
-                );
+                ]);
             } else {
-                // Fallback: Use original schema without VOD columns (migration not run yet)
+                // Fallback: Use original schema without VOD columns
                 console.log(`   ⚠️ VOD cache columns not found - run migration add-vod-cache-columns.js`);
-                const stmt = this.db.prepare(`
+                await db.query(`
                     INSERT INTO guide_cache (source_type, source_id, categories_json, channels_json, total_categories, total_channels, epg_json, epg_channel_count, epg_program_count, epg_last_updated, last_updated)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
                     ON CONFLICT(source_type, source_id) DO UPDATE SET
-                        categories_json = excluded.categories_json,
-                        channels_json = excluded.channels_json,
-                        total_categories = excluded.total_categories,
-                        total_channels = excluded.total_channels,
-                        epg_json = excluded.epg_json,
-                        epg_channel_count = excluded.epg_channel_count,
-                        epg_program_count = excluded.epg_program_count,
-                        epg_last_updated = excluded.epg_last_updated,
-                        last_updated = datetime('now'),
+                        categories_json = EXCLUDED.categories_json,
+                        channels_json = EXCLUDED.channels_json,
+                        total_categories = EXCLUDED.total_categories,
+                        total_channels = EXCLUDED.total_channels,
+                        epg_json = EXCLUDED.epg_json,
+                        epg_channel_count = EXCLUDED.epg_channel_count,
+                        epg_program_count = EXCLUDED.epg_program_count,
+                        epg_last_updated = EXCLUDED.epg_last_updated,
+                        last_updated = NOW(),
                         last_error = NULL
-                `);
-
-                stmt.run(
+                `, [
                     sourceType,
                     sourceId,
                     JSON.stringify(guideData.categories),
@@ -212,7 +217,7 @@ class GuideCacheRefreshJob {
                     epgData ? JSON.stringify(epgData) : null,
                     epgChannelCount,
                     epgProgramCount
-                );
+                ]);
             }
 
             console.log(`   ✅ Cached ${guideData.categories.length} categories, ${guideData.totalChannels} channels`);
@@ -236,14 +241,13 @@ class GuideCacheRefreshJob {
             console.error(`   ❌ Failed: ${error.message}`);
 
             // Store error in cache
-            const stmt = this.db.prepare(`
+            await db.query(`
                 INSERT INTO guide_cache (source_type, source_id, last_error, last_updated)
-                VALUES (?, ?, ?, datetime('now'))
+                VALUES (?, ?, ?, NOW())
                 ON CONFLICT(source_type, source_id) DO UPDATE SET
-                    last_error = excluded.last_error,
-                    last_updated = datetime('now')
-            `);
-            stmt.run(sourceType, sourceId, error.message);
+                    last_error = EXCLUDED.last_error,
+                    last_updated = NOW()
+            `, [sourceType, sourceId, error.message]);
 
             return {
                 success: false,
@@ -340,12 +344,12 @@ class GuideCacheRefreshJob {
     async refreshAllPanels() {
         console.log('\n🔄 Refreshing IPTV Panel caches...');
 
-        const panels = this.db.prepare(`
+        const panels = await db.query(`
             SELECT id, name, panel_type, base_url, provider_base_url, credentials, m3u_url
             FROM iptv_panels
             WHERE is_active = 1
               AND (m3u_url IS NOT NULL OR (provider_base_url IS NOT NULL AND credentials IS NOT NULL))
-        `).all();
+        `);
 
         console.log(`   Found ${panels.length} panels with provider URLs`);
 
@@ -391,27 +395,41 @@ class GuideCacheRefreshJob {
     }
 
     /**
+     * Check if guide credential columns exist
+     */
+    async hasGuideCredentialColumns() {
+        try {
+            const result = await db.query(`
+                SELECT column_name FROM information_schema.columns
+                WHERE table_name = 'iptv_editor_playlists' AND column_name = 'guide_username'
+            `);
+            return result.length > 0;
+        } catch (e) {
+            return false;
+        }
+    }
+
+    /**
      * Refresh all playlist caches
      * Uses IPTV Editor DNS + guide credentials for Xtream API calls
      */
     async refreshAllPlaylists() {
         console.log('\n🔄 Refreshing IPTV Editor Playlist caches...');
 
-        // Check if guide_username column exists (migration may not have run)
-        const columns = this.db.pragma('table_info(iptv_editor_playlists)');
-        const columnNames = columns.map(c => c.name);
-        if (!columnNames.includes('guide_username') || !columnNames.includes('guide_password')) {
+        // Check if guide credential columns exist
+        const hasGuideColumns = await this.hasGuideCredentialColumns();
+        if (!hasGuideColumns) {
             console.log('   ⚠️ Guide credential columns not found in database - skipping playlists');
             console.log('   ℹ️  Run migration: add-guide-credentials-to-playlists.js');
             return { total: 0, success: 0, failed: 0, errors: [] };
         }
 
         // Get IPTV Editor DNS setting
-        const editorDns = this.db.prepare(`
+        const editorDnsResult = await db.query(`
             SELECT setting_value FROM iptv_editor_settings WHERE setting_key = 'editor_dns'
-        `).get();
+        `);
 
-        const editorBaseUrl = editorDns?.setting_value;
+        const editorBaseUrl = editorDnsResult[0]?.setting_value;
         if (!editorBaseUrl) {
             console.log('   ⚠️ IPTV Editor DNS not configured - skipping playlists');
             return { total: 0, success: 0, failed: 0, errors: [] };
@@ -419,14 +437,14 @@ class GuideCacheRefreshJob {
 
         console.log(`   Using IPTV Editor DNS: ${editorBaseUrl}`);
 
-        const playlists = this.db.prepare(`
+        const playlists = await db.query(`
             SELECT id, name, guide_username, guide_password,
                    provider_base_url, provider_username, provider_password
             FROM iptv_editor_playlists
             WHERE is_active = 1
               AND guide_username IS NOT NULL AND guide_username != ''
               AND guide_password IS NOT NULL AND guide_password != ''
-        `).all();
+        `);
 
         console.log(`   Found ${playlists.length} playlists with guide credentials`);
 
@@ -466,11 +484,12 @@ class GuideCacheRefreshJob {
      * @param {number} panelId - Panel ID
      */
     async refreshPanel(panelId) {
-        const panel = this.db.prepare(`
+        const panels = await db.query(`
             SELECT id, name, panel_type, base_url, provider_base_url, credentials, m3u_url
             FROM iptv_panels WHERE id = ?
-        `).get(panelId);
+        `, [panelId]);
 
+        const panel = panels[0];
         if (!panel) {
             throw new Error(`Panel ${panelId} not found`);
         }
@@ -490,20 +509,21 @@ class GuideCacheRefreshJob {
      */
     async refreshPlaylist(playlistId) {
         // Get IPTV Editor DNS
-        const editorDns = this.db.prepare(`
+        const editorDnsResult = await db.query(`
             SELECT setting_value FROM iptv_editor_settings WHERE setting_key = 'editor_dns'
-        `).get();
+        `);
 
-        const editorBaseUrl = editorDns?.setting_value;
+        const editorBaseUrl = editorDnsResult[0]?.setting_value;
         if (!editorBaseUrl) {
             throw new Error('IPTV Editor DNS not configured');
         }
 
-        const playlist = this.db.prepare(`
+        const playlists = await db.query(`
             SELECT id, name, guide_username, guide_password
             FROM iptv_editor_playlists WHERE id = ?
-        `).get(playlistId);
+        `, [playlistId]);
 
+        const playlist = playlists[0];
         if (!playlist) {
             throw new Error(`Playlist ${playlistId} not found`);
         }
@@ -557,8 +577,8 @@ class GuideCacheRefreshJob {
     /**
      * Get cache status for all sources
      */
-    getCacheStatus() {
-        const caches = this.db.prepare(`
+    async getCacheStatus() {
+        const caches = await db.query(`
             SELECT
                 source_type,
                 source_id,
@@ -568,7 +588,7 @@ class GuideCacheRefreshJob {
                 last_error
             FROM guide_cache
             ORDER BY source_type, source_id
-        `).all();
+        `);
 
         return caches;
     }
@@ -578,11 +598,12 @@ class GuideCacheRefreshJob {
      * @param {string} sourceType - 'panel' or 'playlist'
      * @param {number} sourceId - Source ID
      */
-    getCachedGuide(sourceType, sourceId) {
-        const cache = this.db.prepare(`
+    async getCachedGuide(sourceType, sourceId) {
+        const caches = await db.query(`
             SELECT * FROM guide_cache WHERE source_type = ? AND source_id = ?
-        `).get(sourceType, sourceId);
+        `, [sourceType, sourceId]);
 
+        const cache = caches[0];
         if (!cache) {
             return null;
         }
@@ -606,7 +627,7 @@ class GuideCacheRefreshJob {
     }
 
     close() {
-        this.db.close();
+        // PostgreSQL uses connection pool - no need to close individual connections
     }
 }
 

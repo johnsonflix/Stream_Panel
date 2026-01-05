@@ -12,11 +12,9 @@
  */
 
 const path = require('path');
-const Database = require('better-sqlite3');
 
 // Set up paths relative to this worker file
 const BACKEND_DIR = path.join(__dirname, '..');
-const DB_PATH = process.env.DB_PATH || path.join(BACKEND_DIR, 'subsapp_v2.db');
 
 // Import the job class
 const GuideCacheRefreshJob = require('../jobs/guide-cache-refresh');

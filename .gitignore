@@ -41,3 +41,6 @@ build/
 tmp/
 temp/
 *.tmp
+
+# Archive folder (old versions)
+archive/

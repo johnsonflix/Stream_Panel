@@ -308,7 +308,7 @@ class BaseIPTVPanel {
                 action,
                 packageId,
                 creditsUsed,
-                success,
+                success ? 1 : 0,  // Convert boolean to integer for PostgreSQL
                 errorMessage,
                 apiResponse ? JSON.stringify(apiResponse) : null
             ]);

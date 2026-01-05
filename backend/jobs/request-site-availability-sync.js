@@ -131,26 +131,25 @@ async function syncMovieAvailability(media) {
             // Update media to AVAILABLE
             await query(`
                 UPDATE request_site_media
-                SET status = 4,
-                    plex_rating_key = ?,
-                    plex_server_id = ?,
+                SET status = 'available',
+                    plex_rating_key = $1,
                     media_added_at = CURRENT_TIMESTAMP,
                     updated_at = CURRENT_TIMESTAMP
-                WHERE id = ?
-            `, [plexCheck.ratingKey, plexCheck.serverId, media.id]);
+                WHERE id = $2
+            `, [plexCheck.ratingKey, media.id]);
 
             // Update related requests to AVAILABLE (request_site_requests table)
             await query(`
                 UPDATE request_site_requests
-                SET status = 4, updated_at = CURRENT_TIMESTAMP
-                WHERE media_id = ? AND is_4k = 0 AND status IN (1, 2)
+                SET status = 'available', updated_at = CURRENT_TIMESTAMP
+                WHERE media_id = $1 AND is_4k = 0 AND status IN ('approved', 'processing')
             `, [media.id]);
 
             // Also update media_requests table (the actual requests table)
             await query(`
                 UPDATE media_requests
                 SET status = 'available', available_at = CURRENT_TIMESTAMP
-                WHERE tmdb_id = ? AND media_type = 'movie' AND status IN ('processing', 'approved')
+                WHERE tmdb_id = $1 AND media_type = 'movie' AND status IN ('processing', 'approved')
             `, [media.tmdb_id]);
 
             console.log(`[Availability Sync] ✅ Movie TMDB ${media.tmdb_id} marked as AVAILABLE`);
@@ -158,7 +157,7 @@ async function syncMovieAvailability(media) {
             // Notify users who requested this media
             const requests = await query(`
                 SELECT DISTINCT user_id FROM request_site_requests
-                WHERE media_id = ? AND is_4k = 0 AND status = 4
+                WHERE media_id = $1 AND is_4k = 0 AND status = 'available'
             `, [media.id]);
 
             const mediaInfo = await getMediaInfoFromTmdb(media.tmdb_id, 'movie');
@@ -189,19 +188,17 @@ async function syncTVShowAvailability(media) {
             // Update media
             await query(`
                 UPDATE request_site_media
-                SET plex_rating_key = ?,
-                    plex_server_id = ?,
+                SET plex_rating_key = $1,
                     media_added_at = CURRENT_TIMESTAMP,
-                    updated_at = CURRENT_TIMESTAMP,
-                    last_season_change = CURRENT_TIMESTAMP
-                WHERE id = ?
-            `, [plexCheck.ratingKey, plexCheck.serverId, media.id]);
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = $2
+            `, [plexCheck.ratingKey, media.id]);
 
             // Update season records
             for (const seasonNumber of plexCheck.seasons) {
                 // Check if season record exists
                 const seasonRecords = await query(
-                    'SELECT * FROM request_site_seasons WHERE media_id = ? AND season_number = ?',
+                    'SELECT * FROM request_site_seasons WHERE media_id = $1 AND season_number = $2',
                     [media.id, seasonNumber]
                 );
 
@@ -214,21 +211,21 @@ async function syncTVShowAvailability(media) {
                             status,
                             created_at,
                             updated_at
-                        ) VALUES (?, ?, 4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        ) VALUES ($1, $2, 'available', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                     `, [media.id, seasonNumber]);
                 } else {
                     // Update existing season to AVAILABLE
                     await query(
-                        'UPDATE request_site_seasons SET status = 4, updated_at = CURRENT_TIMESTAMP WHERE media_id = ? AND season_number = ?',
-                        [media.id, seasonNumber]
+                        'UPDATE request_site_seasons SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE media_id = $2 AND season_number = $3',
+                        ['available', media.id, seasonNumber]
                     );
                 }
             }
 
             // Check if ALL requested seasons are now available
             const requests = await query(
-                'SELECT * FROM request_site_requests WHERE media_id = ? AND is_4k = 0 AND status IN (1, 2)',
-                [media.id]
+                'SELECT * FROM request_site_requests WHERE media_id = $1 AND is_4k = 0 AND status IN ($2, $3)',
+                [media.id, 'approved', 'processing']
             );
 
             for (const request of requests) {
@@ -249,8 +246,8 @@ async function syncTVShowAvailability(media) {
 
                 if (allAvailable) {
                     await query(
-                        'UPDATE request_site_requests SET status = 4, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-                        [request.id]
+                        'UPDATE request_site_requests SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+                        ['available', request.id]
                     );
                     console.log(`[Availability Sync] ✅ TV request ${request.id} marked as AVAILABLE`);
 
@@ -265,22 +262,22 @@ async function syncTVShowAvailability(media) {
             await query(`
                 UPDATE media_requests
                 SET status = 'available', available_at = CURRENT_TIMESTAMP
-                WHERE tmdb_id = ? AND media_type = 'tv' AND status IN ('processing', 'approved')
+                WHERE tmdb_id = $1 AND media_type = 'tv' AND status IN ('processing', 'approved')
             `, [media.tmdb_id]);
 
             // Update media status based on season availability
             const allSeasons = await query(
-                'SELECT * FROM request_site_seasons WHERE media_id = ?',
+                'SELECT * FROM request_site_seasons WHERE media_id = $1',
                 [media.id]
             );
 
-            const availableSeasons = allSeasons.filter(s => s.status === 4).length;
+            const availableSeasons = allSeasons.filter(s => s.status === 'available').length;
             const totalSeasons = allSeasons.length;
 
             if (availableSeasons === totalSeasons && totalSeasons > 0) {
-                await query('UPDATE request_site_media SET status = 4 WHERE id = ?', [media.id]);
+                await query('UPDATE request_site_media SET status = $1 WHERE id = $2', ['available', media.id]);
             } else if (availableSeasons > 0) {
-                await query('UPDATE request_site_media SET status = 3 WHERE id = ?', [media.id]); // PARTIALLY_AVAILABLE
+                await query('UPDATE request_site_media SET status = $1 WHERE id = $2', ['partially_available', media.id]);
             }
 
             console.log(`[Availability Sync] ✅ TV show TMDB ${media.tmdb_id} synced (${availableSeasons}/${totalSeasons} seasons available)`);
@@ -318,14 +315,14 @@ async function syncMediaRequestsFromArrCache() {
             if (request.media_type === 'movie') {
                 // Check Radarr cache for downloaded movie
                 const radarrEntry = await query(
-                    'SELECT * FROM radarr_library_cache WHERE tmdb_id = ? AND has_file = 1',
+                    'SELECT * FROM radarr_library_cache WHERE tmdb_id = $1 AND has_file = 1',
                     [request.tmdb_id]
                 );
                 isAvailable = radarrEntry && radarrEntry.length > 0;
             } else if (request.media_type === 'tv') {
                 // Check Sonarr cache for TV episodes
                 const sonarrEntry = await query(
-                    'SELECT * FROM sonarr_library_cache WHERE tmdb_id = ? AND episode_file_count > 0',
+                    'SELECT * FROM sonarr_library_cache WHERE tmdb_id = $1 AND episode_file_count > 0',
                     [request.tmdb_id]
                 );
                 isAvailable = sonarrEntry && sonarrEntry.length > 0;
@@ -335,7 +332,7 @@ async function syncMediaRequestsFromArrCache() {
                 await query(`
                     UPDATE media_requests
                     SET status = 'available', available_at = CURRENT_TIMESTAMP
-                    WHERE id = ?
+                    WHERE id = $1
                 `, [request.id]);
                 updated++;
                 console.log(`[Availability Sync] ✅ ${request.title} (TMDB ${request.tmdb_id}) marked as available via *arr cache`);
@@ -370,7 +367,7 @@ async function runAvailabilitySync() {
         // Then, sync from request_site_media via Plex (slower, but catches manual additions)
         const processingMedia = await query(`
             SELECT * FROM request_site_media
-            WHERE status = 2 OR status_4k = 2
+            WHERE status = 'processing'
             ORDER BY updated_at ASC
         `);
 

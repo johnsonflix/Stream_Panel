@@ -169,17 +169,23 @@ const channelDataCache = {
     }
 };
 
-// Initialize IPTV service manager for cancellation
+// Initialize IPTV service manager lazily for cancellation
 let iptvManager;
-(async () => {
-    try {
-        iptvManager = new IPTVServiceManager(db);
-        await iptvManager.initialize();
-        console.log('Portal: IPTV Service Manager initialized');
-    } catch (error) {
-        console.error('Portal: Failed to initialize IPTV Service Manager:', error);
+let iptvManagerInitialized = false;
+
+async function getIPTVManager() {
+    if (!iptvManagerInitialized) {
+        try {
+            iptvManager = new IPTVServiceManager(db);
+            await iptvManager.initialize();
+            iptvManagerInitialized = true;
+            console.log('Portal: IPTV Service Manager initialized');
+        } catch (error) {
+            console.error('Portal: Failed to initialize IPTV Service Manager:', error);
+        }
     }
-})();
+    return iptvManager;
+}
 
 /**
  * Helper: Remove user from Plex server via Python
@@ -1305,8 +1311,9 @@ async function immediateDeleteIPTVService(userId, userData) {
     // Delete IPTV panel line
     if (userData.iptv_enabled && userData.iptv_panel_id && userData.iptv_line_id) {
         try {
-            if (iptvManager) {
-                await iptvManager.deleteUserFromPanel(userData.iptv_panel_id, userData.iptv_line_id);
+            const manager = await getIPTVManager();
+            if (manager) {
+                await manager.deleteUserFromPanel(userData.iptv_panel_id, userData.iptv_line_id);
                 console.log(`[Portal] Deleted IPTV line ${userData.iptv_line_id}`);
             }
         } catch (err) {

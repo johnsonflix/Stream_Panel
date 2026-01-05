@@ -10,10 +10,8 @@
  */
 
 const axios = require('axios');
-const Database = require('better-sqlite3');
-const path = require('path');
+const db = require('../database-config');
 
-const DB_PATH = process.env.DB_PATH || path.join(__dirname, '..', 'data', 'subsapp_v2.db');
 const TMDB_API_KEY = '431a8708161bcd1f1fbe7536137e61ed';
 
 // Media status enum (matches Seerr)
@@ -46,7 +44,6 @@ const GUID_PATTERNS = {
 
 class PlexScannerService {
     constructor() {
-        this.db = null;
         this.asyncLocks = new Map(); // Prevent race conditions on same TMDB ID
         this.scanResults = {
             totalMovies: 0,
@@ -55,16 +52,6 @@ class PlexScannerService {
             newlyAdded: 0,
             errors: []
         };
-    }
-
-    getDb() {
-        if (!this.db) {
-            this.db = new Database(DB_PATH);
-            this.db.pragma('journal_mode = WAL');
-            // CRITICAL: Set busy_timeout to wait for locks instead of failing immediately
-            this.db.pragma('busy_timeout = 10000'); // Wait up to 10 seconds for locks
-        }
-        return this.db;
     }
 
     /**
@@ -76,7 +63,6 @@ class PlexScannerService {
      */
     async scan(options = {}) {
         const { serverIds, recentOnly = false, onProgress } = options;
-        const db = this.getDb();
 
         this.scanResults = {
             totalMovies: 0,
@@ -90,10 +76,9 @@ class PlexScannerService {
         // Get Plex servers
         let servers;
         if (serverIds && serverIds.length > 0) {
-            const placeholders = serverIds.map(() => '?').join(',');
-            servers = db.prepare(`SELECT * FROM plex_servers WHERE id IN (${placeholders}) AND is_active = 1`).all(...serverIds);
+            servers = await db.query(`SELECT * FROM plex_servers WHERE id = ANY($1::integer[]) AND is_active = 1`, [serverIds]);
         } else {
-            servers = db.prepare('SELECT * FROM plex_servers WHERE is_active = 1').all();
+            servers = await db.query('SELECT * FROM plex_servers WHERE is_active = 1');
         }
 
         if (servers.length === 0) {
@@ -122,7 +107,6 @@ class PlexScannerService {
      * Scan a single Plex server
      */
     async scanServer(server, recentOnly, onProgress) {
-        const db = this.getDb();
         const serverResult = {
             name: server.name,
             movies: 0,
@@ -190,7 +174,7 @@ class PlexScannerService {
         }
 
         // Update last_scan timestamp
-        db.prepare('UPDATE plex_servers SET last_scan = ? WHERE id = ?').run(Date.now(), server.id);
+        await db.query('UPDATE plex_servers SET last_scan = $1 WHERE id = $2', [Date.now(), server.id]);
 
         this.scanResults.totalMovies += serverResult.movies;
         this.scanResults.totalTVShows += serverResult.tvShows;
@@ -319,22 +303,21 @@ class PlexScannerService {
      * Uses caching to avoid redundant TMDB lookups
      */
     async getMediaIds(server, item) {
-        const db = this.getDb();
         const ratingKey = item.ratingKey;
 
         // Check cache first
-        const cached = db.prepare(`
+        const cached = await db.query(`
             SELECT tmdb_id, tvdb_id, imdb_id, media_type
             FROM plex_guid_cache
-            WHERE plex_rating_key = ? AND plex_server_id = ?
-        `).get(ratingKey, server.id);
+            WHERE plex_rating_key = $1 AND plex_server_id = $2
+        `, [ratingKey, server.id]);
 
-        if (cached && cached.tmdb_id) {
+        if (cached.length > 0 && cached[0].tmdb_id) {
             return {
-                tmdbId: cached.tmdb_id,
-                tvdbId: cached.tvdb_id,
-                imdbId: cached.imdb_id,
-                mediaType: cached.media_type
+                tmdbId: cached[0].tmdb_id,
+                tvdbId: cached[0].tvdb_id,
+                imdbId: cached[0].imdb_id,
+                mediaType: cached[0].media_type
             };
         }
 
@@ -434,15 +417,15 @@ class PlexScannerService {
 
         // Cache the result
         if (mediaIds.tmdbId) {
-            db.prepare(`
+            await db.query(`
                 INSERT INTO plex_guid_cache (plex_rating_key, plex_server_id, tmdb_id, tvdb_id, imdb_id, media_type, title, year)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
                 ON CONFLICT(plex_rating_key, plex_server_id) DO UPDATE SET
-                    tmdb_id = excluded.tmdb_id,
-                    tvdb_id = excluded.tvdb_id,
-                    imdb_id = excluded.imdb_id,
-                    updated_at = CURRENT_TIMESTAMP
-            `).run(ratingKey, server.id, mediaIds.tmdbId, mediaIds.tvdbId, mediaIds.imdbId, mediaIds.mediaType, item.title, item.year);
+                    tmdb_id = EXCLUDED.tmdb_id,
+                    tvdb_id = EXCLUDED.tvdb_id,
+                    imdb_id = EXCLUDED.imdb_id,
+                    updated_at = NOW()
+            `, [ratingKey, server.id, mediaIds.tmdbId, mediaIds.tvdbId, mediaIds.imdbId, mediaIds.mediaType, item.title, item.year]);
         }
 
         return mediaIds;
@@ -601,7 +584,6 @@ class PlexScannerService {
      * Process a movie item
      */
     async processMovie(server, item) {
-        const db = this.getDb();
         const mediaIds = await this.getMediaIds(server, item);
 
         if (!mediaIds.tmdbId) {
@@ -616,64 +598,65 @@ class PlexScannerService {
             const hasStandard = this.detectStandard(item);
 
             // Check if record exists
-            const existing = db.prepare(`
+            const existing = await db.query(`
                 SELECT id, status, status_4k FROM request_site_media
-                WHERE tmdb_id = ? AND media_type = 'movie'
-            `).get(mediaIds.tmdbId);
+                WHERE tmdb_id = $1 AND media_type = 'movie'
+            `, [mediaIds.tmdbId]);
 
-            if (existing) {
+            if (existing.length > 0) {
                 // Update existing record
                 const updates = [];
                 const params = [];
+                let paramIndex = 1;
 
-                if (hasStandard && existing.status !== MediaStatus.AVAILABLE) {
-                    updates.push('status = ?');
+                if (hasStandard && existing[0].status !== MediaStatus.AVAILABLE) {
+                    updates.push(`status = $${paramIndex++}`);
                     params.push(MediaStatus.AVAILABLE);
-                    updates.push('plex_rating_key = ?');
+                    updates.push(`plex_rating_key = $${paramIndex++}`);
                     params.push(item.ratingKey);
                 }
 
-                if (has4k && existing.status_4k !== MediaStatus.AVAILABLE) {
-                    updates.push('status_4k = ?');
+                if (has4k && existing[0].status_4k !== MediaStatus.AVAILABLE) {
+                    updates.push(`status_4k = $${paramIndex++}`);
                     params.push(MediaStatus.AVAILABLE);
-                    updates.push('plex_rating_key_4k = ?');
+                    updates.push(`plex_rating_key_4k = $${paramIndex++}`);
                     params.push(item.ratingKey);
                 }
 
                 // Always update media_added_at with actual Plex addedAt timestamp
                 if (item.addedAt) {
-                    const plexAddedAt = new Date(item.addedAt * 1000).toISOString().slice(0, 19).replace('T', ' ');
-                    updates.push('media_added_at = ?');
+                    const plexAddedAt = new Date(item.addedAt * 1000).toISOString();
+                    updates.push(`media_added_at = $${paramIndex++}`);
                     params.push(plexAddedAt);
                 }
 
                 if (updates.length > 0) {
-                    updates.push('plex_server_id = ?');
+                    updates.push(`plex_server_id = $${paramIndex++}`);
                     params.push(server.id);
-                    updates.push('updated_at = CURRENT_TIMESTAMP');
+                    updates.push(`updated_at = NOW()`);
                     params.push(mediaIds.tmdbId);
 
-                    db.prepare(`
+                    await db.query(`
                         UPDATE request_site_media
                         SET ${updates.join(', ')}
-                        WHERE tmdb_id = ? AND media_type = 'movie'
-                    `).run(...params);
+                        WHERE tmdb_id = $${paramIndex} AND media_type = 'movie'
+                    `, params);
 
                     this.scanResults.newlyAdded++;
                 }
             } else {
                 // Insert new record - use actual Plex addedAt timestamp
                 const plexAddedAt = item.addedAt
-                    ? new Date(item.addedAt * 1000).toISOString().slice(0, 19).replace('T', ' ')
-                    : new Date().toISOString().slice(0, 19).replace('T', ' ');
+                    ? new Date(item.addedAt * 1000).toISOString()
+                    : new Date().toISOString();
 
-                db.prepare(`
+                await db.query(`
                     INSERT INTO request_site_media (
                         tmdb_id, tvdb_id, imdb_id, media_type, status, status_4k,
                         plex_rating_key, plex_rating_key_4k, plex_server_id,
                         media_added_at, created_at, updated_at
-                    ) VALUES (?, ?, ?, 'movie', ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                `).run(
+                    ) VALUES ($1, $2, $3, 'movie', $4, $5, $6, $7, $8, $9, NOW(), NOW())
+                `, [
                     mediaIds.tmdbId,
                     mediaIds.tvdbId,
                     mediaIds.imdbId,
@@ -683,7 +666,7 @@ class PlexScannerService {
                     has4k ? item.ratingKey : null,
                     server.id,
                     plexAddedAt
-                );
+                ]);
 
                 this.scanResults.newlyAdded++;
             }
@@ -694,7 +677,6 @@ class PlexScannerService {
      * Process a TV show item
      */
     async processShow(server, item) {
-        const db = this.getDb();
         const mediaIds = await this.getMediaIds(server, item);
 
         if (!mediaIds.tmdbId) {
@@ -724,43 +706,42 @@ class PlexScannerService {
             }
 
             // Ensure media record exists
-            let mediaRecord = db.prepare(`
+            let mediaRecord = await db.query(`
                 SELECT id, status, status_4k FROM request_site_media
-                WHERE tmdb_id = ? AND media_type = 'tv'
-            `).get(mediaIds.tmdbId);
+                WHERE tmdb_id = $1 AND media_type = 'tv'
+            `, [mediaIds.tmdbId]);
 
-            if (!mediaRecord) {
+            if (mediaRecord.length === 0) {
                 // Use actual Plex addedAt timestamp
                 const plexAddedAt = item.addedAt
-                    ? new Date(item.addedAt * 1000).toISOString().slice(0, 19).replace('T', ' ')
-                    : new Date().toISOString().slice(0, 19).replace('T', ' ');
+                    ? new Date(item.addedAt * 1000).toISOString()
+                    : new Date().toISOString();
 
-                db.prepare(`
+                const insertResult = await db.query(`
                     INSERT INTO request_site_media (
                         tmdb_id, tvdb_id, imdb_id, media_type, status, status_4k,
                         plex_rating_key, plex_server_id, media_added_at,
                         created_at, updated_at
-                    ) VALUES (?, ?, ?, 'tv', ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                `).run(
+                    ) VALUES ($1, $2, $3, 'tv', $4, $5, $6, $7, $8, NOW(), NOW())
+                    RETURNING id
+                `, [
                     mediaIds.tmdbId, mediaIds.tvdbId, mediaIds.imdbId,
                     MediaStatus.UNKNOWN, MediaStatus.UNKNOWN,
                     item.ratingKey, server.id, plexAddedAt
-                );
+                ]);
 
-                mediaRecord = db.prepare(`
-                    SELECT id FROM request_site_media WHERE tmdb_id = ? AND media_type = 'tv'
-                `).get(mediaIds.tmdbId);
+                mediaRecord = [{ id: insertResult[0].id }];
 
                 this.scanResults.newlyAdded++;
             } else {
                 // Update existing TV show with actual Plex addedAt timestamp
                 if (item.addedAt) {
-                    const plexAddedAt = new Date(item.addedAt * 1000).toISOString().slice(0, 19).replace('T', ' ');
-                    db.prepare(`
+                    const plexAddedAt = new Date(item.addedAt * 1000).toISOString();
+                    await db.query(`
                         UPDATE request_site_media
-                        SET media_added_at = ?, plex_rating_key = ?, plex_server_id = ?, updated_at = CURRENT_TIMESTAMP
-                        WHERE tmdb_id = ? AND media_type = 'tv'
-                    `).run(plexAddedAt, item.ratingKey, server.id, mediaIds.tmdbId);
+                        SET media_added_at = $1, plex_rating_key = $2, plex_server_id = $3, updated_at = NOW()
+                        WHERE tmdb_id = $4 AND media_type = 'tv'
+                    `, [plexAddedAt, item.ratingKey, server.id, mediaIds.tmdbId]);
                 }
             }
 
@@ -840,15 +821,15 @@ class PlexScannerService {
                 }
 
                 // Update season record
-                db.prepare(`
+                await db.query(`
                     INSERT INTO request_site_seasons (
                         media_id, season_number, status, status_4k, created_at, updated_at
-                    ) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                    ) VALUES ($1, $2, $3, $4, NOW(), NOW())
                     ON CONFLICT(media_id, season_number) DO UPDATE SET
-                        status = MAX(status, excluded.status),
-                        status_4k = MAX(status_4k, excluded.status_4k),
-                        updated_at = CURRENT_TIMESTAMP
-                `).run(mediaRecord.id, seasonNumber, seasonStatus, seasonStatus4k);
+                        status = GREATEST(request_site_seasons.status, EXCLUDED.status),
+                        status_4k = GREATEST(request_site_seasons.status_4k, EXCLUDED.status_4k),
+                        updated_at = NOW()
+                `, [mediaRecord[0].id, seasonNumber, seasonStatus, seasonStatus4k]);
             }
 
             // Update show status
@@ -862,11 +843,11 @@ class PlexScannerService {
                 showStatus4k = showHasAllEpisodes4k ? MediaStatus.AVAILABLE : MediaStatus.PARTIALLY_AVAILABLE;
             }
 
-            db.prepare(`
+            await db.query(`
                 UPDATE request_site_media
-                SET status = ?, status_4k = ?, plex_rating_key = ?, plex_server_id = ?, updated_at = CURRENT_TIMESTAMP
-                WHERE id = ?
-            `).run(showStatus, showStatus4k, item.ratingKey, server.id, mediaRecord.id);
+                SET status = $1, status_4k = $2, plex_rating_key = $3, plex_server_id = $4, updated_at = NOW()
+                WHERE id = $5
+            `, [showStatus, showStatus4k, item.ratingKey, server.id, mediaRecord[0].id]);
         });
 
         return totalEpisodes;
@@ -919,19 +900,15 @@ class PlexScannerService {
     /**
      * Clear GUID cache for a server
      */
-    clearCache(serverId) {
-        const db = this.getDb();
-        db.prepare('DELETE FROM plex_guid_cache WHERE plex_server_id = ?').run(serverId);
+    async clearCache(serverId) {
+        await db.query('DELETE FROM plex_guid_cache WHERE plex_server_id = $1', [serverId]);
     }
 
     /**
-     * Close database connection
+     * Close - no-op for PostgreSQL (pool handles connections)
      */
     close() {
-        if (this.db) {
-            this.db.close();
-            this.db = null;
-        }
+        // No-op
     }
 }
 

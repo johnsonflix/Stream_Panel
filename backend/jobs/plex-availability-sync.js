@@ -13,10 +13,7 @@
  */
 
 const axios = require('axios');
-const Database = require('better-sqlite3');
-const path = require('path');
-
-const DB_PATH = process.env.DB_PATH || path.join(__dirname, '..', 'data', 'subsapp_v2.db');
+const db = require('../database-config');
 
 // Media status enum (matches Seerr)
 const MediaStatus = {
@@ -30,19 +27,8 @@ const MediaStatus = {
 
 class PlexAvailabilitySyncJob {
     constructor() {
-        this.db = null;
         this.isRunning = false;
         this.intervalId = null;
-    }
-
-    getDb() {
-        if (!this.db) {
-            this.db = new Database(DB_PATH);
-            this.db.pragma('journal_mode = WAL');
-            // CRITICAL: Set busy_timeout to wait for locks instead of failing immediately
-            this.db.pragma('busy_timeout = 10000'); // Wait up to 10 seconds for locks
-        }
-        return this.db;
     }
 
     /**
@@ -89,18 +75,17 @@ class PlexAvailabilitySyncJob {
         const startTime = Date.now();
 
         try {
-            const db = this.getDb();
             let removedCount = 0;
             let checkedCount = 0;
             let errorCount = 0;
 
             // Get all media marked as available with Plex rating keys
-            const availableMedia = db.prepare(`
+            const availableMedia = await db.query(`
                 SELECT m.id, m.tmdb_id, m.media_type, m.plex_rating_key, m.plex_server_id, s.url, s.token, s.name as server_name
                 FROM request_site_media m
                 JOIN plex_servers s ON m.plex_server_id = s.id
-                WHERE m.status >= ? AND m.plex_rating_key IS NOT NULL AND s.is_active = 1
-            `).all(MediaStatus.PARTIALLY_AVAILABLE);
+                WHERE m.status >= $1 AND m.plex_rating_key IS NOT NULL AND s.is_active = 1
+            `, [MediaStatus.PARTIALLY_AVAILABLE]);
 
             console.log(`[Availability Sync Job] Checking ${availableMedia.length} items...`);
 
@@ -122,9 +107,9 @@ class PlexAvailabilitySyncJob {
                         });
 
                         // Item still exists, update last check time
-                        db.prepare(`
-                            UPDATE request_site_media SET last_availability_check = CURRENT_TIMESTAMP WHERE id = ?
-                        `).run(item.id);
+                        await db.query(`
+                            UPDATE request_site_media SET last_availability_check = NOW() WHERE id = $1
+                        `, [item.id]);
 
                         return { status: 'exists' };
 
@@ -147,11 +132,11 @@ class PlexAvailabilitySyncJob {
                             const item = result.value.item;
                             console.log(`[Availability Sync Job] Marking as removed: TMDB ${item.tmdb_id} (${item.media_type}) from ${item.server_name}`);
 
-                            db.prepare(`
+                            await db.query(`
                                 UPDATE request_site_media
-                                SET status = ?, plex_rating_key = NULL, last_availability_check = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-                                WHERE id = ?
-                            `).run(MediaStatus.DELETED, item.id);
+                                SET status = $1, plex_rating_key = NULL, last_availability_check = NOW(), updated_at = NOW()
+                                WHERE id = $2
+                            `, [MediaStatus.DELETED, item.id]);
 
                             removedCount++;
                         } else if (result.value.status === 'error') {
@@ -172,24 +157,23 @@ class PlexAvailabilitySyncJob {
             console.log(`[Availability Sync Job] Complete in ${duration}s: ${checkedCount} checked, ${removedCount} removed, ${errorCount} errors`);
 
             // Store last run stats
-            db.prepare(`
+            await db.query(`
                 INSERT INTO request_settings (setting_key, setting_value, updated_at)
-                VALUES ('availability_sync_last_run', datetime('now'), CURRENT_TIMESTAMP)
+                VALUES ('availability_sync_last_run', NOW()::text, NOW())
                 ON CONFLICT(setting_key) DO UPDATE SET
-                    setting_value = datetime('now'),
-                    updated_at = CURRENT_TIMESTAMP
-            `).run();
+                    setting_value = NOW()::text,
+                    updated_at = NOW()
+            `);
 
-            db.prepare(`
+            const statsJson = JSON.stringify({ checked: checkedCount, removed: removedCount, errors: errorCount, duration });
+
+            await db.query(`
                 INSERT INTO request_settings (setting_key, setting_value, updated_at)
-                VALUES ('availability_sync_stats', ?, CURRENT_TIMESTAMP)
+                VALUES ('availability_sync_stats', $1, NOW())
                 ON CONFLICT(setting_key) DO UPDATE SET
-                    setting_value = ?,
-                    updated_at = CURRENT_TIMESTAMP
-            `).run(
-                JSON.stringify({ checked: checkedCount, removed: removedCount, errors: errorCount, duration }),
-                JSON.stringify({ checked: checkedCount, removed: removedCount, errors: errorCount, duration })
-            );
+                    setting_value = $1,
+                    updated_at = NOW()
+            `, [statsJson]);
 
         } catch (error) {
             console.error('[Availability Sync Job] Failed:', error);
@@ -199,14 +183,10 @@ class PlexAvailabilitySyncJob {
     }
 
     /**
-     * Close database connection
+     * Close - no-op for PostgreSQL (pool handles connections)
      */
     close() {
         this.stop();
-        if (this.db) {
-            this.db.close();
-            this.db = null;
-        }
     }
 }
 

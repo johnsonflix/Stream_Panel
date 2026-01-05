@@ -12,10 +12,7 @@
  */
 
 const { PlexScannerService } = require('../services/plex-scanner-service');
-const Database = require('better-sqlite3');
-const path = require('path');
-
-const DB_PATH = process.env.DB_PATH || path.join(__dirname, '..', 'data', 'subsapp_v2.db');
+const db = require('../database-config');
 
 // Seerr-style intervals
 const RECENT_SCAN_INTERVAL = 5 * 60 * 1000;    // 5 minutes
@@ -23,21 +20,10 @@ const FULL_SCAN_INTERVAL = 6 * 60 * 60 * 1000; // 6 hours
 
 class PlexRecentScanJob {
     constructor() {
-        this.db = null;
         this.scanner = null;
         this.isRunning = false;
         this.recentIntervalId = null;
         this.fullIntervalId = null;
-    }
-
-    getDb() {
-        if (!this.db) {
-            this.db = new Database(DB_PATH);
-            this.db.pragma('journal_mode = WAL');
-            // CRITICAL: Set busy_timeout to wait for locks instead of failing immediately
-            this.db.pragma('busy_timeout = 10000'); // Wait up to 10 seconds for locks
-        }
-        return this.db;
     }
 
     getScanner() {
@@ -50,12 +36,11 @@ class PlexRecentScanJob {
     /**
      * Get server IDs that have auto-scan enabled
      */
-    getAutoScanServerIds() {
-        const db = this.getDb();
-        const servers = db.prepare(`
+    async getAutoScanServerIds() {
+        const servers = await db.query(`
             SELECT id FROM plex_servers
             WHERE is_active = 1 AND COALESCE(enable_auto_scan, 1) = 1
-        `).all();
+        `);
         return servers.map(s => s.id);
     }
 
@@ -118,23 +103,20 @@ class PlexRecentScanJob {
         const startTime = Date.now();
 
         try {
-            const db = this.getDb();
-
             // Get servers with auto-scan enabled that have been scanned before
-            const serverIds = this.getAutoScanServerIds();
+            const serverIds = await this.getAutoScanServerIds();
             if (serverIds.length === 0) {
                 console.log('[Plex Auto Scan] No servers enabled for auto-scan');
                 return;
             }
 
             // Check if any servers have been scanned before
-            const placeholders = serverIds.map(() => '?').join(',');
-            const serversWithScan = db.prepare(`
+            const serversWithScan = await db.query(`
                 SELECT COUNT(*) as count FROM plex_servers
-                WHERE id IN (${placeholders}) AND last_scan IS NOT NULL
-            `).get(...serverIds);
+                WHERE id = ANY($1::integer[]) AND last_scan IS NOT NULL
+            `, [serverIds]);
 
-            if (serversWithScan.count === 0) {
+            if (parseInt(serversWithScan[0].count) === 0) {
                 console.log('[Plex Auto Scan] No servers have been scanned yet. Please run a manual full scan first.');
                 return;
             }
@@ -149,36 +131,29 @@ class PlexRecentScanJob {
             console.log(`[Plex Auto Scan] RECENT scan complete in ${duration}s: ${results.newlyAdded} new items (${results.totalMovies} movies, ${results.totalTVShows} shows)`);
 
             // Store last run stats
-            db.prepare(`
+            await db.query(`
                 INSERT INTO request_settings (setting_key, setting_value, updated_at)
-                VALUES ('recent_scan_last_run', datetime('now'), CURRENT_TIMESTAMP)
+                VALUES ('recent_scan_last_run', NOW()::text, NOW())
                 ON CONFLICT(setting_key) DO UPDATE SET
-                    setting_value = datetime('now'),
-                    updated_at = CURRENT_TIMESTAMP
-            `).run();
+                    setting_value = NOW()::text,
+                    updated_at = NOW()
+            `);
 
-            db.prepare(`
+            const statsJson = JSON.stringify({
+                newlyAdded: results.newlyAdded,
+                movies: results.totalMovies,
+                tvShows: results.totalTVShows,
+                duration,
+                scanType: 'recent'
+            });
+
+            await db.query(`
                 INSERT INTO request_settings (setting_key, setting_value, updated_at)
-                VALUES ('recent_scan_stats', ?, CURRENT_TIMESTAMP)
+                VALUES ('recent_scan_stats', $1, NOW())
                 ON CONFLICT(setting_key) DO UPDATE SET
-                    setting_value = ?,
-                    updated_at = CURRENT_TIMESTAMP
-            `).run(
-                JSON.stringify({
-                    newlyAdded: results.newlyAdded,
-                    movies: results.totalMovies,
-                    tvShows: results.totalTVShows,
-                    duration,
-                    scanType: 'recent'
-                }),
-                JSON.stringify({
-                    newlyAdded: results.newlyAdded,
-                    movies: results.totalMovies,
-                    tvShows: results.totalTVShows,
-                    duration,
-                    scanType: 'recent'
-                })
-            );
+                    setting_value = $1,
+                    updated_at = NOW()
+            `, [statsJson]);
 
         } catch (error) {
             console.error('[Plex Auto Scan] Recent scan failed:', error);
@@ -200,10 +175,8 @@ class PlexRecentScanJob {
         const startTime = Date.now();
 
         try {
-            const db = this.getDb();
-
             // Get servers with auto-scan enabled
-            const serverIds = this.getAutoScanServerIds();
+            const serverIds = await this.getAutoScanServerIds();
             if (serverIds.length === 0) {
                 console.log('[Plex Auto Scan] No servers enabled for auto-scan');
                 return;
@@ -219,34 +192,28 @@ class PlexRecentScanJob {
             console.log(`[Plex Auto Scan] FULL scan complete in ${duration}s: ${results.totalMovies} movies, ${results.totalTVShows} shows`);
 
             // Store last full scan stats
-            db.prepare(`
+            await db.query(`
                 INSERT INTO request_settings (setting_key, setting_value, updated_at)
-                VALUES ('full_scan_last_run', datetime('now'), CURRENT_TIMESTAMP)
+                VALUES ('full_scan_last_run', NOW()::text, NOW())
                 ON CONFLICT(setting_key) DO UPDATE SET
-                    setting_value = datetime('now'),
-                    updated_at = CURRENT_TIMESTAMP
-            `).run();
+                    setting_value = NOW()::text,
+                    updated_at = NOW()
+            `);
 
-            db.prepare(`
+            const statsJson = JSON.stringify({
+                movies: results.totalMovies,
+                tvShows: results.totalTVShows,
+                duration,
+                scanType: 'full'
+            });
+
+            await db.query(`
                 INSERT INTO request_settings (setting_key, setting_value, updated_at)
-                VALUES ('full_scan_stats', ?, CURRENT_TIMESTAMP)
+                VALUES ('full_scan_stats', $1, NOW())
                 ON CONFLICT(setting_key) DO UPDATE SET
-                    setting_value = ?,
-                    updated_at = CURRENT_TIMESTAMP
-            `).run(
-                JSON.stringify({
-                    movies: results.totalMovies,
-                    tvShows: results.totalTVShows,
-                    duration,
-                    scanType: 'full'
-                }),
-                JSON.stringify({
-                    movies: results.totalMovies,
-                    tvShows: results.totalTVShows,
-                    duration,
-                    scanType: 'full'
-                })
-            );
+                    setting_value = $1,
+                    updated_at = NOW()
+            `, [statsJson]);
 
         } catch (error) {
             console.error('[Plex Auto Scan] Full scan failed:', error);
@@ -256,17 +223,13 @@ class PlexRecentScanJob {
     }
 
     /**
-     * Close database connection
+     * Close - no-op for PostgreSQL (pool handles connections)
      */
     close() {
         this.stop();
         if (this.scanner) {
             this.scanner.close();
             this.scanner = null;
-        }
-        if (this.db) {
-            this.db.close();
-            this.db = null;
         }
     }
 }

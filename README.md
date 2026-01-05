@@ -1,99 +1,168 @@
-# Stream Panel
+# Stream Panel v2 (PostgreSQL Edition)
 
-A comprehensive subscription and user management platform for Plex and IPTV services.
+This is the PostgreSQL version of Stream Panel, migrated from SQLite for better performance and scalability.
 
-## Features
+## Quick Start (New Installation)
 
-- **User Management**: Create, manage, and track subscribers with detailed profiles
-- **Plex Integration**: Manage Plex server access, libraries, and user provisioning
-- **IPTV Panel Support**: Connect to IPTV panels (XUI, Xtream UI, NXTDash, OneStream) for automated line management
-- **Subscription Plans**: Create flexible subscription plans with multiple service combinations
-- **Dashboard Analytics**: Real-time statistics and insights on your subscriber base
-- **Email System**: Built-in email templates and scheduling for subscriber communications
-- **Customer Portal**: Self-service portal for subscribers to manage their accounts
-- **Auto-Sync**: Automatic synchronization with Plex servers and IPTV panels
-- **Watch Statistics**: Track viewing activity and engagement metrics
+```bash
+# 1. Clone just this folder or download it
+cd Stream_Panel_v2
 
-## Requirements
+# 2. Create required directories
+mkdir -p data uploads backups logs
 
-- Docker & Docker Compose
-- Git (for updates)
+# 3. Start the containers
+docker compose up -d
 
-## Quick Start
+# 4. Access the app
+# Admin: http://localhost:3080
+# Portal: http://localhost:3080/portal
+```
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/johnsonflix/Stream_Panel.git
-   cd Stream_Panel
-   ```
+## Migration from SQLite (Existing Installation)
 
-2. Start the application:
-   ```bash
-   docker compose build
-   docker compose up -d
-   ```
+### Step 1: Backup Your SQLite Database
 
-3. Access the application at `http://localhost:3080`
+From your **existing** Stream Panel installation, copy the SQLite database file:
+- The file is typically named `subsapp_v2.db` or `database.sqlite`
+- Location varies but usually in `/app/data/` or `/app/backend/`
 
-4. Complete the setup wizard to configure your admin account and services
+```bash
+# From your existing container
+docker cp your-container-name:/app/backend/subsapp_v2.db ./backups/database.sqlite
+# OR
+docker cp your-container-name:/app/data/database.sqlite ./backups/database.sqlite
+```
 
-## Configuration
+### Step 2: Start the New PostgreSQL Stack
 
-The application runs on port **3080** by default. Configuration is handled through the web interface after initial setup.
+```bash
+cd Stream_Panel_v2
+mkdir -p data uploads backups logs
 
-### Environment Variables
+# Place your SQLite backup in the backups folder
+cp /path/to/your/database.sqlite ./backups/
+
+# Start the containers
+docker compose up -d
+```
+
+### Step 3: Run the Migration
+
+```bash
+# Copy SQLite file into the container
+docker cp ./backups/database.sqlite streampanel-v2-app:/app/backups/
+
+# Install sqlite3 module (required for migration)
+docker exec streampanel-v2-app npm install sqlite3 --save
+
+# Run the migration script
+docker exec streampanel-v2-app node /app/backend/migrations/sqlite-to-postgres.js /app/backups/database.sqlite
+```
+
+### Step 4: Verify Migration
+
+```bash
+# Check the logs
+docker logs streampanel-v2-app
+
+# Connect to PostgreSQL and verify data
+docker exec streampanel-v2-postgres psql -U streampanel -d streampanel -c "SELECT COUNT(*) FROM users;"
+```
+
+## Environment Variables
+
+The following environment variables can be configured in `docker-compose.yml`:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `PORT` | 3050 | Internal application port |
-| `NODE_ENV` | production | Environment mode |
-| `TZ` | America/Chicago | Timezone |
-| `DB_PATH` | /app/data/subsapp_v2.db | Database file path |
+| `DB_HOST` | `postgres` | PostgreSQL host |
+| `DB_PORT` | `5432` | PostgreSQL port |
+| `DB_NAME` | `streampanel` | Database name |
+| `DB_USER` | `streampanel` | Database user |
+| `DB_PASSWORD` | `streampanel_secure_password` | Database password |
+| `NODE_ENV` | `production` | Node environment |
+| `PORT` | `3080` | Application port |
 
-### Docker Volumes
-
-| Volume | Purpose |
-|--------|---------|
-| `./data` | SQLite database persistence |
-| `./uploads` | Branding and uploaded files |
-| `./logs` | Application logs |
-
-## Updating
-
-Stream Panel includes a built-in update system accessible from **Settings > Updates** in the admin panel. You can:
-
-- Check for available updates
-- View changelog and version history
-- Apply updates with one click
-
-## Project Structure
+## Folder Structure
 
 ```
-Stream_Panel/
-├── backend/           # Node.js Express API
-│   ├── routes/        # API endpoints
+Stream_Panel_v2/
+├── backend/           # Node.js backend with PostgreSQL support
+│   ├── migrations/    # Database migrations including sqlite-to-postgres.js
+│   ├── routes/        # API routes
 │   ├── services/      # Business logic
-│   ├── middleware/    # Auth and validation
-│   ├── migrations/    # Database migrations
-│   └── utils/         # Helper functions
-├── frontend/          # Web interface
-│   ├── admin/         # Admin panel pages
-│   ├── portal/        # Customer portal
-│   └── js/            # JavaScript modules
-├── database/          # SQL schema files
+│   └── ...
+├── frontend/          # Web frontend
+│   ├── admin/         # Admin dashboard
+│   ├── portal/        # User portal
+│   └── ...
+├── database/          # Database schemas
+│   └── schema-postgres.sql  # PostgreSQL schema
 ├── docker-compose.yml # Docker configuration
-├── Dockerfile         # Container build
-└── version.json       # Current version info
+├── Dockerfile         # Container build instructions
+├── entrypoint.sh      # Container startup script
+└── README.md          # This file
 ```
 
-## Version
+## Troubleshooting
 
-Current version: **1.0.0**
+### Migration Errors
 
-## License
+If you encounter errors during migration:
 
-Private - All rights reserved
+1. **"Column X does not exist"** - The schema might need updating:
+   ```bash
+   docker exec streampanel-v2-postgres psql -U streampanel -d streampanel -c "ALTER TABLE table_name ADD COLUMN column_name TYPE;"
+   ```
+
+2. **"sqlite3 module not found"** - Install it:
+   ```bash
+   docker exec streampanel-v2-app npm install sqlite3 --save
+   ```
+
+3. **Connection refused** - Wait for PostgreSQL to be ready:
+   ```bash
+   docker exec streampanel-v2-postgres pg_isready -U streampanel
+   ```
+
+### Database Access
+
+```bash
+# Connect to PostgreSQL CLI
+docker exec -it streampanel-v2-postgres psql -U streampanel -d streampanel
+
+# Useful commands inside psql:
+\dt                    # List tables
+\d table_name          # Describe table
+SELECT * FROM users;   # Query data
+\q                     # Exit
+```
+
+### Logs
+
+```bash
+# Application logs
+docker logs streampanel-v2-app
+
+# PostgreSQL logs
+docker logs streampanel-v2-postgres
+```
+
+## Upgrading
+
+To upgrade to a newer version:
+
+```bash
+# Pull latest changes
+git pull
+
+# Rebuild and restart
+docker compose build --no-cache
+docker compose down
+docker compose up -d
+```
 
 ## Support
 
-For issues and feature requests, please use the GitHub Issues page.
+For issues and feature requests, visit: https://github.com/johnsonflix/Stream_Panel

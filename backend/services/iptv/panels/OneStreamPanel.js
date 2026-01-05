@@ -1218,7 +1218,7 @@ class OneStreamPanel extends BaseIPTVPanel {
                 timeout: 15000
             });
 
-            const credits = response.data.credits || 0;
+            const credits = Math.round(parseFloat(response.data.credits) || 0);
             console.log(`✅ Panel ${this.name} credit balance: ${credits}`);
 
             // Update in database

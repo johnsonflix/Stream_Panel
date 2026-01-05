@@ -1,107 +1,33 @@
 #!/bin/bash
 set -e
 
-# Check if database exists and has tables
-# Export DB_PATH so Node.js migrations can access it
-export DB_PATH="${DB_PATH:-/app/data/subsapp_v2.db}"
-RUN_SETUP=false
+echo "🚀 StreamPanel PostgreSQL Edition"
+echo "================================="
 
-if [ ! -f "$DB_PATH" ] || [ ! -s "$DB_PATH" ]; then
-    echo "🔧 Database not found or empty. Initializing fresh database..."
-    cd /app/backend
-    node setup-sqlite.js
-    RUN_SETUP=true
-    echo "✅ Database initialized successfully!"
-else
-    # Check if tables exist
-    TABLE_COUNT=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';" 2>/dev/null || echo "0")
-    if [ "$TABLE_COUNT" -eq "0" ]; then
-        echo "🔧 Database exists but has no tables. Running setup..."
-        cd /app/backend
-        node setup-sqlite.js
-        RUN_SETUP=true
-        echo "✅ Database initialized successfully!"
-    else
-        echo "✅ Database already initialized with $TABLE_COUNT tables"
-    fi
-fi
-
-# Run migrations only if not already applied (track in database)
-echo "🔄 Checking migrations..."
-
-# Create migrations_applied table if it doesn't exist
-sqlite3 "$DB_PATH" "CREATE TABLE IF NOT EXISTS migrations_applied (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    filename TEXT UNIQUE NOT NULL,
-    applied_at TEXT DEFAULT (datetime('now'))
-);"
-
-cd /app/backend/migrations
-MIGRATIONS_RUN=0
-MIGRATIONS_FAILED=0
-for f in *.js; do
-    # Check if this migration was already applied
-    ALREADY_APPLIED=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM migrations_applied WHERE filename='$f';")
-    if [ "$ALREADY_APPLIED" -eq "0" ]; then
-        echo "  Running $f..."
-        # Run migration and capture output (show errors!)
-        if node "$f"; then
-            # Record successful migration
-            sqlite3 "$DB_PATH" "INSERT INTO migrations_applied (filename) VALUES ('$f');"
-            MIGRATIONS_RUN=$((MIGRATIONS_RUN + 1))
-            echo "    ✅ $f completed"
-        else
-            echo "    ❌ $f FAILED"
-            MIGRATIONS_FAILED=$((MIGRATIONS_FAILED + 1))
-        fi
-    fi
+# Wait for PostgreSQL to be ready
+echo "⏳ Waiting for PostgreSQL to be ready..."
+until pg_isready -h "${DB_HOST:-postgres}" -p "${DB_PORT:-5432}" -U "${DB_USER:-streampanel}" -d "${DB_NAME:-streampanel}" -q; do
+    echo "   PostgreSQL is unavailable - sleeping"
+    sleep 2
 done
+echo "✅ PostgreSQL is ready!"
 
-if [ "$MIGRATIONS_RUN" -eq "0" ] && [ "$MIGRATIONS_FAILED" -eq "0" ]; then
-    echo "✅ No new migrations to run"
-elif [ "$MIGRATIONS_FAILED" -gt "0" ]; then
-    echo "⚠️  Ran $MIGRATIONS_RUN migration(s), $MIGRATIONS_FAILED FAILED"
+# Check if this is a fresh database (check for users table)
+cd /app/backend
+TABLE_EXISTS=$(PGPASSWORD="${DB_PASSWORD:-streampanel_secure_password}" psql -h "${DB_HOST:-postgres}" -p "${DB_PORT:-5432}" -U "${DB_USER:-streampanel}" -d "${DB_NAME:-streampanel}" -tAc "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'users');" 2>/dev/null || echo "f")
+
+if [ "$TABLE_EXISTS" = "t" ]; then
+    echo "✅ Database already initialized"
+    FRESH_INSTALL=false
 else
-    echo "✅ Ran $MIGRATIONS_RUN new migration(s)"
+    echo "🔧 Fresh database detected. Schema will be initialized by app.js..."
+    FRESH_INSTALL=true
 fi
 
-# Create default admin only if setup was run
-if [ "$RUN_SETUP" = true ]; then
-
-    # Create default admin using Node.js for proper bcrypt hashing
-    echo "👤 Creating default admin..."
-    cd /app/backend
-    node -e "
-const bcrypt = require('bcrypt');
-const Database = require('better-sqlite3');
-const db = new Database(process.env.DB_PATH || '/app/data/subsapp_v2.db');
-
-const hash = bcrypt.hashSync('admin', 10);
-try {
-    db.prepare(\`
-        INSERT INTO users (name, email, password_hash, role, is_app_user, is_active, created_at, updated_at)
-        VALUES ('Admin', 'admin@streampanel.local', ?, 'admin', 1, 1, datetime('now'), datetime('now'))
-    \`).run(hash);
-    console.log('✅ Default admin created!');
-    console.log('');
-    console.log('╔════════════════════════════════════════════╗');
-    console.log('║     DEFAULT ADMIN CREDENTIALS              ║');
-    console.log('║                                            ║');
-    console.log('║     Email: admin@streampanel.local         ║');
-    console.log('║     Password: admin                        ║');
-    console.log('║                                            ║');
-    console.log('║  ⚠️  CHANGE THIS PASSWORD IMMEDIATELY!     ║');
-    console.log('╚════════════════════════════════════════════╝');
-    console.log('');
-} catch (err) {
-    if (err.message.includes('UNIQUE constraint')) {
-        console.log('✅ Admin already exists');
-    } else {
-        console.error('Error creating admin:', err.message);
-    }
-}
-db.close();
-"
+# Create default admin if fresh install (after app.js creates schema)
+if [ "$FRESH_INSTALL" = true ]; then
+    echo "👤 Will create default admin after schema initialization..."
+    export CREATE_DEFAULT_ADMIN=true
 fi
 
 # Initialize git for update system (if not already initialized)
@@ -121,7 +47,6 @@ fi
 # KOMETA INITIALIZATION
 # ============================================================================
 KOMETA_APP_DIR="/app/kometa_app"
-# Version file stored in kometa_app so it persists across container rebuilds
 KOMETA_VERSION_FILE="${KOMETA_APP_DIR}/kometa_version.json"
 KOMETA_DATA_DIR="${KOMETA_DATA_DIR:-/app/data/kometa}"
 
@@ -144,6 +69,7 @@ else
 fi
 
 # Start the application
+echo ""
 echo "🚀 Starting StreamPanel..."
 cd /app/backend
 exec node --max-old-space-size=4096 app.js

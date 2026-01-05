@@ -1,17 +1,24 @@
 /**
- * Backup & Restore Service
+ * Backup & Restore Service for PostgreSQL
  * Handles full system backups with granular restore capabilities
  */
 
 const fs = require('fs');
 const path = require('path');
+const { execSync, spawn } = require('child_process');
 const AdmZip = require('adm-zip');
 
 // Paths
 const BACKUP_DIR = process.env.BACKUP_DIR || '/app/backups';
 const DATA_DIR = process.env.DATA_DIR || '/app/data';
 const UPLOADS_DIR = process.env.UPLOADS_DIR || '/app/backend/uploads';
-const DB_PATH = process.env.DB_PATH || '/app/data/subsapp_v2.db';
+
+// PostgreSQL connection info (from environment)
+const PG_HOST = process.env.DB_HOST || 'postgres';
+const PG_PORT = process.env.DB_PORT || '5432';
+const PG_USER = process.env.DB_USER || 'streampanel';
+const PG_PASSWORD = process.env.DB_PASSWORD || 'streampanel_secure_password';
+const PG_DATABASE = process.env.DB_NAME || 'streampanel';
 
 // Restore groups define which tables belong together
 const RESTORE_GROUPS = {
@@ -93,14 +100,9 @@ const RESTORE_GROUPS = {
 
 class BackupService {
     constructor(dbConfig) {
-        // dbConfig is the database-config module { db, query, ... }
+        // dbConfig is the database-config module { query, getConnection, ... }
         this.dbConfig = dbConfig;
         this.ensureBackupDir();
-    }
-
-    // Get raw better-sqlite3 database object for direct operations
-    getDb() {
-        return this.dbConfig.db;
     }
 
     ensureBackupDir() {
@@ -123,8 +125,8 @@ class BackupService {
             // Create temp directory
             fs.mkdirSync(tempDir, { recursive: true });
 
-            // 1. Backup the database using SQLite backup
-            const dbBackupPath = path.join(tempDir, 'database.sqlite');
+            // 1. Backup the database using pg_dump
+            const dbBackupPath = path.join(tempDir, 'database.sql');
             await this.backupDatabase(dbBackupPath);
 
             // 2. Get table counts for manifest
@@ -134,6 +136,7 @@ class BackupService {
             const manifest = {
                 version: this.getAppVersion(),
                 created: new Date().toISOString(),
+                dbType: 'postgresql',
                 tables: tableCounts,
                 restoreGroups: this.getRestoreGroupsInfo(tableCounts),
                 folders: []
@@ -188,38 +191,24 @@ class BackupService {
     }
 
     /**
-     * Backup SQLite database using the backup API
+     * Backup PostgreSQL database using pg_dump
      */
     async backupDatabase(destPath) {
         return new Promise((resolve, reject) => {
-            // Use SQLite's backup API through a new connection
-            const sqlite3 = require('better-sqlite3');
             try {
-                const sourceDb = sqlite3(DB_PATH, { readonly: true });
-                sourceDb.backup(destPath)
-                    .then(() => {
-                        sourceDb.close();
-                        resolve();
-                    })
-                    .catch((err) => {
-                        sourceDb.close();
-                        reject(err);
-                    });
-            } catch (err) {
-                // Fallback: copy the file directly (less safe but works)
-                try {
-                    fs.copyFileSync(DB_PATH, destPath);
-                    // Also copy WAL files if they exist
-                    if (fs.existsSync(DB_PATH + '-wal')) {
-                        fs.copyFileSync(DB_PATH + '-wal', destPath + '-wal');
-                    }
-                    if (fs.existsSync(DB_PATH + '-shm')) {
-                        fs.copyFileSync(DB_PATH + '-shm', destPath + '-shm');
-                    }
-                    resolve();
-                } catch (copyErr) {
-                    reject(copyErr);
-                }
+                // Set PGPASSWORD environment variable for pg_dump
+                const env = { ...process.env, PGPASSWORD: PG_PASSWORD };
+
+                // Use pg_dump to create a SQL backup
+                const result = execSync(
+                    `pg_dump -h ${PG_HOST} -p ${PG_PORT} -U ${PG_USER} -d ${PG_DATABASE} --no-owner --no-acl -f "${destPath}"`,
+                    { env, encoding: 'utf8', maxBuffer: 100 * 1024 * 1024 } // 100MB buffer
+                );
+
+                resolve();
+            } catch (error) {
+                console.error('[Backup] pg_dump failed:', error.message);
+                reject(new Error(`Database backup failed: ${error.message}`));
             }
         });
     }
@@ -229,20 +218,26 @@ class BackupService {
      */
     async getTableCounts() {
         const counts = {};
-        const db = this.getDb();
-        const tables = db.prepare(`
-            SELECT name FROM sqlite_master
-            WHERE type='table' AND name NOT LIKE 'sqlite_%'
-        `).all();
 
-        for (const table of tables) {
-            try {
-                const result = db.prepare(`SELECT COUNT(*) as count FROM "${table.name}"`).get();
-                counts[table.name] = result.count;
-            } catch (e) {
-                counts[table.name] = 0;
+        try {
+            // Get list of tables
+            const tables = await this.dbConfig.query(`
+                SELECT table_name FROM information_schema.tables
+                WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+            `);
+
+            for (const table of tables) {
+                try {
+                    const result = await this.dbConfig.query(`SELECT COUNT(*) as count FROM "${table.table_name}"`);
+                    counts[table.table_name] = parseInt(result[0].count);
+                } catch (e) {
+                    counts[table.table_name] = 0;
+                }
             }
+        } catch (e) {
+            console.error('[Backup] Error getting table counts:', e.message);
         }
+
         return counts;
     }
 
@@ -411,9 +406,18 @@ class BackupService {
             }
 
             // 4. Restore database tables
-            const backupDbPath = path.join(tempDir, 'database.sqlite');
+            const backupDbPath = path.join(tempDir, 'database.sql');
             if (fs.existsSync(backupDbPath)) {
-                await this.restoreTables(backupDbPath, Array.from(tablesToRestore));
+                // Check if this is a PostgreSQL backup or SQLite backup
+                if (manifest.dbType === 'postgresql') {
+                    await this.restoreTablesFromSQL(backupDbPath, Array.from(tablesToRestore), isFull);
+                } else {
+                    // Legacy SQLite backup - need to convert
+                    console.warn('[Restore] SQLite backup detected - granular restore not supported');
+                    if (isFull) {
+                        throw new Error('Full restore from SQLite backup requires manual migration');
+                    }
+                }
                 restored.tables = Array.from(tablesToRestore);
             }
 
@@ -461,86 +465,54 @@ class BackupService {
     }
 
     /**
-     * Restore specific tables from backup database
+     * Restore specific tables from PostgreSQL SQL backup
      */
-    async restoreTables(backupDbPath, tables) {
-        const sqlite3 = require('better-sqlite3');
-        const backupDb = sqlite3(backupDbPath, { readonly: true });
-        const db = this.getDb();
+    async restoreTablesFromSQL(backupPath, tables, isFull) {
+        const env = { ...process.env, PGPASSWORD: PG_PASSWORD };
 
         try {
-            // Get list of tables that actually exist in backup
-            const backupTables = backupDb.prepare(`
-                SELECT name FROM sqlite_master
-                WHERE type='table' AND name NOT LIKE 'sqlite_%'
-            `).all().map(t => t.name);
+            if (isFull) {
+                // Full restore - drop and recreate all
+                console.log('[Restore] Performing full database restore...');
+                execSync(
+                    `psql -h ${PG_HOST} -p ${PG_PORT} -U ${PG_USER} -d ${PG_DATABASE} -f "${backupPath}"`,
+                    { env, encoding: 'utf8', maxBuffer: 100 * 1024 * 1024 }
+                );
+            } else {
+                // Granular restore - we need to extract and restore specific tables
+                // Read the SQL file and extract relevant table data
+                const sqlContent = fs.readFileSync(backupPath, 'utf8');
 
-            for (const table of tables) {
-                if (!backupTables.includes(table)) {
-                    console.log(`Table ${table} not found in backup, skipping`);
-                    continue;
-                }
+                for (const table of tables) {
+                    try {
+                        // First, clear the existing table data
+                        await this.dbConfig.query(`DELETE FROM "${table}"`);
 
-                try {
-                    // Check if table exists in current database
-                    const tableExists = db.prepare(`
-                        SELECT name FROM sqlite_master WHERE type='table' AND name=?
-                    `).get(table);
+                        // Find and execute COPY or INSERT statements for this table
+                        // This is a simplified approach - pg_dump typically uses COPY
+                        const copyRegex = new RegExp(`COPY public\\."${table}"[^;]+;\\n[\\s\\S]*?\\n\\\\.\\n`, 'g');
+                        const copyMatch = sqlContent.match(copyRegex);
 
-                    if (!tableExists) {
-                        console.log(`Table ${table} does not exist in current database, skipping`);
-                        continue;
-                    }
-
-                    // Get all data from backup
-                    const rows = backupDb.prepare(`SELECT * FROM "${table}"`).all();
-
-                    if (rows.length === 0) {
-                        // Clear the table even if backup has no data
-                        db.prepare(`DELETE FROM "${table}"`).run();
-                        continue;
-                    }
-
-                    // Get column names from the first row
-                    const columns = Object.keys(rows[0]);
-
-                    // Get current table columns
-                    const currentColumns = db.prepare(`PRAGMA table_info("${table}")`).all().map(c => c.name);
-
-                    // Only use columns that exist in both
-                    const commonColumns = columns.filter(c => currentColumns.includes(c));
-
-                    if (commonColumns.length === 0) {
-                        console.log(`No common columns for table ${table}, skipping`);
-                        continue;
-                    }
-
-                    // Clear existing data
-                    db.prepare(`DELETE FROM "${table}"`).run();
-
-                    // Insert data
-                    const placeholders = commonColumns.map(() => '?').join(', ');
-                    const insertStmt = db.prepare(`
-                        INSERT INTO "${table}" (${commonColumns.map(c => `"${c}"`).join(', ')})
-                        VALUES (${placeholders})
-                    `);
-
-                    const insertMany = db.transaction((rows) => {
-                        for (const row of rows) {
-                            const values = commonColumns.map(c => row[c]);
-                            insertStmt.run(...values);
+                        if (copyMatch) {
+                            // Execute the COPY statement
+                            for (const stmt of copyMatch) {
+                                execSync(
+                                    `psql -h ${PG_HOST} -p ${PG_PORT} -U ${PG_USER} -d ${PG_DATABASE} -c "${stmt.replace(/"/g, '\\"')}"`,
+                                    { env, encoding: 'utf8' }
+                                );
+                            }
+                            console.log(`[Restore] Restored table ${table}`);
+                        } else {
+                            console.log(`[Restore] No data found for table ${table} in backup`);
                         }
-                    });
-
-                    insertMany(rows);
-                    console.log(`Restored ${rows.length} rows to table ${table}`);
-                } catch (tableError) {
-                    console.error(`Error restoring table ${table}:`, tableError.message);
-                    // Continue with other tables
+                    } catch (tableError) {
+                        console.error(`[Restore] Error restoring table ${table}:`, tableError.message);
+                    }
                 }
             }
-        } finally {
-            backupDb.close();
+        } catch (error) {
+            console.error('[Restore] Database restore failed:', error.message);
+            throw error;
         }
     }
 

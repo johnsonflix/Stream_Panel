@@ -184,7 +184,7 @@ router.post('/login', async (req, res) => {
         // Update user last login and reset login attempts
         await query(`
             UPDATE users
-            SET last_login = datetime('now'),
+            SET last_login = NOW(),
                 login_attempts = 0,
                 first_failed_attempt_at = NULL,
                 account_locked_until = NULL
@@ -265,7 +265,7 @@ router.get('/verify', async (req, res) => {
         const sessions = await query(`
             SELECT * FROM sessions
             WHERE session_token = ?
-            AND datetime(expires_at) > datetime('now')
+            AND expires_at > NOW()
         `, [sessionToken]);
 
         if (sessions.length === 0) {
@@ -320,7 +320,7 @@ router.get('/me', async (req, res) => {
         const sessions = await query(`
             SELECT * FROM sessions
             WHERE session_token = ?
-            AND datetime(expires_at) > datetime('now')
+            AND expires_at > NOW()
         `, [sessionToken]);
 
         if (sessions.length === 0) {
@@ -397,7 +397,7 @@ router.post('/change-password', async (req, res) => {
         const sessions = await query(`
             SELECT * FROM sessions
             WHERE session_token = ?
-            AND datetime(expires_at) > datetime('now')
+            AND expires_at > NOW()
         `, [sessionToken]);
 
         if (sessions.length === 0) {
@@ -437,7 +437,7 @@ router.post('/change-password', async (req, res) => {
         // Update password
         await query(`
             UPDATE users
-            SET password_hash = ?, updated_at = datetime('now')
+            SET password_hash = ?, updated_at = NOW()
             WHERE id = ?
         `, [newPasswordHash, user.id]);
 
@@ -480,7 +480,7 @@ router.delete('/sessions', async (req, res) => {
         const sessions = await query(`
             SELECT * FROM sessions
             WHERE session_token = ?
-            AND datetime(expires_at) > datetime('now')
+            AND expires_at > NOW()
         `, [sessionToken]);
 
         if (sessions.length === 0) {
@@ -529,7 +529,7 @@ router.get('/portal-credentials', async (req, res) => {
         const sessions = await query(`
             SELECT * FROM sessions
             WHERE session_token = ?
-            AND datetime(expires_at) > datetime('now')
+            AND expires_at > NOW()
         `, [sessionToken]);
 
         if (sessions.length === 0) {
@@ -594,7 +594,7 @@ router.put('/portal-credentials', async (req, res) => {
         const sessions = await query(`
             SELECT * FROM sessions
             WHERE session_token = ?
-            AND datetime(expires_at) > datetime('now')
+            AND expires_at > NOW()
         `, [sessionToken]);
 
         if (sessions.length === 0) {
@@ -626,7 +626,7 @@ router.put('/portal-credentials', async (req, res) => {
             SET iptv_username = ?,
                 iptv_password = ?,
                 plex_email = ?,
-                updated_at = datetime('now')
+                updated_at = NOW()
             WHERE id = ?
         `, [
             iptv_username || null,
@@ -668,7 +668,7 @@ router.post('/portal-login', async (req, res) => {
         const sessions = await query(`
             SELECT * FROM sessions
             WHERE session_token = ?
-            AND datetime(expires_at) > datetime('now')
+            AND expires_at > NOW()
         `, [sessionToken]);
 
         if (sessions.length === 0) {
@@ -782,7 +782,7 @@ router.post('/sign-in-as-user', async (req, res) => {
             SELECT s.*, u.is_app_user FROM sessions s
             JOIN users u ON s.user_id = u.id
             WHERE s.session_token = ?
-            AND datetime(s.expires_at) > datetime('now')
+            AND s.expires_at > NOW()
         `, [sessionToken]);
 
         if (sessions.length === 0) {
@@ -927,7 +927,7 @@ router.post('/cleanup-sessions', async (req, res) => {
     try {
         const result = await query(`
             DELETE FROM sessions
-            WHERE datetime(expires_at) <= datetime('now')
+            WHERE expires_at <= NOW()
         `);
 
         res.json({

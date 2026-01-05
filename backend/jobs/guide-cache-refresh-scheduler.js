@@ -13,6 +13,7 @@ const cron = require('node-cron');
 const path = require('path');
 const { fork } = require('child_process');
 const GuideCacheRefreshJob = require('./guide-cache-refresh');
+const { query } = require('../database-config');
 
 // Import the in-memory cache reload function from portal routes
 // This ensures guide loads instantly after refresh (no need to wait for cache warm-up)
@@ -131,12 +132,9 @@ async function reloadAllMemoryCaches() {
     }
 
     try {
-        const job = new GuideCacheRefreshJob();
-
-        // Get all panels and playlists
-        const panels = job.db.prepare(`SELECT id FROM iptv_panels WHERE is_active = 1`).all();
-        const playlists = job.db.prepare(`SELECT id FROM iptv_editor_playlists WHERE is_active = 1`).all();
-        job.close();
+        // Get all panels and playlists using async query
+        const panels = await query('SELECT id FROM iptv_panels WHERE is_active = 1');
+        const playlists = await query('SELECT id FROM iptv_editor_playlists WHERE is_active = 1');
 
         console.log(`[Guide Cache] Reloading ${panels.length} panels and ${playlists.length} playlists into memory...`);
 
@@ -200,12 +198,9 @@ async function refreshAllPanelsGuide() {
         const job = new GuideCacheRefreshJob();
         const results = await job.refreshAllPanels();
 
-        // Get list of all panels to reload into memory
-        const panelIds = job.db.prepare(`
-            SELECT id FROM iptv_panels WHERE is_active = 1
-        `).all().map(p => p.id);
-
-        job.close();
+        // Get list of all panels to reload into memory using async query
+        const panels = await query('SELECT id FROM iptv_panels WHERE is_active = 1');
+        const panelIds = panels.map(p => p.id);
 
         const duration = Math.round((Date.now() - startTime) / 1000);
         console.log(`[Guide Cache] Panel guide refresh completed in ${duration}s`);
@@ -311,12 +306,9 @@ async function refreshAllPlaylistsGuide() {
         const job = new GuideCacheRefreshJob();
         const results = await job.refreshAllPlaylists();
 
-        // Get list of all playlists to reload into memory
-        const playlistIds = job.db.prepare(`
-            SELECT id FROM iptv_editor_playlists WHERE is_active = 1
-        `).all().map(p => p.id);
-
-        job.close();
+        // Get list of all playlists to reload into memory using async query
+        const playlists = await query('SELECT id FROM iptv_editor_playlists WHERE is_active = 1');
+        const playlistIds = playlists.map(p => p.id);
 
         const duration = Math.round((Date.now() - startTime) / 1000);
         console.log(`[Guide Cache] Playlist guide refresh completed in ${duration}s`);
@@ -395,16 +387,12 @@ async function preloadAllGuideCaches() {
     }
 
     try {
-        const job = new GuideCacheRefreshJob();
-
-        // Get all sources that have cached EPG data
-        const cachedSources = job.db.prepare(`
+        // Get all sources that have cached EPG data using async query
+        const cachedSources = await query(`
             SELECT source_type, source_id, epg_channel_count
             FROM guide_cache
             WHERE epg_json IS NOT NULL AND epg_channel_count > 0
-        `).all();
-
-        job.close();
+        `);
 
         if (cachedSources.length === 0) {
             console.log('[Guide Cache] No cached EPG data to pre-load');

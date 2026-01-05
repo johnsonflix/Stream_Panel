@@ -269,7 +269,7 @@ router.get('/:id/stats', async (req, res) => {
             INNER JOIN plex_packages pp ON u.plex_package_id = pp.id
             WHERE u.plex_enabled = 1
             AND u.is_active = 1
-            AND json_extract(pp.server_library_mappings, '$') LIKE '%"server_id":' || ? || '%'
+            AND pp.server_library_mappings LIKE '%"server_id":' || ? || '%'
         `, [id]);
 
         // Get pending invites from our database
