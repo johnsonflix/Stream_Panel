@@ -12,7 +12,7 @@
 const axios = require('axios');
 const db = require('../database-config');
 
-const TMDB_API_KEY = '431a8708161bcd1f1fbe7536137e61ed';
+const TMDB_API_KEY = process.env.TMDB_API_KEY || '';
 
 // Media status enum (matches Seerr)
 const MediaStatus = {
