@@ -40,7 +40,53 @@ function convertQuery(sql) {
         return `$${paramIndex}`;
     });
 
-    // Convert SQLite datetime functions to PostgreSQL
+    // IMPORTANT: Convert INSERT OR REPLACE/IGNORE and REPLACE INTO BEFORE datetime conversion
+    // The regex uses ([^)]+) which breaks on function calls like NOW() with parentheses
+    // So we must do this conversion while the SQL still has datetime('now') not NOW()
+
+    // Convert INSERT OR REPLACE to INSERT ... ON CONFLICT DO UPDATE
+    // Use a more robust regex that handles the full VALUES clause including nested parens
+    const insertOrReplaceMatch = convertedSql.match(/INSERT\s+OR\s+REPLACE\s+INTO\s+(\w+)\s*\(([^)]+)\)\s*VALUES\s*\((.+)\)\s*$/is);
+    if (insertOrReplaceMatch) {
+        const tableName = insertOrReplaceMatch[1];
+        const columns = insertOrReplaceMatch[2];
+        const values = insertOrReplaceMatch[3];
+        const columnList = columns.split(',').map(c => c.trim());
+        const firstColumn = columnList[0];
+
+        // Build UPDATE SET clause
+        const updateClauses = columnList.slice(1).map(col => `${col} = EXCLUDED.${col}`).join(', ');
+
+        convertedSql = `INSERT INTO ${tableName} (${columns}) VALUES (${values}) ON CONFLICT (${firstColumn}) DO UPDATE SET ${updateClauses}`;
+    }
+
+    // Convert INSERT OR IGNORE to INSERT ... ON CONFLICT DO NOTHING
+    if (convertedSql.toUpperCase().includes('INSERT OR IGNORE')) {
+        convertedSql = convertedSql.replace(/INSERT\s+OR\s+IGNORE\s+INTO/gi, 'INSERT INTO');
+        // Add ON CONFLICT DO NOTHING at the end if not already handled
+        if (!convertedSql.toUpperCase().includes('ON CONFLICT')) {
+            // Match the full VALUES clause including nested parentheses
+            convertedSql = convertedSql.replace(/VALUES\s*\((.+)\)\s*$/is, (match, values) => {
+                return `VALUES (${values}) ON CONFLICT DO NOTHING`;
+            });
+        }
+    }
+
+    // Convert REPLACE INTO to INSERT ... ON CONFLICT DO UPDATE
+    const replaceMatch = convertedSql.match(/^REPLACE\s+INTO\s+(\w+)\s*\(([^)]+)\)\s*VALUES\s*\((.+)\)\s*$/is);
+    if (replaceMatch) {
+        const tableName = replaceMatch[1];
+        const columns = replaceMatch[2];
+        const values = replaceMatch[3];
+        const columnList = columns.split(',').map(c => c.trim());
+        const firstColumn = columnList[0];
+
+        const updateClauses = columnList.slice(1).map(col => `${col} = EXCLUDED.${col}`).join(', ');
+
+        convertedSql = `INSERT INTO ${tableName} (${columns}) VALUES (${values}) ON CONFLICT (${firstColumn}) DO UPDATE SET ${updateClauses}`;
+    }
+
+    // NOW convert SQLite datetime functions to PostgreSQL (after INSERT OR REPLACE is handled)
     // datetime('now') -> NOW()
     convertedSql = convertedSql.replace(/datetime\s*\(\s*'now'\s*\)/gi, 'NOW()');
 
@@ -70,47 +116,6 @@ function convertQuery(sql) {
     // "id INTEGER PRIMARY KEY AUTOINCREMENT" -> "id SERIAL PRIMARY KEY"
     convertedSql = convertedSql.replace(/(\w+)\s+INTEGER\s+PRIMARY\s+KEY\s+AUTOINCREMENT/gi, '$1 SERIAL PRIMARY KEY');
 
-    // Convert INSERT OR REPLACE to INSERT ... ON CONFLICT DO UPDATE
-    // This is a simple conversion - complex cases may need manual handling
-    const insertOrReplaceMatch = convertedSql.match(/INSERT\s+OR\s+REPLACE\s+INTO\s+(\w+)\s*\(([^)]+)\)\s*VALUES\s*\(([^)]+)\)/i);
-    if (insertOrReplaceMatch) {
-        const tableName = insertOrReplaceMatch[1];
-        const columns = insertOrReplaceMatch[2];
-        const values = insertOrReplaceMatch[3];
-        const columnList = columns.split(',').map(c => c.trim());
-        const firstColumn = columnList[0];
-
-        // Build UPDATE SET clause
-        const updateClauses = columnList.slice(1).map(col => `${col} = EXCLUDED.${col}`).join(', ');
-
-        convertedSql = `INSERT INTO ${tableName} (${columns}) VALUES (${values}) ON CONFLICT (${firstColumn}) DO UPDATE SET ${updateClauses}`;
-    }
-
-    // Convert INSERT OR IGNORE to INSERT ... ON CONFLICT DO NOTHING
-    convertedSql = convertedSql.replace(/INSERT\s+OR\s+IGNORE\s+INTO/gi, 'INSERT INTO');
-    if (sql.toUpperCase().includes('INSERT OR IGNORE')) {
-        // Add ON CONFLICT DO NOTHING at the end if not already handled
-        if (!convertedSql.toUpperCase().includes('ON CONFLICT')) {
-            convertedSql = convertedSql.replace(/VALUES\s*\(([^)]+)\)/i, (match) => {
-                return match + ' ON CONFLICT DO NOTHING';
-            });
-        }
-    }
-
-    // Convert REPLACE INTO to INSERT ... ON CONFLICT DO UPDATE
-    const replaceMatch = convertedSql.match(/^REPLACE\s+INTO\s+(\w+)\s*\(([^)]+)\)\s*VALUES\s*\(([^)]+)\)/i);
-    if (replaceMatch) {
-        const tableName = replaceMatch[1];
-        const columns = replaceMatch[2];
-        const values = replaceMatch[3];
-        const columnList = columns.split(',').map(c => c.trim());
-        const firstColumn = columnList[0];
-
-        const updateClauses = columnList.slice(1).map(col => `${col} = EXCLUDED.${col}`).join(', ');
-
-        convertedSql = `INSERT INTO ${tableName} (${columns}) VALUES (${values}) ON CONFLICT (${firstColumn}) DO UPDATE SET ${updateClauses}`;
-    }
-
     return convertedSql;
 }
 
@@ -133,28 +138,15 @@ function isInsertQuery(sql) {
 
 /**
  * Add RETURNING id to INSERT queries if not already present
- * Skip for ON CONFLICT queries (UPSERT) and junction tables without id columns
+ * Skip for ON CONFLICT queries (UPSERT) as they may not have an id column
  */
 function addReturningId(sql) {
     const upperSql = sql.trim().toUpperCase();
-
-    // Junction tables that don't have an 'id' column (use composite primary keys)
-    const tablesWithoutId = [
-        'TAG_PLEX_SERVERS',
-        'TAG_IPTV_PANELS',
-        'USER_TAGS',
-        'DASHBOARD_CACHED_STATS',
-        'IPTV_EDITOR_SETTINGS'
-    ];
-
-    // Check if this is an INSERT into a table without id
-    const isJunctionTable = tablesWithoutId.some(table => upperSql.includes(`INTO ${table}`));
-
-    // Only add RETURNING id for simple INSERTs, not for UPSERT or junction tables
+    // Only add RETURNING id for simple INSERTs, not for UPSERT (ON CONFLICT) queries
+    // Some tables use non-id primary keys
     if (upperSql.startsWith('INSERT') &&
         !upperSql.includes('RETURNING') &&
-        !upperSql.includes('ON CONFLICT') &&
-        !isJunctionTable) {
+        !upperSql.includes('ON CONFLICT')) {
         // Remove trailing semicolon if present
         let modifiedSql = sql.trim();
         if (modifiedSql.endsWith(';')) {

@@ -1,10 +1,12 @@
 {
-  "version": "2.0.0",
+  "version": "2.0.1",
   "name": "Stream Panel v2 (PostgreSQL)",
-  "releaseDate": "2026-01-04",
+  "releaseDate": "2026-01-06",
   "database": "postgresql",
   "minDockerVersion": "20.10.0",
   "changelog": [
+    "v2.0.1: Fixed SQL syntax error when linking existing Plex users (INSERT OR REPLACE conversion)",
+    "v2.0.1: Fixed Plex Scanner missing request_site_media columns",
     "Migrated from SQLite to PostgreSQL for improved performance and scalability",
     "Added connection pooling for better concurrent request handling",
     "Fixed all SQLite-specific function calls (datetime, json_extract, etc.)",

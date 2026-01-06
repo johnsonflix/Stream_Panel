@@ -229,9 +229,13 @@ class PlexServiceManager {
             // Insert as pending first if userId provided
             if (userId && this.db) {
                 await this.db.query(`
-                    INSERT OR REPLACE INTO user_plex_shares
+                    INSERT INTO user_plex_shares
                     (user_id, plex_server_id, library_ids, share_status, shared_at)
-                    VALUES (?, ?, ?, 'pending', datetime('now'))
+                    VALUES (?, ?, ?, 'pending', NOW())
+                    ON CONFLICT (user_id, plex_server_id) DO UPDATE SET
+                      library_ids = EXCLUDED.library_ids,
+                      share_status = EXCLUDED.share_status,
+                      shared_at = NOW()
                 `, [
                     userId,
                     serverId,

@@ -683,11 +683,15 @@ router.post('/', async (req, res) => {
                 if (plexSharesData && Array.isArray(plexSharesData) && plexSharesData.length > 0) {
                     for (const share of plexSharesData) {
                         if (share.server_id && share.library_ids && share.library_ids.length > 0) {
-                            // Save to user_plex_shares table (SQLite syntax)
+                            // Save to user_plex_shares table (PostgreSQL upsert syntax)
                             await connection.execute(`
-                                INSERT OR REPLACE INTO user_plex_shares
+                                INSERT INTO user_plex_shares
                                 (user_id, plex_server_id, library_ids, share_status, shared_at, updated_at)
-                                VALUES (?, ?, ?, 'active', datetime('now'), datetime('now'))
+                                VALUES (?, ?, ?, 'active', NOW(), NOW())
+                                ON CONFLICT (user_id, plex_server_id) DO UPDATE SET
+                                  library_ids = EXCLUDED.library_ids,
+                                  share_status = EXCLUDED.share_status,
+                                  updated_at = NOW()
                             `, [userId, share.server_id, JSON.stringify(share.library_ids)]);
                             console.log(`📺 [PLEX] Saved existing access for server ${share.server_id}: ${share.library_ids.length} libraries`);
                         }

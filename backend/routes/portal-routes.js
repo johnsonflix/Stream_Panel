@@ -2264,10 +2264,12 @@ router.get('/iptv/channels', async (req, res) => {
 
                 // Cache the parsed channel data
                 if (channels.length > 0) {
+                    // Delete existing cache entry for this playlist, then insert new one
+                    await query(`DELETE FROM iptv_editor_playlist_channels WHERE playlist_id = ?`, [playlist.id]);
                     await query(`
-                        INSERT OR REPLACE INTO iptv_editor_playlist_channels
+                        INSERT INTO iptv_editor_playlist_channels
                         (playlist_id, channel_data, channel_count, last_updated)
-                        VALUES (?, ?, ?, datetime('now'))
+                        VALUES (?, ?, ?, NOW())
                     `, [playlist.id, JSON.stringify(channels), channels.length]);
 
                     console.log(`Cached ${channels.length} channels for playlist ${playlist.id}`);

@@ -709,9 +709,11 @@ router.post('/auto-assign', async (req, res) => {
                 // Assign tag to new users
                 for (const userId of usersToAdd) {
                     await db.query(`
-                        INSERT INTO user_tags (user_id, tag_id, assigned_by)
-                        VALUES (?, ?, 'auto')
-                        ON CONFLICT (user_id, tag_id) DO UPDATE SET assigned_by = 'auto'
+                        INSERT INTO user_tags (user_id, tag_id, assigned_by, assigned_at)
+                        VALUES (?, ?, 'auto', NOW())
+                        ON CONFLICT (user_id, tag_id) DO UPDATE SET
+                          assigned_by = EXCLUDED.assigned_by,
+                          assigned_at = NOW()
                     `, [userId, tag.id]);
 
                     results.assigned_count++;
@@ -829,9 +831,11 @@ async function autoAssignTagsForUser(userId) {
             if (isEligible && !isCurrentlyAssigned) {
                 // Assign tag
                 await db.query(`
-                    INSERT INTO user_tags (user_id, tag_id, assigned_by)
-                    VALUES (?, ?, 'auto')
-                    ON CONFLICT (user_id, tag_id) DO UPDATE SET assigned_by = 'auto'
+                    INSERT INTO user_tags (user_id, tag_id, assigned_by, assigned_at)
+                    VALUES (?, ?, 'auto', NOW())
+                    ON CONFLICT (user_id, tag_id) DO UPDATE SET
+                      assigned_by = EXCLUDED.assigned_by,
+                      assigned_at = NOW()
                 `, [userId, tag.id]);
                 assignedCount++;
             }

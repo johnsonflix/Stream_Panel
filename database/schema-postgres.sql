@@ -186,7 +186,7 @@ CREATE TABLE IF NOT EXISTS request_settings (    id SERIAL PRIMARY KEY,    setti
 
 
 
-CREATE TABLE IF NOT EXISTS request_site_media (    id SERIAL PRIMARY KEY,    tmdb_id INTEGER NOT NULL,    media_type TEXT NOT NULL CHECK(media_type IN ('movie', 'tv')),    title TEXT NOT NULL,    overview TEXT,    poster_path TEXT,    backdrop_path TEXT,    release_date TEXT,    vote_average REAL,    genres TEXT,    status TEXT DEFAULT 'unknown',    plex_rating_key TEXT,    radarr_id INTEGER,    sonarr_id INTEGER,    media_added_at TIMESTAMP,    created_at TIMESTAMP DEFAULT NOW(),    updated_at TIMESTAMP DEFAULT NOW(),    UNIQUE(tmdb_id, media_type));
+CREATE TABLE IF NOT EXISTS request_site_media (    id SERIAL PRIMARY KEY,    tmdb_id INTEGER NOT NULL,    tvdb_id INTEGER,    imdb_id TEXT,    media_type TEXT NOT NULL CHECK(media_type IN ('movie', 'tv')),    title TEXT,    overview TEXT,    poster_path TEXT,    backdrop_path TEXT,    release_date TEXT,    vote_average REAL,    genres TEXT,    status TEXT DEFAULT 'unknown',    status_4k TEXT DEFAULT 'unknown',    plex_rating_key TEXT,    plex_rating_key_4k TEXT,    plex_server_id INTEGER,    radarr_id INTEGER,    sonarr_id INTEGER,    media_added_at TIMESTAMP,    created_at TIMESTAMP DEFAULT NOW(),    updated_at TIMESTAMP DEFAULT NOW(),    UNIQUE(tmdb_id, media_type));
 
 
 
