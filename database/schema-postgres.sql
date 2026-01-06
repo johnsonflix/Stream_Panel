@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS owners (    id SERIAL PRIMARY KEY,    name TEXT NOT N
 
 
 
-CREATE TABLE IF NOT EXISTS plex_servers (    id SERIAL PRIMARY KEY,    name TEXT NOT NULL,    url TEXT NOT NULL,    server_id TEXT NOT NULL,    token TEXT NOT NULL,    is_active INTEGER DEFAULT 1,    libraries TEXT,    last_library_sync TEXT,    sync_schedule TEXT DEFAULT 'manual',    last_health_check TEXT,    health_status TEXT DEFAULT 'online',    created_at TIMESTAMP DEFAULT NOW(),    updated_at TIMESTAMP DEFAULT NOW(),    request_site_url TEXT DEFAULT NULL,    last_activity_sync TIMESTAMP,    enable_auto_scan INTEGER DEFAULT 1, last_scan TIMESTAMP);
+CREATE TABLE IF NOT EXISTS plex_servers (    id SERIAL PRIMARY KEY,    name TEXT NOT NULL,    url TEXT NOT NULL,    server_id TEXT NOT NULL,    token TEXT NOT NULL,    is_active INTEGER DEFAULT 1,    libraries TEXT,    last_library_sync TEXT,    sync_schedule TEXT DEFAULT 'manual',    last_health_check TEXT,    health_status TEXT DEFAULT 'online',    created_at TIMESTAMP DEFAULT NOW(),    updated_at TIMESTAMP DEFAULT NOW(),    request_site_url TEXT DEFAULT NULL,    last_activity_sync TIMESTAMP,    enable_auto_scan INTEGER DEFAULT 1,    last_scan TIMESTAMP,    last_recent_scan TIMESTAMP);
 
 
 
