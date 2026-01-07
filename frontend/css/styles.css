@@ -498,6 +498,14 @@ body.modal-open {
     box-shadow: var(--shadow-sm);
 }
 
+/* Desktop: Remove overflow to allow sticky header with page scroll */
+@media (min-width: 769px) {
+    .table-container {
+        overflow-x: visible;
+        overflow-y: visible;
+    }
+}
+
 table {
     width: 100%;
     border-collapse: collapse;
