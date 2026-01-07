@@ -498,14 +498,6 @@ body.modal-open {
     box-shadow: var(--shadow-sm);
 }
 
-/* Desktop: Sticky table header with scrollable body */
-@media (min-width: 769px) {
-    .table-container {
-        max-height: calc(100vh - 320px);
-        overflow-y: auto;
-    }
-}
-
 table {
     width: 100%;
     border-collapse: collapse;
@@ -516,14 +508,14 @@ thead {
     background-color: var(--light-bg);
 }
 
-/* Desktop: Sticky header */
+/* Desktop: Sticky table header - stays visible below navbar when scrolling page */
 @media (min-width: 769px) {
     thead th {
         position: sticky;
-        top: 0;
+        top: 64px; /* navbar height */
         z-index: 10;
         background-color: var(--light-bg);
-        box-shadow: 0 1px 0 var(--border-color);
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     }
 }
 
