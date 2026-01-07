@@ -660,8 +660,8 @@ const Users = {
             this.initColumnResize();
             this.applyColumnWidths();
 
-            // Setup sticky header for desktop
-            this.setupStickyHeader();
+            // Sticky header disabled for debugging
+            // this.setupStickyHeader();
 
         } catch (error) {
             console.error('Error loading users:', error);

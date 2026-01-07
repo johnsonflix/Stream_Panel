@@ -1,10 +1,11 @@
 {
-  "version": "2.0.8",
+  "version": "2.0.9",
   "name": "Stream Panel v2 (PostgreSQL)",
   "releaseDate": "2026-01-07",
   "database": "postgresql",
   "minDockerVersion": "20.10.0",
   "changelog": [
+    "v2.0.9: Disabled sticky header temporarily for debugging",
     "v2.0.8: Fixed sticky header - proper initialization and cache busting",
     "v2.0.7: Fixed sticky header positioning - now flush with navbar, no extra checkbox row",
     "v2.0.6: Fixed sticky table header CSS (was missing from v2.0.4)",
