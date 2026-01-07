@@ -248,6 +248,133 @@ const Users = {
     },
 
     /**
+     * Setup sticky header for users table (desktop only)
+     * Uses fixed positioning since CSS sticky is broken by body zoom
+     */
+    setupStickyHeader() {
+        // Only on desktop
+        if (window.innerWidth < 769) return;
+
+        // Remove existing sticky header
+        const existingSticky = document.getElementById('sticky-users-header');
+        if (existingSticky) existingSticky.remove();
+
+        // Clean up old listeners
+        if (this._stickyScrollHandler) {
+            window.removeEventListener('scroll', this._stickyScrollHandler);
+            this._stickyScrollHandler = null;
+        }
+
+        const table = document.querySelector('.users-desktop-view table');
+        if (!table) return;
+
+        const thead = table.querySelector('thead');
+        if (!thead) return;
+
+        const tableContainer = table.closest('.table-container');
+        if (!tableContainer) return;
+
+        // Get body zoom factor for position calculations
+        const bodyZoom = parseFloat(getComputedStyle(document.body).zoom) || 1;
+        const navbarHeight = 64 * bodyZoom;
+
+        // Create sticky header container
+        const stickyContainer = document.createElement('div');
+        stickyContainer.id = 'sticky-users-header';
+        stickyContainer.style.cssText = `
+            position: fixed;
+            top: ${64}px;
+            left: 0;
+            right: 0;
+            z-index: 100;
+            display: none;
+            background: var(--card-bg, #1e293b);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            border-bottom: 2px solid var(--primary-color, #8e24aa);
+        `;
+
+        // Clone the entire table but only keep thead
+        const clonedTable = table.cloneNode(false);
+        clonedTable.style.cssText = `
+            width: 100%;
+            border-collapse: collapse;
+            background: var(--card-bg, #1e293b);
+            table-layout: fixed;
+        `;
+
+        // Clone colgroup if exists
+        const colgroup = table.querySelector('colgroup');
+        if (colgroup) {
+            clonedTable.appendChild(colgroup.cloneNode(true));
+        }
+
+        // Clone thead
+        const clonedThead = thead.cloneNode(true);
+        clonedTable.appendChild(clonedThead);
+
+        // Create wrapper with padding matching the table
+        const wrapper = document.createElement('div');
+        wrapper.style.cssText = 'padding: 0 1.5rem;';
+        wrapper.appendChild(clonedTable);
+        stickyContainer.appendChild(wrapper);
+        document.body.appendChild(stickyContainer);
+
+        // Function to sync column widths
+        const syncColumnWidths = () => {
+            const originalThs = thead.querySelectorAll('th');
+            const clonedThs = clonedThead.querySelectorAll('th');
+            originalThs.forEach((th, i) => {
+                if (clonedThs[i]) {
+                    const width = th.getBoundingClientRect().width / bodyZoom;
+                    clonedThs[i].style.width = width + 'px';
+                    clonedThs[i].style.minWidth = width + 'px';
+                    clonedThs[i].style.maxWidth = width + 'px';
+                }
+            });
+            // Also sync table width
+            clonedTable.style.width = (table.getBoundingClientRect().width / bodyZoom) + 'px';
+        };
+
+        // Scroll handler
+        this._stickyScrollHandler = () => {
+            const theadRect = thead.getBoundingClientRect();
+            const tableRect = table.getBoundingClientRect();
+            const containerRect = tableContainer.getBoundingClientRect();
+
+            // Account for zoom in position calculations
+            const theadTop = theadRect.top;
+            const tableBottom = tableRect.bottom;
+
+            // Show sticky when original header scrolls above navbar
+            if (theadTop < navbarHeight && tableBottom > navbarHeight + 100) {
+                stickyContainer.style.display = 'block';
+
+                // Position wrapper to match table container position
+                const leftPadding = containerRect.left / bodyZoom;
+                wrapper.style.paddingLeft = leftPadding + 'px';
+                wrapper.style.paddingRight = ((window.innerWidth - containerRect.right) / bodyZoom) + 'px';
+
+                syncColumnWidths();
+            } else {
+                stickyContainer.style.display = 'none';
+            }
+        };
+
+        window.addEventListener('scroll', this._stickyScrollHandler);
+
+        // Also handle resize
+        if (this._stickyResizeHandler) {
+            window.removeEventListener('resize', this._stickyResizeHandler);
+        }
+        this._stickyResizeHandler = () => {
+            if (window.innerWidth < 769) {
+                stickyContainer.style.display = 'none';
+            }
+        };
+        window.addEventListener('resize', this._stickyResizeHandler);
+    },
+
+    /**
      * Reset column widths to default
      */
     resetColumnWidths() {
@@ -520,6 +647,9 @@ const Users = {
             // Initialize column resize functionality and apply saved widths
             this.initColumnResize();
             this.applyColumnWidths();
+
+            // Setup sticky header for desktop
+            this.setupStickyHeader();
 
         } catch (error) {
             console.error('Error loading users:', error);
