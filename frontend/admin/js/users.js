@@ -399,6 +399,12 @@ const Users = {
      * Render users page
      */
     async render(container) {
+        // Clean up any stale sticky header elements from previous loads
+        const oldStickyHeader = document.getElementById('sticky-users-header');
+        if (oldStickyHeader) {
+            oldStickyHeader.remove();
+        }
+
         // Check if we have saved filters (from returning from edit-user page)
         const savedFilters = sessionStorage.getItem('usersPageFilters');
         if (savedFilters) {
