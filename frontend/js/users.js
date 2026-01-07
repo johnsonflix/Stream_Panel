@@ -295,142 +295,60 @@ const Users = {
 
     /**
      * Setup sticky header for users table (desktop only)
+     * Uses CSS position:sticky on th elements
      */
     setupStickyHeader() {
         // Only on desktop
         if (window.innerWidth < 769) return;
 
-        const tableContainer = document.querySelector('#users-list .table-container');
-        const table = document.querySelector('#users-list table');
-        if (!table || !tableContainer) {
-            return;
-        }
-
-        const thead = table.querySelector('thead');
-        if (!thead) {
-            return;
-        }
-
-        // Remove existing sticky header if any
+        // Remove any old JavaScript-based sticky header
         const existingSticky = document.getElementById('sticky-table-header');
         if (existingSticky) existingSticky.remove();
 
-        // Remove existing scroll listener
+        // Remove old scroll listeners
         if (this._stickyScrollHandler) {
             window.removeEventListener('scroll', this._stickyScrollHandler);
+            this._stickyScrollHandler = null;
         }
-
-        // Get the card that wraps the table for positioning reference
-        const card = document.querySelector('#users-list').closest('.card');
-
-        // Get computed styles
-        const bodyStyle = getComputedStyle(document.body);
-        const cardBg = bodyStyle.getPropertyValue('--card-bg').trim() || '#1e293b';
-        const lightBg = bodyStyle.getPropertyValue('--light-bg').trim() || '#f8fafc';
-        const textPrimary = bodyStyle.getPropertyValue('--text-primary').trim() || '#0f172a';
-
-        // Create sticky header container - position fixed at top of viewport below navbar
-        const stickyContainer = document.createElement('div');
-        stickyContainer.id = 'sticky-table-header';
-        stickyContainer.style.cssText = `
-            position: fixed;
-            top: 64px;
-            left: 0;
-            right: 0;
-            z-index: 100;
-            display: none;
-            background: ${cardBg};
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-            border-bottom: 1px solid var(--border-color, #334155);
-        `;
-
-        // Create inner wrapper to match page padding
-        const innerWrapper = document.createElement('div');
-        innerWrapper.style.cssText = `
-            max-width: 100%;
-            padding: 0 1.5rem;
-            overflow-x: auto;
-        `;
-
-        // Clone just the thead and wrap in table
-        const clonedTable = document.createElement('table');
-        clonedTable.style.cssText = `
-            width: 100%;
-            border-collapse: collapse;
-            background: ${cardBg};
-            table-layout: fixed;
-        `;
-
-        // Clone thead
-        const clonedThead = thead.cloneNode(true);
-        clonedTable.appendChild(clonedThead);
-
-        // Copy column widths from original
-        const originalThs = thead.querySelectorAll('th');
-        const clonedThs = clonedThead.querySelectorAll('th');
-
-        originalThs.forEach((th, i) => {
-            if (clonedThs[i]) {
-                const width = th.getBoundingClientRect().width;
-                clonedThs[i].style.width = width + 'px';
-                clonedThs[i].style.minWidth = width + 'px';
-                clonedThs[i].style.backgroundColor = lightBg;
-                clonedThs[i].style.color = textPrimary;
-            }
-        });
-
-        innerWrapper.appendChild(clonedTable);
-        stickyContainer.appendChild(innerWrapper);
-        document.body.appendChild(stickyContainer);
-
-        // Scroll handler
-        const navbarHeight = 64;
-        this._stickyScrollHandler = () => {
-            const theadRect = thead.getBoundingClientRect();
-            const tableRect = table.getBoundingClientRect();
-            const containerRect = tableContainer.getBoundingClientRect();
-
-            // Show sticky when original header scrolls above navbar
-            if (theadRect.top < navbarHeight && tableRect.bottom > navbarHeight + 50) {
-                stickyContainer.style.display = 'block';
-
-                // Match the table container's horizontal position
-                innerWrapper.style.paddingLeft = containerRect.left + 'px';
-                innerWrapper.style.paddingRight = (window.innerWidth - containerRect.right) + 'px';
-
-                // Update column widths in case they changed
-                originalThs.forEach((th, i) => {
-                    if (clonedThs[i]) {
-                        const width = th.getBoundingClientRect().width;
-                        clonedThs[i].style.width = width + 'px';
-                        clonedThs[i].style.minWidth = width + 'px';
-                    }
-                });
-            } else {
-                stickyContainer.style.display = 'none';
-            }
-        };
-
-        window.addEventListener('scroll', this._stickyScrollHandler);
-
-        // Trigger once to check initial state
-        this._stickyScrollHandler();
-
-        // Handle resize
         if (this._stickyResizeHandler) {
             window.removeEventListener('resize', this._stickyResizeHandler);
+            this._stickyResizeHandler = null;
         }
+
+        const table = document.querySelector('#users-list table');
+        if (!table) return;
+
+        const thead = table.querySelector('thead');
+        if (!thead) return;
+
+        // Get computed styles for background colors
+        const bodyStyle = getComputedStyle(document.body);
+        const lightBg = bodyStyle.getPropertyValue('--light-bg').trim() || '#0f172a';
+
+        // Apply sticky positioning to each th element
+        const thElements = thead.querySelectorAll('th');
+        thElements.forEach(th => {
+            th.style.position = 'sticky';
+            th.style.top = '64px'; // Below navbar
+            th.style.zIndex = '10';
+            th.style.backgroundColor = lightBg;
+        });
+
+        // Handle resize to disable on mobile
         this._stickyResizeHandler = Utils.debounce(() => {
+            const ths = document.querySelectorAll('#users-list table thead th');
             if (window.innerWidth < 769) {
-                stickyContainer.style.display = 'none';
+                ths.forEach(th => {
+                    th.style.position = '';
+                    th.style.top = '';
+                    th.style.zIndex = '';
+                });
             } else {
-                // Recalculate column widths
-                originalThs.forEach((th, i) => {
-                    if (clonedThs[i]) {
-                        const width = th.getBoundingClientRect().width;
-                        clonedThs[i].style.width = width + 'px';
-                        clonedThs[i].style.minWidth = width + 'px';
-                    }
+                ths.forEach(th => {
+                    th.style.position = 'sticky';
+                    th.style.top = '64px';
+                    th.style.zIndex = '10';
+                    th.style.backgroundColor = lightBg;
                 });
             }
         }, 200);

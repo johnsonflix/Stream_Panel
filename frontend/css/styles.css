@@ -498,6 +498,13 @@ body.modal-open {
     box-shadow: var(--shadow-sm);
 }
 
+/* Desktop: Allow sticky header by removing overflow restrictions */
+@media (min-width: 769px) {
+    .table-container {
+        overflow: visible;
+    }
+}
+
 table {
     width: 100%;
     border-collapse: collapse;

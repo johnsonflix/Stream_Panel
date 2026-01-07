@@ -697,6 +697,13 @@ body.modal-open {
     box-shadow: var(--shadow-sm);
 }
 
+/* Desktop: Allow sticky headers by removing overflow restrictions */
+@media (min-width: 769px) {
+    .table-container {
+        overflow: visible;
+    }
+}
+
 table {
     width: 100%;
     border-collapse: collapse;
@@ -737,8 +744,7 @@ tbody tr:hover {
 
 /* Column resize handles */
 .users-desktop-view .table-container {
-    overflow-x: auto;
-    overflow-y: visible; /* Allow sticky header to work */
+    overflow: visible; /* Required for sticky header to work - overflow breaks sticky positioning */
 }
 
 .users-desktop-view table {
