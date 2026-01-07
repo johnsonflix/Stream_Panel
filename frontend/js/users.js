@@ -301,10 +301,18 @@ const Users = {
         if (window.innerWidth < 769) return;
 
         const table = document.querySelector('#users-list table');
-        if (!table) return;
+        if (!table) {
+            console.log('Sticky header: table not found');
+            return;
+        }
 
         const thead = table.querySelector('thead');
-        if (!thead) return;
+        if (!thead) {
+            console.log('Sticky header: thead not found');
+            return;
+        }
+
+        console.log('Setting up sticky header for users table');
 
         // Remove existing sticky header if any
         const existingSticky = document.getElementById('sticky-table-header');
@@ -315,36 +323,39 @@ const Users = {
             window.removeEventListener('scroll', this._stickyScrollHandler);
         }
 
+        // Get computed background color from the table
+        const computedStyle = getComputedStyle(document.body);
+        const cardBg = computedStyle.getPropertyValue('--card-bg').trim() || '#1e293b';
+
         // Create sticky header container
         const stickyContainer = document.createElement('div');
         stickyContainer.id = 'sticky-table-header';
-        stickyContainer.style.cssText = `
-            position: fixed;
-            top: 64px;
-            left: 0;
-            right: 0;
-            z-index: 100;
-            display: none;
-            background: var(--card-bg);
-            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-        `;
+        stickyContainer.style.position = 'fixed';
+        stickyContainer.style.top = '64px';
+        stickyContainer.style.left = '0';
+        stickyContainer.style.right = '0';
+        stickyContainer.style.zIndex = '100';
+        stickyContainer.style.display = 'none';
+        stickyContainer.style.background = cardBg;
+        stickyContainer.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)';
 
         // Clone the header
         const clonedTable = document.createElement('table');
-        clonedTable.style.cssText = `
-            width: ${table.offsetWidth}px;
-            margin: 0 auto;
-            border-collapse: collapse;
-            background: var(--card-bg);
-        `;
+        clonedTable.style.width = table.offsetWidth + 'px';
+        clonedTable.style.margin = '0 auto';
+        clonedTable.style.borderCollapse = 'collapse';
+        clonedTable.style.background = cardBg;
         clonedTable.innerHTML = thead.outerHTML;
 
-        // Copy column widths
+        // Copy column widths and styles
         const originalThs = thead.querySelectorAll('th');
         const clonedThs = clonedTable.querySelectorAll('th');
+        const theadBg = getComputedStyle(thead).backgroundColor || cardBg;
+
         originalThs.forEach((th, i) => {
             if (clonedThs[i]) {
                 clonedThs[i].style.width = th.offsetWidth + 'px';
+                clonedThs[i].style.backgroundColor = theadBg;
             }
         });
 
@@ -372,12 +383,17 @@ const Users = {
 
         window.addEventListener('scroll', this._stickyScrollHandler);
 
+        // Trigger once to check initial state
+        this._stickyScrollHandler();
+
         // Also update on resize
         window.addEventListener('resize', Utils.debounce(() => {
             if (window.innerWidth < 769) {
                 stickyContainer.style.display = 'none';
             }
         }, 200));
+
+        console.log('Sticky header setup complete');
     },
 
     /**
