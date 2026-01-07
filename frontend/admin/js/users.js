@@ -276,14 +276,15 @@ const Users = {
 
         // Get body zoom factor for position calculations
         const bodyZoom = parseFloat(getComputedStyle(document.body).zoom) || 1;
-        const navbarHeight = 64 * bodyZoom;
 
-        // Create sticky header container
+        // Get navbar to position sticky header right below it
+        const navbar = document.querySelector('.navbar');
+
+        // Create sticky header container - initially hidden
         const stickyContainer = document.createElement('div');
         stickyContainer.id = 'sticky-users-header';
         stickyContainer.style.cssText = `
             position: fixed;
-            top: ${64}px;
             left: 0;
             right: 0;
             z-index: 100;
@@ -341,12 +342,18 @@ const Users = {
             const tableRect = table.getBoundingClientRect();
             const containerRect = tableContainer.getBoundingClientRect();
 
-            // Account for zoom in position calculations
-            const theadTop = theadRect.top;
-            const tableBottom = tableRect.bottom;
+            // Get navbar's actual bottom position (accounting for zoom)
+            const navbarBottom = navbar ? navbar.getBoundingClientRect().bottom : 64 * bodyZoom;
 
-            // Show sticky when original header scrolls above navbar
-            if (theadTop < navbarHeight && tableBottom > navbarHeight + 100) {
+            // Show sticky when original header is scrolled above the navbar bottom
+            // theadRect.top is already in screen coords (affected by zoom)
+            const headerScrolledUp = theadRect.top < navbarBottom;
+            const tableStillVisible = tableRect.bottom > navbarBottom + 50;
+
+            if (headerScrolledUp && tableStillVisible) {
+                // Position the sticky header right at navbar bottom
+                // Since we're inside a zoomed body, divide by zoom to get correct CSS value
+                stickyContainer.style.top = (navbarBottom / bodyZoom) + 'px';
                 stickyContainer.style.display = 'block';
 
                 // Position wrapper to match table container position
