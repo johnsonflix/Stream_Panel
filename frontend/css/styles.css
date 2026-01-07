@@ -498,14 +498,6 @@ body.modal-open {
     box-shadow: var(--shadow-sm);
 }
 
-/* Desktop: Remove overflow to allow sticky header with page scroll */
-@media (min-width: 769px) {
-    .table-container {
-        overflow-x: visible;
-        overflow-y: visible;
-    }
-}
-
 table {
     width: 100%;
     border-collapse: collapse;
@@ -514,17 +506,6 @@ table {
 
 thead {
     background-color: var(--light-bg);
-}
-
-/* Desktop: Sticky table header - stays visible below navbar when scrolling page */
-@media (min-width: 769px) {
-    thead th {
-        position: sticky;
-        top: 64px; /* navbar height */
-        z-index: 10;
-        background-color: var(--light-bg);
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    }
 }
 
 th {

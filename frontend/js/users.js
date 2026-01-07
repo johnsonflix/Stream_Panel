@@ -279,6 +279,9 @@ const Users = {
                 </div>
             `;
 
+            // Setup sticky header for desktop
+            this.setupStickyHeader();
+
         } catch (error) {
             console.error('Error loading users:', error);
             container.innerHTML = `
@@ -288,6 +291,93 @@ const Users = {
                 </div>
             `;
         }
+    },
+
+    /**
+     * Setup sticky header for users table (desktop only)
+     */
+    setupStickyHeader() {
+        // Only on desktop
+        if (window.innerWidth < 769) return;
+
+        const table = document.querySelector('#users-list table');
+        if (!table) return;
+
+        const thead = table.querySelector('thead');
+        if (!thead) return;
+
+        // Remove existing sticky header if any
+        const existingSticky = document.getElementById('sticky-table-header');
+        if (existingSticky) existingSticky.remove();
+
+        // Remove existing scroll listener
+        if (this._stickyScrollHandler) {
+            window.removeEventListener('scroll', this._stickyScrollHandler);
+        }
+
+        // Create sticky header container
+        const stickyContainer = document.createElement('div');
+        stickyContainer.id = 'sticky-table-header';
+        stickyContainer.style.cssText = `
+            position: fixed;
+            top: 64px;
+            left: 0;
+            right: 0;
+            z-index: 100;
+            display: none;
+            background: var(--card-bg);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        `;
+
+        // Clone the header
+        const clonedTable = document.createElement('table');
+        clonedTable.style.cssText = `
+            width: ${table.offsetWidth}px;
+            margin: 0 auto;
+            border-collapse: collapse;
+            background: var(--card-bg);
+        `;
+        clonedTable.innerHTML = thead.outerHTML;
+
+        // Copy column widths
+        const originalThs = thead.querySelectorAll('th');
+        const clonedThs = clonedTable.querySelectorAll('th');
+        originalThs.forEach((th, i) => {
+            if (clonedThs[i]) {
+                clonedThs[i].style.width = th.offsetWidth + 'px';
+            }
+        });
+
+        stickyContainer.appendChild(clonedTable);
+        document.body.appendChild(stickyContainer);
+
+        // Scroll handler
+        const navbarHeight = 64;
+        this._stickyScrollHandler = () => {
+            const tableRect = table.getBoundingClientRect();
+            const theadRect = thead.getBoundingClientRect();
+
+            // Show sticky when original header goes above navbar
+            if (theadRect.top < navbarHeight && tableRect.bottom > navbarHeight + 100) {
+                stickyContainer.style.display = 'block';
+                // Update position to match table width/position
+                clonedTable.style.width = table.offsetWidth + 'px';
+                const tableLeft = tableRect.left;
+                clonedTable.style.marginLeft = tableLeft + 'px';
+                clonedTable.style.marginRight = 'auto';
+            } else {
+                stickyContainer.style.display = 'none';
+            }
+        };
+
+        window.addEventListener('scroll', this._stickyScrollHandler);
+
+        // Also update on resize
+        window.addEventListener('resize', Utils.debounce(() => {
+            if (window.innerWidth < 769) {
+                stickyContainer.style.display = 'none';
+            }
+        }, 200));
     },
 
     /**
