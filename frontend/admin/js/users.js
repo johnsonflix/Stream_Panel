@@ -369,6 +369,9 @@ const Users = {
 
         window.addEventListener('scroll', this._stickyScrollHandler);
 
+        // Call immediately to set correct initial state (hidden when at top)
+        this._stickyScrollHandler();
+
         // Also handle resize
         if (this._stickyResizeHandler) {
             window.removeEventListener('resize', this._stickyResizeHandler);
@@ -376,6 +379,8 @@ const Users = {
         this._stickyResizeHandler = () => {
             if (window.innerWidth < 769) {
                 stickyContainer.style.display = 'none';
+            } else {
+                this._stickyScrollHandler();
             }
         };
         window.addEventListener('resize', this._stickyResizeHandler);
