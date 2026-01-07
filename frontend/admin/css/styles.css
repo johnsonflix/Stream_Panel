@@ -717,6 +717,15 @@ th {
     letter-spacing: 0.05em;
 }
 
+/* Sticky table header for users page */
+.users-desktop-view thead th {
+    position: sticky;
+    top: 64px; /* Account for navbar height */
+    background-color: var(--light-bg);
+    z-index: 10;
+    box-shadow: 0 1px 0 var(--border-color);
+}
+
 td {
     padding: 1rem;
     border-top: 1px solid var(--border-color);
@@ -729,6 +738,7 @@ tbody tr:hover {
 /* Column resize handles */
 .users-desktop-view .table-container {
     overflow-x: auto;
+    overflow-y: visible; /* Allow sticky header to work */
 }
 
 .users-desktop-view table {
