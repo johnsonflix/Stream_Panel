@@ -300,19 +300,16 @@ const Users = {
         // Only on desktop
         if (window.innerWidth < 769) return;
 
+        const tableContainer = document.querySelector('#users-list .table-container');
         const table = document.querySelector('#users-list table');
-        if (!table) {
-            console.log('Sticky header: table not found');
+        if (!table || !tableContainer) {
             return;
         }
 
         const thead = table.querySelector('thead');
         if (!thead) {
-            console.log('Sticky header: thead not found');
             return;
         }
-
-        console.log('Setting up sticky header for users table');
 
         // Remove existing sticky header if any
         const existingSticky = document.getElementById('sticky-table-header');
@@ -323,59 +320,92 @@ const Users = {
             window.removeEventListener('scroll', this._stickyScrollHandler);
         }
 
-        // Get computed background color from the table
-        const computedStyle = getComputedStyle(document.body);
-        const cardBg = computedStyle.getPropertyValue('--card-bg').trim() || '#1e293b';
+        // Get the card that wraps the table for positioning reference
+        const card = document.querySelector('#users-list').closest('.card');
 
-        // Create sticky header container
+        // Get computed styles
+        const bodyStyle = getComputedStyle(document.body);
+        const cardBg = bodyStyle.getPropertyValue('--card-bg').trim() || '#1e293b';
+        const lightBg = bodyStyle.getPropertyValue('--light-bg').trim() || '#f8fafc';
+        const textPrimary = bodyStyle.getPropertyValue('--text-primary').trim() || '#0f172a';
+
+        // Create sticky header container - position fixed at top of viewport below navbar
         const stickyContainer = document.createElement('div');
         stickyContainer.id = 'sticky-table-header';
-        stickyContainer.style.position = 'fixed';
-        stickyContainer.style.top = '64px';
-        stickyContainer.style.left = '0';
-        stickyContainer.style.right = '0';
-        stickyContainer.style.zIndex = '100';
-        stickyContainer.style.display = 'none';
-        stickyContainer.style.background = cardBg;
-        stickyContainer.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)';
+        stickyContainer.style.cssText = `
+            position: fixed;
+            top: 64px;
+            left: 0;
+            right: 0;
+            z-index: 100;
+            display: none;
+            background: ${cardBg};
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            border-bottom: 1px solid var(--border-color, #334155);
+        `;
 
-        // Clone the header
+        // Create inner wrapper to match page padding
+        const innerWrapper = document.createElement('div');
+        innerWrapper.style.cssText = `
+            max-width: 100%;
+            padding: 0 1.5rem;
+            overflow-x: auto;
+        `;
+
+        // Clone just the thead and wrap in table
         const clonedTable = document.createElement('table');
-        clonedTable.style.width = table.offsetWidth + 'px';
-        clonedTable.style.margin = '0 auto';
-        clonedTable.style.borderCollapse = 'collapse';
-        clonedTable.style.background = cardBg;
-        clonedTable.innerHTML = thead.outerHTML;
+        clonedTable.style.cssText = `
+            width: 100%;
+            border-collapse: collapse;
+            background: ${cardBg};
+            table-layout: fixed;
+        `;
 
-        // Copy column widths and styles
+        // Clone thead
+        const clonedThead = thead.cloneNode(true);
+        clonedTable.appendChild(clonedThead);
+
+        // Copy column widths from original
         const originalThs = thead.querySelectorAll('th');
-        const clonedThs = clonedTable.querySelectorAll('th');
-        const theadBg = getComputedStyle(thead).backgroundColor || cardBg;
+        const clonedThs = clonedThead.querySelectorAll('th');
 
         originalThs.forEach((th, i) => {
             if (clonedThs[i]) {
-                clonedThs[i].style.width = th.offsetWidth + 'px';
-                clonedThs[i].style.backgroundColor = theadBg;
+                const width = th.getBoundingClientRect().width;
+                clonedThs[i].style.width = width + 'px';
+                clonedThs[i].style.minWidth = width + 'px';
+                clonedThs[i].style.backgroundColor = lightBg;
+                clonedThs[i].style.color = textPrimary;
             }
         });
 
-        stickyContainer.appendChild(clonedTable);
+        innerWrapper.appendChild(clonedTable);
+        stickyContainer.appendChild(innerWrapper);
         document.body.appendChild(stickyContainer);
 
         // Scroll handler
         const navbarHeight = 64;
         this._stickyScrollHandler = () => {
-            const tableRect = table.getBoundingClientRect();
             const theadRect = thead.getBoundingClientRect();
+            const tableRect = table.getBoundingClientRect();
+            const containerRect = tableContainer.getBoundingClientRect();
 
-            // Show sticky when original header goes above navbar
-            if (theadRect.top < navbarHeight && tableRect.bottom > navbarHeight + 100) {
+            // Show sticky when original header scrolls above navbar
+            if (theadRect.top < navbarHeight && tableRect.bottom > navbarHeight + 50) {
                 stickyContainer.style.display = 'block';
-                // Update position to match table width/position
-                clonedTable.style.width = table.offsetWidth + 'px';
-                const tableLeft = tableRect.left;
-                clonedTable.style.marginLeft = tableLeft + 'px';
-                clonedTable.style.marginRight = 'auto';
+
+                // Match the table container's horizontal position
+                innerWrapper.style.paddingLeft = containerRect.left + 'px';
+                innerWrapper.style.paddingRight = (window.innerWidth - containerRect.right) + 'px';
+
+                // Update column widths in case they changed
+                originalThs.forEach((th, i) => {
+                    if (clonedThs[i]) {
+                        const width = th.getBoundingClientRect().width;
+                        clonedThs[i].style.width = width + 'px';
+                        clonedThs[i].style.minWidth = width + 'px';
+                    }
+                });
             } else {
                 stickyContainer.style.display = 'none';
             }
@@ -386,14 +416,25 @@ const Users = {
         // Trigger once to check initial state
         this._stickyScrollHandler();
 
-        // Also update on resize
-        window.addEventListener('resize', Utils.debounce(() => {
+        // Handle resize
+        if (this._stickyResizeHandler) {
+            window.removeEventListener('resize', this._stickyResizeHandler);
+        }
+        this._stickyResizeHandler = Utils.debounce(() => {
             if (window.innerWidth < 769) {
                 stickyContainer.style.display = 'none';
+            } else {
+                // Recalculate column widths
+                originalThs.forEach((th, i) => {
+                    if (clonedThs[i]) {
+                        const width = th.getBoundingClientRect().width;
+                        clonedThs[i].style.width = width + 'px';
+                        clonedThs[i].style.minWidth = width + 'px';
+                    }
+                });
             }
-        }, 200));
-
-        console.log('Sticky header setup complete');
+        }, 200);
+        window.addEventListener('resize', this._stickyResizeHandler);
     },
 
     /**
