@@ -10816,6 +10816,7 @@ const Settings = {
 
     async loadKometaInstances() {
         const listContainer = document.getElementById('kometa-instances-list');
+        if (!listContainer) return; // Element doesn't exist on this page
 
         try {
             const response = await fetch('/api/v2/kometa/instances');
