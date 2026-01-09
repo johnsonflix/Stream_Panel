@@ -90,13 +90,16 @@ function convertQuery(sql) {
     // datetime('now') -> NOW()
     convertedSql = convertedSql.replace(/datetime\s*\(\s*'now'\s*\)/gi, 'NOW()');
 
-    // datetime('now', '+X days') -> NOW() + INTERVAL 'X days'
-    convertedSql = convertedSql.replace(/datetime\s*\(\s*'now'\s*,\s*'([+-]?\d+)\s+days?'\s*\)/gi, (match, days) => {
-        const num = parseInt(days);
-        if (num >= 0) {
-            return `NOW() + INTERVAL '${num} days'`;
+    // datetime('now', '+X unit') -> NOW() + INTERVAL 'X unit'
+    // Supports: days, hours, minutes, seconds, months, years
+    convertedSql = convertedSql.replace(/datetime\s*\(\s*'now'\s*,\s*'([+-]?\d+)\s+(days?|hours?|minutes?|seconds?|months?|years?)'\s*\)/gi, (match, num, unit) => {
+        const value = parseInt(num);
+        // Normalize unit to singular for PostgreSQL INTERVAL
+        const normalizedUnit = unit.replace(/s$/, '');
+        if (value >= 0) {
+            return `NOW() + INTERVAL '${value} ${normalizedUnit}s'`;
         } else {
-            return `NOW() - INTERVAL '${Math.abs(num)} days'`;
+            return `NOW() - INTERVAL '${Math.abs(value)} ${normalizedUnit}s'`;
         }
     });
 
