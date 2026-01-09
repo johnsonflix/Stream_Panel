@@ -2786,6 +2786,7 @@ router.get('/plex/recently-added', async (req, res) => {
         const limit = Math.min(parseInt(req.query.limit) || 20, 50);
 
         // Get recently added media from request_site_media using actual Plex addedAt timestamp
+        // Check for both 'available' (new) and '4' (legacy integer as text) status values
         const items = await dbAll(`
             SELECT DISTINCT
                 m.tmdb_id,
@@ -2795,7 +2796,7 @@ router.get('/plex/recently-added', async (req, res) => {
                 m.media_added_at as added_at
             FROM request_site_media m
             LEFT JOIN plex_guid_cache g ON m.tmdb_id = g.tmdb_id AND m.media_type = g.media_type
-            WHERE m.status = 'available'
+            WHERE (m.status = 'available' OR m.status = '4')
               AND m.media_added_at IS NOT NULL
             ORDER BY m.media_added_at DESC
             LIMIT $1

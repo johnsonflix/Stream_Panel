@@ -12,16 +12,16 @@
 const axios = require('axios');
 const db = require('../database-config');
 
-const TMDB_API_KEY = process.env.TMDB_API_KEY || '';
+const TMDB_API_KEY = '431a8708161bcd1f1fbe7536137e61ed';
 
-// Media status enum (matches Seerr)
+// Media status enum - uses text values for PostgreSQL compatibility
 const MediaStatus = {
-    UNKNOWN: 0,
-    PENDING: 1,
-    PROCESSING: 2,
-    PARTIALLY_AVAILABLE: 3,
-    AVAILABLE: 4,
-    DELETED: 5
+    UNKNOWN: 'unknown',
+    PENDING: 'pending',
+    PROCESSING: 'processing',
+    PARTIALLY_AVAILABLE: 'partially_available',
+    AVAILABLE: 'available',
+    DELETED: 'deleted'
 };
 
 // GUID regex patterns (matches Seerr)
@@ -174,7 +174,7 @@ class PlexScannerService {
         }
 
         // Update last_scan timestamp
-        await db.query('UPDATE plex_servers SET last_scan = $1 WHERE id = $2', [new Date().toISOString(), server.id]);
+        await db.query('UPDATE plex_servers SET last_scan = $1 WHERE id = $2', [Date.now(), server.id]);
 
         this.scanResults.totalMovies += serverResult.movies;
         this.scanResults.totalTVShows += serverResult.tvShows;

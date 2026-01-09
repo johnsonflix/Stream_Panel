@@ -724,14 +724,7 @@ th {
     letter-spacing: 0.05em;
 }
 
-/* Sticky table header for users page */
-.users-desktop-view thead th {
-    position: sticky;
-    top: 64px; /* Account for navbar height */
-    background-color: var(--light-bg);
-    z-index: 10;
-    box-shadow: 0 1px 0 var(--border-color);
-}
+/* Sticky table header - handled via JavaScript in users.js */
 
 td {
     padding: 1rem;
@@ -751,6 +744,8 @@ tbody tr:hover {
     table-layout: fixed;
     width: 100%;
 }
+
+/* Sticky table header - handled by JavaScript due to body zoom: 0.8 breaking CSS sticky */
 
 .users-desktop-view th,
 .users-desktop-view td {

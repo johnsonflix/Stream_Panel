@@ -1,10 +1,11 @@
 {
-  "version": "2.0.10",
+  "version": "2.0.11",
   "name": "Stream Panel v2 (PostgreSQL)",
   "releaseDate": "2026-01-09",
   "database": "postgresql",
   "minDockerVersion": "20.10.0",
   "changelog": [
+    "v2.0.11: Synced all development files - plex scanner PostgreSQL status values, request site legacy status fix, removed abandoned sticky header",
     "v2.0.10: Fixed user creation error (missing show_iptv_movies/show_iptv_series columns)",
     "v2.0.10: Fixed datetime interval conversion for minutes/hours/seconds/months/years",
     "v2.0.9: Disabled sticky header temporarily for debugging",
