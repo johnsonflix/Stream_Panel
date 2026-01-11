@@ -142,7 +142,17 @@ function isInsertQuery(sql) {
 /**
  * Add RETURNING id to INSERT queries if not already present
  * Skip for ON CONFLICT queries (UPSERT) as they may not have an id column
+ * Skip for tables that don't have an id column (composite primary keys, etc.)
  */
+// Tables that don't have an 'id' column (use composite or non-id primary keys)
+const TABLES_WITHOUT_ID = [
+    'user_tags',           // PRIMARY KEY (user_id, tag_id)
+    'tag_iptv_panels',     // PRIMARY KEY (tag_id, iptv_panel_id)
+    'tag_plex_servers',    // PRIMARY KEY (tag_id, plex_server_id)
+    'dashboard_cached_stats', // stat_key TEXT PRIMARY KEY
+    'iptv_editor_settings',   // setting_key TEXT PRIMARY KEY
+];
+
 function addReturningId(sql) {
     const upperSql = sql.trim().toUpperCase();
     // Only add RETURNING id for simple INSERTs, not for UPSERT (ON CONFLICT) queries
@@ -150,6 +160,17 @@ function addReturningId(sql) {
     if (upperSql.startsWith('INSERT') &&
         !upperSql.includes('RETURNING') &&
         !upperSql.includes('ON CONFLICT')) {
+
+        // Extract table name from INSERT INTO table_name
+        const tableMatch = sql.match(/INSERT\s+INTO\s+(\w+)/i);
+        if (tableMatch) {
+            const tableName = tableMatch[1].toLowerCase();
+            // Skip RETURNING id for tables that don't have an id column
+            if (TABLES_WITHOUT_ID.includes(tableName)) {
+                return sql;
+            }
+        }
+
         // Remove trailing semicolon if present
         let modifiedSql = sql.trim();
         if (modifiedSql.endsWith(';')) {
