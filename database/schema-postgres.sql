@@ -224,7 +224,7 @@ CREATE TABLE IF NOT EXISTS request_site_notification_settings (    id SERIAL PRI
 
 CREATE TABLE IF NOT EXISTS request_site_notification_templates (    id SERIAL PRIMARY KEY,    notification_type TEXT NOT NULL,    platform TEXT NOT NULL,    title_template TEXT,    body_template TEXT NOT NULL,    created_at TIMESTAMP DEFAULT NOW(),    updated_at TIMESTAMP DEFAULT NOW(),    UNIQUE(notification_type, platform));
 
-
+CREATE TABLE IF NOT EXISTS request_site_user_notifications (    id SERIAL PRIMARY KEY,    user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,    notify_on_approved INTEGER DEFAULT NULL,    notify_on_declined INTEGER DEFAULT NULL,    notify_on_available INTEGER DEFAULT NULL,    email_enabled INTEGER DEFAULT NULL,    discord_enabled INTEGER DEFAULT NULL,    telegram_enabled INTEGER DEFAULT NULL,    webpush_enabled INTEGER DEFAULT NULL,    discord_webhook TEXT,    telegram_chat_id TEXT,    created_at TIMESTAMP DEFAULT NOW(),    updated_at TIMESTAMP DEFAULT NOW());
 
 CREATE TABLE IF NOT EXISTS webpush_subscriptions (    id SERIAL PRIMARY KEY,    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,    endpoint TEXT NOT NULL,    p256dh TEXT NOT NULL,    auth TEXT NOT NULL,    created_at TIMESTAMP DEFAULT NOW(),    UNIQUE(user_id, endpoint));
 
