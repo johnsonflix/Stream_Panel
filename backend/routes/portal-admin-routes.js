@@ -122,9 +122,9 @@ router.post('/upload-icon', iconUpload.single('icon'), async (req, res) => {
 router.get('/announcements', async (req, res) => {
     try {
         const announcements = await query(`
-            SELECT a.*, au.username as created_by_name
+            SELECT a.*, u.name as created_by_name
             FROM portal_announcements a
-            LEFT JOIN app_users au ON a.created_by = au.id
+            LEFT JOIN users u ON a.created_by = u.id
             ORDER BY a.priority DESC, a.created_at DESC
         `);
 
@@ -550,10 +550,10 @@ router.get('/service-requests', async (req, res) => {
 
         const requests = await query(`
             SELECT r.*, u.name as user_name, u.email as user_email,
-                   au.username as handled_by_name
+                   handler.name as handled_by_name
             FROM portal_service_requests r
             JOIN users u ON r.user_id = u.id
-            LEFT JOIN app_users au ON r.handled_by = au.id
+            LEFT JOIN users handler ON r.handled_by = handler.id
             ${whereClause}
             ORDER BY
                 CASE r.status WHEN 'pending' THEN 0 ELSE 1 END,

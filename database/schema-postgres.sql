@@ -226,6 +226,12 @@ CREATE TABLE IF NOT EXISTS request_site_notification_templates (    id SERIAL PR
 
 CREATE TABLE IF NOT EXISTS request_site_user_notifications (    id SERIAL PRIMARY KEY,    user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,    notify_on_approved INTEGER DEFAULT NULL,    notify_on_declined INTEGER DEFAULT NULL,    notify_on_available INTEGER DEFAULT NULL,    email_enabled INTEGER DEFAULT NULL,    discord_enabled INTEGER DEFAULT NULL,    telegram_enabled INTEGER DEFAULT NULL,    webpush_enabled INTEGER DEFAULT NULL,    discord_webhook TEXT,    telegram_chat_id TEXT,    created_at TIMESTAMP DEFAULT NOW(),    updated_at TIMESTAMP DEFAULT NOW());
 
+CREATE TABLE IF NOT EXISTS request_site_notification_logs (    id SERIAL PRIMARY KEY,    request_id INTEGER REFERENCES request_site_requests(id) ON DELETE SET NULL,    user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,    notification_type TEXT NOT NULL,    channel TEXT NOT NULL,    recipient TEXT,    subject TEXT,    status TEXT DEFAULT 'pending',    error_message TEXT,    payload TEXT,    created_at TIMESTAMP DEFAULT NOW());
+
+CREATE INDEX IF NOT EXISTS idx_notification_logs_request ON request_site_notification_logs(request_id);
+CREATE INDEX IF NOT EXISTS idx_notification_logs_user ON request_site_notification_logs(user_id);
+CREATE INDEX IF NOT EXISTS idx_notification_logs_created ON request_site_notification_logs(created_at);
+
 CREATE TABLE IF NOT EXISTS webpush_subscriptions (    id SERIAL PRIMARY KEY,    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,    endpoint TEXT NOT NULL,    p256dh TEXT NOT NULL,    auth TEXT NOT NULL,    created_at TIMESTAMP DEFAULT NOW(),    UNIQUE(user_id, endpoint));
 
 
