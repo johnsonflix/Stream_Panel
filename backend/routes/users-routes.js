@@ -1298,7 +1298,10 @@ router.put('/:id', async (req, res) => {
                     `, [id, tagId]);
                 } catch (tagErr) {
                     // Ignore duplicate key errors for auto-assigned tags
-                    if (!tagErr.message.includes('UNIQUE constraint') && !tagErr.message.includes('Duplicate')) {
+                    // SQLite: 'UNIQUE constraint', MySQL: 'Duplicate', PostgreSQL: 'duplicate key value'
+                    if (!tagErr.message.includes('UNIQUE constraint') &&
+                        !tagErr.message.includes('Duplicate') &&
+                        !tagErr.message.includes('duplicate key value')) {
                         throw tagErr;
                     }
                 }

@@ -1,10 +1,11 @@
 {
-  "version": "2.0.12",
+  "version": "2.0.13",
   "name": "Stream Panel v2 (PostgreSQL)",
   "releaseDate": "2026-01-10",
   "database": "postgresql",
   "minDockerVersion": "20.10.0",
   "changelog": [
+    "v2.0.13: Fixed duplicate tag error handling for PostgreSQL (user_tags_pkey constraint)",
     "v2.0.12: Fixed user save error - skip RETURNING id for tables without id column (user_tags, tag_iptv_panels, etc.)",
     "v2.0.11: Synced all development files - plex scanner PostgreSQL status values, request site legacy status fix, removed abandoned sticky header",
     "v2.0.10: Fixed user creation error (missing show_iptv_movies/show_iptv_series columns)",
