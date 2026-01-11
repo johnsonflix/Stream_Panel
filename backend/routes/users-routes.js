@@ -811,6 +811,7 @@ router.post('/', async (req, res) => {
                         panel_id: iptv_panel_id,
                         username: iptv_username,
                         password: iptv_password,
+                        package_id: packageData?.id,  // Database row ID for JobProcessor lookup
                         packageData,
                         bouquet_ids: bouquetIds,
                         is_trial: iptv_is_trial || false,
@@ -1289,22 +1290,13 @@ router.put('/:id', async (req, res) => {
                 [id, 'manual']
             );
 
-            // Insert new tags
+            // Insert new tags (use ON CONFLICT DO NOTHING to avoid aborting transaction on duplicates)
             for (const tagId of tag_ids) {
-                try {
-                    await connection.execute(`
-                        INSERT INTO user_tags (user_id, tag_id, assigned_by)
-                        VALUES (?, ?, 'manual')
-                    `, [id, tagId]);
-                } catch (tagErr) {
-                    // Ignore duplicate key errors for auto-assigned tags
-                    // SQLite: 'UNIQUE constraint', MySQL: 'Duplicate', PostgreSQL: 'duplicate key value'
-                    if (!tagErr.message.includes('UNIQUE constraint') &&
-                        !tagErr.message.includes('Duplicate') &&
-                        !tagErr.message.includes('duplicate key value')) {
-                        throw tagErr;
-                    }
-                }
+                await connection.execute(`
+                    INSERT INTO user_tags (user_id, tag_id, assigned_by)
+                    VALUES (?, ?, 'manual')
+                    ON CONFLICT (user_id, tag_id) DO NOTHING
+                `, [id, tagId]);
             }
             console.log(`✅ Updated tags for user ${id}: ${tag_ids.length} tags`);
         }

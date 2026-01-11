@@ -1,10 +1,11 @@
 {
-  "version": "2.0.14",
+  "version": "2.0.15",
   "name": "Stream Panel v2 (PostgreSQL)",
   "releaseDate": "2026-01-10",
   "database": "postgresql",
   "minDockerVersion": "20.10.0",
   "changelog": [
+    "v2.0.15: Fixed user save transaction abort - use ON CONFLICT DO NOTHING for tag inserts",
     "v2.0.14: Fixed request_site_seasons schema (media_id, status_4k, created_at, updated_at columns)",
     "v2.0.14: Fixed Plex Scanner timestamp format for PostgreSQL (Date.now() -> ISO string)",
     "v2.0.13: Fixed duplicate tag error handling for PostgreSQL (user_tags_pkey constraint)",
