@@ -194,7 +194,7 @@ CREATE TABLE IF NOT EXISTS request_site_requests (    id SERIAL PRIMARY KEY,    
 
 
 
-CREATE TABLE IF NOT EXISTS request_site_seasons (    id SERIAL PRIMARY KEY,    request_id INTEGER NOT NULL REFERENCES request_site_requests(id) ON DELETE CASCADE,    season_number INTEGER NOT NULL,    status TEXT DEFAULT 'pending',    UNIQUE(request_id, season_number));
+CREATE TABLE IF NOT EXISTS request_site_seasons (    id SERIAL PRIMARY KEY,    media_id INTEGER NOT NULL REFERENCES request_site_media(id) ON DELETE CASCADE,    season_number INTEGER NOT NULL,    status TEXT DEFAULT 'pending',    status_4k TEXT DEFAULT 'unknown',    created_at TIMESTAMP DEFAULT NOW(),    updated_at TIMESTAMP DEFAULT NOW(),    UNIQUE(media_id, season_number));
 
 
 
@@ -579,3 +579,36 @@ DO $$ BEGIN    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE tab
 
 -- Migration: Add show_iptv_series column to users if missing
 DO $$ BEGIN    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'show_iptv_series') THEN        ALTER TABLE users ADD COLUMN show_iptv_series INTEGER DEFAULT 1;    END IF;END $$;
+
+-- Migration: Fix request_site_seasons table structure (v2.0.14)
+-- The table was incorrectly created with request_id instead of media_id
+DO $$ BEGIN
+    -- Add media_id column if it doesn't exist
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'request_site_seasons' AND column_name = 'media_id') THEN
+        ALTER TABLE request_site_seasons ADD COLUMN media_id INTEGER REFERENCES request_site_media(id) ON DELETE CASCADE;
+    END IF;
+    -- Add status_4k column if it doesn't exist
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'request_site_seasons' AND column_name = 'status_4k') THEN
+        ALTER TABLE request_site_seasons ADD COLUMN status_4k TEXT DEFAULT 'unknown';
+    END IF;
+    -- Add created_at column if it doesn't exist
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'request_site_seasons' AND column_name = 'created_at') THEN
+        ALTER TABLE request_site_seasons ADD COLUMN created_at TIMESTAMP DEFAULT NOW();
+    END IF;
+    -- Add updated_at column if it doesn't exist
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'request_site_seasons' AND column_name = 'updated_at') THEN
+        ALTER TABLE request_site_seasons ADD COLUMN updated_at TIMESTAMP DEFAULT NOW();
+    END IF;
+END $$;
+
+-- Drop old unique constraint if exists and create new one on media_id
+DO $$ BEGIN
+    -- Drop old constraint on request_id if it exists
+    IF EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'request_site_seasons_request_id_season_number_key' AND table_name = 'request_site_seasons') THEN
+        ALTER TABLE request_site_seasons DROP CONSTRAINT request_site_seasons_request_id_season_number_key;
+    END IF;
+    -- Create new constraint on media_id if it doesn't exist
+    IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'request_site_seasons_media_id_season_number_key' AND table_name = 'request_site_seasons') THEN
+        ALTER TABLE request_site_seasons ADD CONSTRAINT request_site_seasons_media_id_season_number_key UNIQUE (media_id, season_number);
+    END IF;
+END $$;

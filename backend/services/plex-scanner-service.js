@@ -173,8 +173,8 @@ class PlexScannerService {
             }
         }
 
-        // Update last_scan timestamp
-        await db.query('UPDATE plex_servers SET last_scan = $1 WHERE id = $2', [Date.now(), server.id]);
+        // Update last_scan timestamp (use ISO string for PostgreSQL TIMESTAMP)
+        await db.query('UPDATE plex_servers SET last_scan = $1 WHERE id = $2', [new Date().toISOString(), server.id]);
 
         this.scanResults.totalMovies += serverResult.movies;
         this.scanResults.totalTVShows += serverResult.tvShows;
