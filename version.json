@@ -1,10 +1,13 @@
 {
-  "version": "2.0.18",
+  "version": "2.0.19",
   "name": "Stream Panel v2 (PostgreSQL)",
-  "releaseDate": "2026-01-10",
+  "releaseDate": "2026-01-12",
   "database": "postgresql",
   "minDockerVersion": "20.10.0",
   "changelog": [
+    "v2.0.19: Added TVDB API integration for complete TV season/episode data when TMDB has gaps",
+    "v2.0.19: Added TVDB API key configuration in Media Servers settings",
+    "v2.0.19: TV shows now merge seasons from TMDB and TVDB for complete listings",
     "v2.0.18: Removed FK constraint on request_site_notification_logs.request_id (can reference multiple tables)",
     "v2.0.17: Fixed app_users table references (changed to users table), added request_site_notification_logs table",
     "v2.0.16: Added missing request_site_user_notifications table to PostgreSQL schema",

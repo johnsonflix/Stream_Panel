@@ -10297,7 +10297,7 @@
                     }
 
                     seasonList.innerHTML = currentMedia.seasons
-                        .filter(s => s.season_number > 0 && s.episode_count > 0)
+                        .filter(s => s.season_number > 0 && (s.episode_count > 0 || s.source === 'sonarr' || s.source === 'tvdb'))
                         .map((season, index) => {
                             const seasonStatus = seasonAvailability[season.season_number] || 0;
                             let availabilityBadge = '';
@@ -10306,12 +10306,16 @@
                             } else if (seasonStatus === 3) {
                                 availabilityBadge = '<span class="season-availability partial"><i class="fas fa-adjust"></i> Partial</span>';
                             }
+                            // Show episode count, or just "Episodes" if unknown (from Sonarr lookup)
+                            const episodeText = season.episode_count > 0
+                                ? `${season.episode_count} Episode${season.episode_count > 1 ? 's' : ''}`
+                                : 'Episodes';
                             return `
                             <div class="season-item" data-season="${season.season_number}">
                                 <div class="season-header" onclick="toggleSeason(${season.season_number}, ${currentMedia.id})">
                                     <div class="season-header-left">
                                         <span class="season-title">Season ${season.season_number}</span>
-                                        <span class="season-episode-count">${season.episode_count} Episode${season.episode_count > 1 ? 's' : ''}</span>
+                                        <span class="season-episode-count">${episodeText}</span>
                                         ${availabilityBadge}
                                     </div>
                                     <i class="fas fa-chevron-down season-chevron"></i>
@@ -10894,14 +10898,18 @@
                 usageDiv.style.display = 'none';
             }
 
-            // Create season checkboxes
-            const seasons = currentMedia.seasons?.filter(s => s.season_number > 0 && s.episode_count > 0) || [];
-            checkboxList.innerHTML = seasons.map(season => `
+            // Create season checkboxes - include Sonarr seasons even if episode count unknown
+            const seasons = currentMedia.seasons?.filter(s => s.season_number > 0 && (s.episode_count > 0 || s.source === 'sonarr' || s.source === 'tvdb')) || [];
+            checkboxList.innerHTML = seasons.map(season => {
+                const episodeLabel = season.episode_count > 0
+                    ? `${season.episode_count} episode${season.episode_count > 1 ? 's' : ''}`
+                    : 'episodes';
+                return `
                 <div class="season-checkbox-item" onclick="if(event.target.tagName !== 'INPUT' && event.target.tagName !== 'LABEL') this.querySelector('input').click();">
                     <input type="checkbox" id="season-${season.season_number}" value="${season.season_number}" checked>
-                    <label for="season-${season.season_number}">Season ${season.season_number} (${season.episode_count} episode${season.episode_count > 1 ? 's' : ''})</label>
+                    <label for="season-${season.season_number}">Season ${season.season_number} (${episodeLabel})</label>
                 </div>
-            `).join('');
+            `}).join('');
 
             // Add event listeners to update button text when checkboxes change
             checkboxList.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
@@ -13365,7 +13373,32 @@
                             ${renderServersList('sonarr')}
                         </div>
                     </div>
+
+                    <div class="settings-card" style="margin-top: 24px;">
+                        <div class="settings-card-header">
+                            <h3><i class="fas fa-database"></i> TVDB Integration</h3>
+                        </div>
+                        <div class="settings-form">
+                            <p class="settings-description">TheTVDB provides more complete TV show season data than TMDB. When configured, missing seasons will be supplemented from TVDB. Get a free API key at <a href="https://thetvdb.com/api-information" target="_blank" style="color: #6366f1;">thetvdb.com</a></p>
+                            <div class="settings-row">
+                                <label>TVDB API Key</label>
+                                <input type="password" id="tvdb-api-key" class="settings-input" placeholder="Enter your TVDB API key">
+                            </div>
+                            <div class="settings-row" style="display: flex; gap: 12px; align-items: center;">
+                                <button class="settings-btn settings-btn-secondary" onclick="testTvdbConnection()">
+                                    <i class="fas fa-plug"></i> Test Connection
+                                </button>
+                                <button class="settings-btn settings-btn-primary" onclick="saveTvdbApiKey()">
+                                    <i class="fas fa-save"></i> Save
+                                </button>
+                                <span id="tvdb-status" style="font-size: 13px;"></span>
+                            </div>
+                        </div>
+                    </div>
                 `;
+
+                // Load TVDB API key after DOM is rendered
+                loadTvdbApiKey();
             } catch (error) {
                 console.error('Failed to load servers:', error);
                 container.innerHTML = `
@@ -15444,6 +15477,97 @@
             } catch (error) {
                 console.error('Failed to save auto-scan preference:', error);
                 showRequestToast('Failed to save auto-scan preference', 'error');
+            }
+        }
+
+        // TVDB API Key functions
+        async function loadTvdbApiKey() {
+            try {
+                const token = localStorage.getItem('sessionToken') || sessionStorage.getItem('sessionToken');
+                const response = await fetch('/api/v2/request-site/settings/tvdb', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    const input = document.getElementById('tvdb-api-key');
+                    if (input && data.apiKey) {
+                        input.value = data.apiKey;
+                    }
+                }
+            } catch (error) {
+                console.log('Could not load TVDB API key:', error);
+            }
+        }
+
+        async function saveTvdbApiKey() {
+            const input = document.getElementById('tvdb-api-key');
+            const statusEl = document.getElementById('tvdb-status');
+            const apiKey = input.value.trim();
+
+            statusEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+            statusEl.style.color = '#94a3b8';
+
+            try {
+                const token = localStorage.getItem('sessionToken') || sessionStorage.getItem('sessionToken');
+                const response = await fetch('/api/v2/request-site/settings', {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ tvdb_api_key: apiKey })
+                });
+
+                if (response.ok) {
+                    statusEl.innerHTML = '<i class="fas fa-check"></i> Saved!';
+                    statusEl.style.color = '#22c55e';
+                    setTimeout(() => { statusEl.innerHTML = ''; }, 3000);
+                } else {
+                    throw new Error('Failed to save');
+                }
+            } catch (error) {
+                statusEl.innerHTML = '<i class="fas fa-times"></i> Failed to save';
+                statusEl.style.color = '#ef4444';
+            }
+        }
+
+        async function testTvdbConnection() {
+            const input = document.getElementById('tvdb-api-key');
+            const statusEl = document.getElementById('tvdb-status');
+            const apiKey = input.value.trim();
+
+            if (!apiKey) {
+                statusEl.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Enter an API key first';
+                statusEl.style.color = '#f59e0b';
+                return;
+            }
+
+            statusEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Testing...';
+            statusEl.style.color = '#94a3b8';
+
+            try {
+                const token = localStorage.getItem('sessionToken') || sessionStorage.getItem('sessionToken');
+                const response = await fetch('/api/v2/request-site/tvdb/test', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ apiKey })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    statusEl.innerHTML = '<i class="fas fa-check"></i> Connected successfully!';
+                    statusEl.style.color = '#22c55e';
+                } else {
+                    statusEl.innerHTML = `<i class="fas fa-times"></i> ${result.error || 'Connection failed'}`;
+                    statusEl.style.color = '#ef4444';
+                }
+            } catch (error) {
+                statusEl.innerHTML = '<i class="fas fa-times"></i> Connection failed';
+                statusEl.style.color = '#ef4444';
             }
         }
 

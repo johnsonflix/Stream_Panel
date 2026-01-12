@@ -12,6 +12,7 @@ const { fork } = require('child_process');
 const TMDBService = require('../services/tmdb-service');
 const RadarrService = require('../services/radarr-service');
 const SonarrService = require('../services/sonarr-service');
+const TVDBService = require('../services/tvdb-service');
 const { PlexScannerService, MediaStatus } = require('../services/plex-scanner-service');
 const db = require('../database-config');
 const {
@@ -431,6 +432,44 @@ router.put('/settings', async (req, res) => {
     }
 });
 
+/**
+ * GET /api/v2/request-site/settings/tvdb
+ * Get TVDB API key (masked)
+ */
+router.get('/settings/tvdb', async (req, res) => {
+    try {
+        const apiKey = await getSetting('tvdb_api_key');
+        res.json({
+            apiKey: apiKey || '',
+            configured: !!apiKey
+        });
+    } catch (error) {
+        console.error('[Request Site] Failed to get TVDB settings:', error);
+        res.status(500).json({ error: 'Failed to get TVDB settings' });
+    }
+});
+
+/**
+ * POST /api/v2/request-site/tvdb/test
+ * Test TVDB API connection
+ */
+router.post('/tvdb/test', async (req, res) => {
+    try {
+        const { apiKey } = req.body;
+
+        if (!apiKey) {
+            return res.status(400).json({ success: false, error: 'API key is required' });
+        }
+
+        const tvdb = new TVDBService(apiKey);
+        const result = await tvdb.testConnection();
+        res.json(result);
+    } catch (error) {
+        console.error('[Request Site] TVDB test failed:', error);
+        res.json({ success: false, error: error.message });
+    }
+});
+
 // ============ TMDB Search Routes ============
 
 /**
@@ -803,6 +842,7 @@ router.get('/movie/:id', async (req, res) => {
 /**
  * GET /api/v2/request-site/tv/:id
  * Get TV show details
+ * Supplements TMDB season data with TVDB when available for more complete listings
  */
 router.get('/tv/:id', async (req, res) => {
     try {
@@ -836,8 +876,72 @@ router.get('/tv/:id', async (req, res) => {
             };
         }
 
+        // Try to supplement season data from TVDB (more complete than TMDB for some shows)
+        let mergedSeasons = show.seasons || [];
+        try {
+            const tvdbApiKey = await getSetting('tvdb_api_key');
+            const tvdbId = show.external_ids?.tvdb_id;
+
+            if (tvdbApiKey && tvdbId) {
+                // Use TVDB API directly for complete season data with episode counts
+                const tvdb = new TVDBService(tvdbApiKey);
+                const tvdbSeasons = await tvdb.getSeasons(tvdbId);
+
+                if (tvdbSeasons && tvdbSeasons.length > 0) {
+                    // Create a map of TMDB seasons for quick lookup
+                    const tmdbSeasonMap = new Map();
+                    (show.seasons || []).forEach(s => {
+                        tmdbSeasonMap.set(s.season_number, s);
+                    });
+
+                    // Merge: use TVDB as the base list, supplement with TMDB data
+                    mergedSeasons = tvdbSeasons.map(tvdbSeason => {
+                        const tmdbSeason = tmdbSeasonMap.get(tvdbSeason.season_number);
+                        if (tmdbSeason) {
+                            // TMDB has this season - use TMDB's poster/overview but TVDB's episode count
+                            return {
+                                ...tmdbSeason,
+                                episode_count: tvdbSeason.episode_count > 0 ? tvdbSeason.episode_count : tmdbSeason.episode_count,
+                                tvdb_id: tvdbSeason.tvdb_id
+                            };
+                        } else {
+                            // TMDB is missing this season - use TVDB data
+                            return {
+                                id: null,
+                                season_number: tvdbSeason.season_number,
+                                name: tvdbSeason.name,
+                                episode_count: tvdbSeason.episode_count,
+                                air_date: tvdbSeason.air_date,
+                                overview: tvdbSeason.overview || '',
+                                poster_path: tvdbSeason.poster_path,
+                                tvdb_id: tvdbSeason.tvdb_id,
+                                source: 'tvdb'
+                            };
+                        }
+                    });
+
+                    // Add any TMDB seasons that aren't in TVDB (rare but possible)
+                    (show.seasons || []).forEach(tmdbSeason => {
+                        const exists = mergedSeasons.some(s => s.season_number === tmdbSeason.season_number);
+                        if (!exists) {
+                            mergedSeasons.push(tmdbSeason);
+                        }
+                    });
+
+                    // Sort by season number
+                    mergedSeasons.sort((a, b) => a.season_number - b.season_number);
+
+                    console.log(`[Request Site] Merged seasons for TMDB ${tvId}: TMDB had ${show.seasons?.length || 0}, TVDB has ${tvdbSeasons.length}, merged to ${mergedSeasons.length}`);
+                }
+            }
+        } catch (tvdbError) {
+            // TVDB fetch failed - continue with TMDB data only
+            console.log(`[Request Site] TVDB lookup failed for TMDB ${tvId}, using TMDB data only:`, tvdbError.message);
+        }
+
         res.json({
             ...show,
+            seasons: mergedSeasons,
             posterUrl: TMDBService.getPosterUrl(show.poster_path),
             backdropUrl: TMDBService.getBackdropUrl(show.backdrop_path),
             request,
@@ -853,16 +957,88 @@ router.get('/tv/:id', async (req, res) => {
 /**
  * GET /api/v2/request-site/tv/:id/season/:seasonNumber
  * Get TV season details
+ * Tries TMDB first, falls back to TVDB if TMDB doesn't have the season
  */
 router.get('/tv/:id/season/:seasonNumber', async (req, res) => {
     try {
         const tvId = parseInt(req.params.id);
         const seasonNumber = parseInt(req.params.seasonNumber);
-        const season = await tmdb.getTvSeason(tvId, seasonNumber);
+
+        // Try TMDB first
+        try {
+            const season = await tmdb.getTvSeason(tvId, seasonNumber);
+            if (season && season.episodes && season.episodes.length > 0) {
+                return res.json({
+                    ...season,
+                    posterUrl: TMDBService.getPosterUrl(season.poster_path),
+                    source: 'tmdb'
+                });
+            }
+        } catch (tmdbError) {
+            console.log(`[Request Site] TMDB doesn't have season ${seasonNumber} for show ${tvId}, trying TVDB...`);
+        }
+
+        // Fallback to TVDB
+        const tvdbApiKey = await getSetting('tvdb_api_key');
+        if (!tvdbApiKey) {
+            return res.status(404).json({ error: 'Season not found in TMDB and TVDB API key not configured' });
+        }
+
+        // Get TVDB ID from show's external IDs
+        let tvdbId = null;
+        try {
+            const showDetails = await tmdb.getTvShow(tvId);
+            tvdbId = showDetails.external_ids?.tvdb_id;
+        } catch (err) {
+            console.error('[Request Site] Failed to get show details for TVDB fallback:', err.message);
+        }
+
+        if (!tvdbId) {
+            return res.status(404).json({ error: 'Season not found in TMDB and TVDB ID not available' });
+        }
+
+        // Get episodes from TVDB
+        const tvdb = new TVDBService(tvdbApiKey);
+        const series = await tvdb.getSeries(tvdbId);
+
+        if (!series || !series.episodes) {
+            return res.status(404).json({ error: 'Season not found in TVDB' });
+        }
+
+        // Filter episodes for this season
+        const seasonEpisodes = series.episodes
+            .filter(ep => ep.seasonNumber === seasonNumber)
+            .sort((a, b) => a.number - b.number)
+            .map(ep => ({
+                id: ep.id,
+                episode_number: ep.number,
+                name: ep.name || `Episode ${ep.number}`,
+                overview: ep.overview || '',
+                air_date: ep.aired || null,
+                still_path: ep.image || null,
+                stillUrl: ep.image || null,
+                runtime: ep.runtime || null,
+                vote_average: 0,
+                source: 'tvdb'
+            }));
+
+        if (seasonEpisodes.length === 0) {
+            return res.status(404).json({ error: 'No episodes found for this season' });
+        }
+
+        // Find season info
+        const seasonInfo = series.seasons?.find(s => s.number === seasonNumber);
 
         res.json({
-            ...season,
-            posterUrl: TMDBService.getPosterUrl(season.poster_path)
+            id: seasonInfo?.id || `tvdb-${tvdbId}-s${seasonNumber}`,
+            season_number: seasonNumber,
+            name: seasonInfo?.name || `Season ${seasonNumber}`,
+            overview: seasonInfo?.overview || '',
+            poster_path: seasonInfo?.image || null,
+            posterUrl: seasonInfo?.image || null,
+            air_date: seasonInfo?.aired || null,
+            episodes: seasonEpisodes,
+            source: 'tvdb'
         });
     } catch (error) {
         console.error('[Request Site] Failed to get season:', error);
