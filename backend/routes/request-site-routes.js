@@ -470,6 +470,54 @@ router.post('/tvdb/test', async (req, res) => {
     }
 });
 
+/**
+ * GET /api/v2/request-site/settings/tmdb
+ * Get TMDB API key
+ */
+router.get('/settings/tmdb', async (req, res) => {
+    try {
+        const apiKey = await getSetting('tmdb_api_key');
+        res.json({
+            apiKey: apiKey || '',
+            configured: !!apiKey
+        });
+    } catch (error) {
+        console.error('[Request Site] Failed to get TMDB settings:', error);
+        res.status(500).json({ error: 'Failed to get TMDB settings' });
+    }
+});
+
+/**
+ * POST /api/v2/request-site/tmdb/test
+ * Test TMDB API connection
+ */
+router.post('/tmdb/test', async (req, res) => {
+    try {
+        const { apiKey } = req.body;
+
+        if (!apiKey) {
+            return res.status(400).json({ success: false, error: 'API key is required' });
+        }
+
+        // Test the API key by making a simple request to TMDB
+        const axios = require('axios');
+        const response = await axios.get('https://api.themoviedb.org/3/configuration', {
+            params: { api_key: apiKey },
+            timeout: 10000
+        });
+
+        if (response.data && response.data.images) {
+            res.json({ success: true, message: 'TMDB API connection successful' });
+        } else {
+            res.json({ success: false, error: 'Invalid response from TMDB' });
+        }
+    } catch (error) {
+        console.error('[Request Site] TMDB test failed:', error);
+        const errorMsg = error.response?.status === 401 ? 'Invalid API key' : error.message;
+        res.json({ success: false, error: errorMsg });
+    }
+});
+
 // ============ TMDB Search Routes ============
 
 /**
@@ -939,6 +987,97 @@ router.get('/tv/:id', async (req, res) => {
             console.log(`[Request Site] TVDB lookup failed for TMDB ${tvId}, using TMDB data only:`, tvdbError.message);
         }
 
+        // Get per-season status from request_site_seasons
+        let seasonStatus = {};
+        try {
+            const mediaRecord = await dbGet(
+                'SELECT id FROM request_site_media WHERE tmdb_id = $1 AND media_type = $2',
+                [tvId, 'tv']
+            );
+
+            if (mediaRecord) {
+                const seasonRecords = await dbAll(
+                    'SELECT season_number, status, status_4k FROM request_site_seasons WHERE media_id = $1',
+                    [mediaRecord.id]
+                );
+
+                for (const season of seasonRecords) {
+                    seasonStatus[season.season_number] = {
+                        status: season.status || 'unknown',
+                        status4k: season.status_4k || 'unknown'
+                    };
+                }
+            }
+
+            // Query Sonarr directly for per-season monitoring status
+            // This ensures we show accurate status even for shows added outside Request Site
+            if (cached && cached.sonarr_id) {
+                try {
+                    // Get the Sonarr server config
+                    const sonarrServer = await dbGet(`
+                        SELECT * FROM request_servers
+                        WHERE id = $1 AND type = 'sonarr' AND is_active = 1
+                    `, [cached.server_id]);
+
+                    if (sonarrServer) {
+                        const sonarr = new SonarrService({
+                            url: sonarrServer.url,
+                            apiKey: sonarrServer.api_key
+                        });
+
+                        // Get full series data including season monitoring status
+                        const seriesData = await sonarr.getSeriesById(cached.sonarr_id);
+
+                        if (seriesData && seriesData.seasons) {
+                            for (const season of seriesData.seasons) {
+                                const seasonNum = season.seasonNumber;
+                                if (seasonNum === 0) continue; // Skip specials
+
+                                // Calculate episode availability
+                                const stats = season.statistics || {};
+                                const totalEpisodes = stats.totalEpisodeCount || 0;
+                                const hasEpisodes = stats.episodeFileCount || 0;
+                                const percentComplete = totalEpisodes > 0 ? (hasEpisodes / totalEpisodes) * 100 : 0;
+
+                                // Determine status based on Sonarr data
+                                let sonarrSeasonStatus = 'unknown';
+                                if (hasEpisodes >= totalEpisodes && totalEpisodes > 0) {
+                                    sonarrSeasonStatus = 'available';
+                                } else if (hasEpisodes > 0) {
+                                    sonarrSeasonStatus = 'partially_available';
+                                } else if (season.monitored) {
+                                    sonarrSeasonStatus = 'processing';
+                                }
+
+                                // Only update if we don't have a status yet, or if Sonarr shows more progress
+                                if (!seasonStatus[seasonNum]) {
+                                    seasonStatus[seasonNum] = { status: 'unknown', status4k: 'unknown' };
+                                }
+
+                                const currentStatus = seasonStatus[seasonNum].status;
+                                const statusPriority = { 'unknown': 0, 'pending': 1, 'processing': 2, 'partially_available': 3, 'available': 4 };
+
+                                if ((statusPriority[sonarrSeasonStatus] || 0) > (statusPriority[currentStatus] || 0)) {
+                                    // Check if this is a 4K server
+                                    if (sonarrServer.is_4k) {
+                                        seasonStatus[seasonNum].status4k = sonarrSeasonStatus;
+                                    } else {
+                                        seasonStatus[seasonNum].status = sonarrSeasonStatus;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } catch (sonarrErr) {
+                    console.log('[Request Site] Could not query Sonarr for season status:', sonarrErr.message);
+                    // Continue without Sonarr data - not critical
+                }
+            }
+        } catch (seasonErr) {
+            console.error('[Request Site] Failed to get season status:', seasonErr);
+            // Continue without season status - it's not critical
+        }
+
         res.json({
             ...show,
             seasons: mergedSeasons,
@@ -946,7 +1085,8 @@ router.get('/tv/:id', async (req, res) => {
             backdropUrl: TMDBService.getBackdropUrl(show.backdrop_path),
             request,
             request4k,
-            sonarrStatus
+            sonarrStatus,
+            seasonStatus
         });
     } catch (error) {
         console.error('[Request Site] Failed to get TV show:', error);
@@ -1546,8 +1686,11 @@ router.post('/requests', async (req, res) => {
     try {
         const {
             userId, tmdbId, mediaType, title, posterPath, backdropPath,
-            overview, releaseDate, seasons, is4k = false, requestedBy
+            overview, releaseDate, seasons: requestedSeasons, is4k = false, requestedBy
         } = req.body;
+
+        // Use let so we can filter to only unrequested seasons later
+        let seasons = requestedSeasons;
 
         if (!userId || !tmdbId || !mediaType || !title) {
             return res.status(400).json({ error: 'userId, tmdbId, mediaType, and title are required' });
@@ -1655,7 +1798,50 @@ router.post('/requests', async (req, res) => {
         `, [tmdbId, mediaType, is4k ? 1 : 0]);
 
         if (existing) {
-            return res.status(400).json({ error: 'This media has already been requested', existingRequest: existing });
+            // For TV shows, allow requesting additional seasons
+            if (mediaType === 'tv' && seasons && seasons.length > 0) {
+                // Check if any of the requested seasons are actually new (not already requested)
+                const mediaRecord = await dbGet(
+                    'SELECT id FROM request_site_media WHERE tmdb_id = $1 AND media_type = $2',
+                    [tmdbId, 'tv']
+                );
+
+                if (mediaRecord) {
+                    const statusField = is4k ? 'status_4k' : 'status';
+                    const seasonRecords = await dbAll(
+                        `SELECT season_number, ${statusField} as status FROM request_site_seasons WHERE media_id = $1`,
+                        [mediaRecord.id]
+                    );
+
+                    const seasonStatusMap = {};
+                    for (const sr of seasonRecords) {
+                        seasonStatusMap[sr.season_number] = sr.status;
+                    }
+
+                    // Filter out seasons that are already requested/processing/available
+                    const newSeasons = seasons.filter(seasonNum => {
+                        const status = seasonStatusMap[seasonNum];
+                        return !status || status === 'unknown';
+                    });
+
+                    if (newSeasons.length === 0) {
+                        return res.status(400).json({
+                            error: 'All selected seasons have already been requested',
+                            existingRequest: existing
+                        });
+                    }
+
+                    // Update seasons array to only include new seasons
+                    seasons = newSeasons;
+                    console.log(`[Request Site] TV show already has request, adding new seasons: ${newSeasons.join(', ')}`);
+                } else {
+                    // No media record exists yet - allow the request (shouldn't happen normally)
+                    console.log(`[Request Site] TV show has request but no media record - allowing additional seasons`);
+                }
+            } else {
+                // Movies or TV without specific seasons - reject duplicate
+                return res.status(400).json({ error: 'This media has already been requested', existingRequest: existing });
+            }
         }
 
         // Check for auto-approve based on user permissions
@@ -1687,6 +1873,50 @@ router.post('/requests', async (req, res) => {
         ]);
 
         const requestId = result[0]?.id;
+
+        // For TV shows, create/update request_site_media and request_site_seasons records
+        // This enables per-season status tracking from the moment of request
+        if (mediaType === 'tv' && seasons && seasons.length > 0) {
+            try {
+                // Get or create request_site_media record
+                let mediaRecord = await dbGet(
+                    'SELECT id FROM request_site_media WHERE tmdb_id = $1 AND media_type = $2',
+                    [tmdbId, 'tv']
+                );
+
+                if (!mediaRecord) {
+                    const insertResult = await dbRun(`
+                        INSERT INTO request_site_media (tmdb_id, media_type, title, status, status_4k, created_at, updated_at)
+                        VALUES ($1, 'tv', $2, 'pending', 'unknown', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        RETURNING id
+                    `, [tmdbId, title]);
+                    mediaRecord = { id: insertResult[0]?.id };
+                }
+
+                if (mediaRecord && mediaRecord.id) {
+                    // Create/update request_site_seasons records for each requested season
+                    const statusField = is4k ? 'status_4k' : 'status';
+
+                    for (const seasonNum of seasons) {
+                        await dbRun(`
+                            INSERT INTO request_site_seasons (media_id, season_number, ${statusField}, created_at, updated_at)
+                            VALUES ($1, $2, 'pending', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                            ON CONFLICT (media_id, season_number) DO UPDATE SET
+                                ${statusField} = CASE
+                                    WHEN request_site_seasons.${statusField} IN ('unknown', 'pending') THEN 'pending'
+                                    ELSE request_site_seasons.${statusField}
+                                END,
+                                updated_at = CURRENT_TIMESTAMP
+                        `, [mediaRecord.id, seasonNum]);
+                    }
+
+                    console.log(`[Request Site] Created/updated season records for TV request - media_id: ${mediaRecord.id}, seasons: ${seasons.join(', ')}, is_4k: ${is4k}`);
+                }
+            } catch (seasonTrackErr) {
+                console.error('[Request Site] Failed to create season tracking records:', seasonTrackErr);
+                // Don't fail the request if season tracking fails
+            }
+        }
 
         // If auto-approved, send to Radarr/Sonarr
         if (autoApprove) {
@@ -2040,19 +2270,54 @@ async function processTvRequest(requestId, seasons = null, serverId = null) {
             `, [sonarr.server.id, result.series?.id, tvdbId, newStatus, requestId]);
         }
 
-        // If already has files, update request_site_media table
-        if (hasFiles) {
-            console.log(`[Request Site] TV show has ${episodeFileCount}/${totalEpisodeCount} episodes in Sonarr - marking as ${isFullyAvailable ? 'AVAILABLE' : 'PARTIALLY_AVAILABLE'}`);
+        // Update request_site_media and request_site_seasons records
+        const statusField = is4k ? 'status_4k' : 'status';
+        let mediaRecord = await dbGet('SELECT id FROM request_site_media WHERE tmdb_id = $1 AND media_type = $2', [request.tmdb_id, 'tv']);
 
-            const mediaStatus = isFullyAvailable ? 4 : 3; // 4 = AVAILABLE, 3 = PARTIALLY_AVAILABLE
-            const statusField = is4k ? 'status_4k' : 'status';
+        // Create media record if it doesn't exist
+        if (!mediaRecord) {
+            const insertResult = await dbRun(`
+                INSERT INTO request_site_media (tmdb_id, media_type, title, status, status_4k, created_at, updated_at)
+                VALUES ($1, 'tv', $2, 'processing', 'unknown', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                RETURNING id
+            `, [request.tmdb_id, request.title]);
+            mediaRecord = { id: insertResult[0]?.id };
+        }
 
-            const existing = await dbGet('SELECT id FROM request_site_media WHERE tmdb_id = $1 AND media_type = $2', [request.tmdb_id, 'tv']);
+        if (mediaRecord && mediaRecord.id) {
+            // Get requested seasons from the request
+            let requestedSeasons = seasons;
+            if (!requestedSeasons && request.seasons) {
+                try {
+                    requestedSeasons = JSON.parse(request.seasons);
+                } catch (e) {
+                    requestedSeasons = [];
+                }
+            }
 
-            if (existing) {
-                await dbRun(`UPDATE request_site_media SET ${statusField} = $1, media_added_at = COALESCE(media_added_at, CURRENT_TIMESTAMP), updated_at = CURRENT_TIMESTAMP WHERE id = $2`, [mediaStatus, existing.id]);
+            // Update each requested season to "processing" status
+            if (requestedSeasons && requestedSeasons.length > 0) {
+                for (const seasonNum of requestedSeasons) {
+                    await dbRun(`
+                        INSERT INTO request_site_seasons (media_id, season_number, ${statusField}, created_at, updated_at)
+                        VALUES ($1, $2, 'processing', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        ON CONFLICT (media_id, season_number) DO UPDATE SET
+                            ${statusField} = 'processing',
+                            updated_at = CURRENT_TIMESTAMP
+                    `, [mediaRecord.id, seasonNum]);
+                }
+                console.log(`[Request Site] Updated season records to 'processing' - media_id: ${mediaRecord.id}, seasons: ${requestedSeasons.join(', ')}, is_4k: ${is4k}`);
+            }
+
+            // If already has files, update statuses
+            if (hasFiles) {
+                console.log(`[Request Site] TV show has ${episodeFileCount}/${totalEpisodeCount} episodes in Sonarr - marking as ${isFullyAvailable ? 'AVAILABLE' : 'PARTIALLY_AVAILABLE'}`);
+
+                const mediaStatus = isFullyAvailable ? 4 : 3; // 4 = AVAILABLE, 3 = PARTIALLY_AVAILABLE
+                await dbRun(`UPDATE request_site_media SET ${statusField} = $1, media_added_at = COALESCE(media_added_at, CURRENT_TIMESTAMP), updated_at = CURRENT_TIMESTAMP WHERE id = $2`, [mediaStatus, mediaRecord.id]);
             } else {
-                await dbRun(`INSERT INTO request_site_media (tmdb_id, media_type, ${statusField}, media_added_at, created_at, updated_at) VALUES ($1, 'tv', $2, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`, [request.tmdb_id, mediaStatus]);
+                // Update media record to processing
+                await dbRun(`UPDATE request_site_media SET ${statusField} = 'processing', updated_at = CURRENT_TIMESTAMP WHERE id = $1`, [mediaRecord.id]);
             }
         }
     } else {

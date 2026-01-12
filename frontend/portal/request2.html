@@ -1430,6 +1430,52 @@
             font-size: 14px;
             color: #f8fafc;
         }
+        .season-checkbox-item.disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+        .season-checkbox-item.disabled:hover {
+            background: rgba(15, 23, 42, 0.6);
+            border-color: #334155;
+        }
+        .season-checkbox-item.disabled input[type="checkbox"] {
+            cursor: not-allowed;
+        }
+        .season-checkbox-item.disabled label {
+            cursor: not-allowed;
+        }
+        .season-status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            white-space: nowrap;
+        }
+        .season-status-badge.available {
+            background: rgba(34, 197, 94, 0.2);
+            color: #22c55e;
+            border: 1px solid rgba(34, 197, 94, 0.3);
+        }
+        .season-status-badge.downloaded {
+            background: rgba(20, 184, 166, 0.2);
+            color: #2dd4bf;
+            border: 1px solid rgba(20, 184, 166, 0.3);
+        }
+        .season-status-badge.processing {
+            background: rgba(99, 102, 241, 0.2);
+            color: #818cf8;
+            border: 1px solid rgba(99, 102, 241, 0.3);
+        }
+        .season-status-badge.requested {
+            background: rgba(251, 191, 36, 0.2);
+            color: #fbbf24;
+            border: 1px solid rgba(251, 191, 36, 0.3);
+        }
         .season-modal-actions {
             display: flex;
             gap: 12px;
@@ -1498,9 +1544,38 @@
             color: #22c55e;
         }
         .season-availability.partial {
-            background: rgba(234, 179, 8, 0.2);
-            border: 1px solid #eab308;
-            color: #eab308;
+            background: rgba(34, 197, 94, 0.15);
+            border: 1px solid rgba(34, 197, 94, 0.6);
+            color: #4ade80;
+        }
+        .season-availability.downloaded {
+            background: rgba(20, 184, 166, 0.2);
+            border: 1px solid #14b8a6;
+            color: #2dd4bf;
+        }
+        .season-availability.processing {
+            background: rgba(99, 102, 241, 0.2);
+            border: 1px solid #6366f1;
+            color: #818cf8;
+        }
+        .season-availability.requested {
+            background: rgba(59, 130, 246, 0.2);
+            border: 1px solid #3b82f6;
+            color: #60a5fa;
+        }
+        /* Simple status icons for season list */
+        .season-status-icon {
+            font-size: 16px;
+            margin-right: 8px;
+        }
+        .season-status-icon.green {
+            color: #22c55e;
+        }
+        .season-status-icon.green-partial {
+            color: #4ade80;
+        }
+        .season-status-icon.blue {
+            color: #6366f1;
         }
         .season-availability i {
             font-size: 10px;
@@ -1738,6 +1813,13 @@
             background: linear-gradient(135deg, #92400e 0%, #78350f 100%);
             cursor: not-allowed;
             opacity: 0.8;
+        }
+        .sidebar-request-btn.btn-request-more {
+            background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
+            cursor: pointer;
+        }
+        .sidebar-request-btn.btn-request-more:hover {
+            background: linear-gradient(135deg, #38bdf8 0%, #0ea5e9 100%);
         }
 
         /* Full Cast/Crew Page */
@@ -4215,6 +4297,19 @@
         .settings-btn-small {
             padding: 6px 12px;
             font-size: 12px;
+        }
+        .api-key-toggle {
+            background: rgba(51, 65, 85, 0.6);
+            border: 1px solid #334155;
+            border-radius: 6px;
+            color: #94a3b8;
+            cursor: pointer;
+            padding: 8px 12px;
+            transition: all 0.2s;
+        }
+        .api-key-toggle:hover {
+            background: rgba(51, 65, 85, 0.9);
+            color: #f8fafc;
         }
         .settings-header-actions {
             display: flex;
@@ -10296,16 +10391,27 @@
                         console.error('Failed to fetch season availability:', err);
                     }
 
+                    // Get Sonarr/Request status for seasons
+                    const sonarrSeasonStatus = currentMedia.seasonStatus || {};
+
                     seasonList.innerHTML = currentMedia.seasons
                         .filter(s => s.season_number > 0 && (s.episode_count > 0 || s.source === 'sonarr' || s.source === 'tvdb'))
                         .map((season, index) => {
-                            const seasonStatus = seasonAvailability[season.season_number] || 0;
-                            let availabilityBadge = '';
-                            if (seasonStatus === 4) {
-                                availabilityBadge = '<span class="season-availability available"><i class="fas fa-check"></i> On Plex</span>';
-                            } else if (seasonStatus === 3) {
-                                availabilityBadge = '<span class="season-availability partial"><i class="fas fa-adjust"></i> Partial</span>';
+                            const plexStatus = seasonAvailability[season.season_number] || 0;
+                            const sonarrInfo = sonarrSeasonStatus[season.season_number] || {};
+                            const sonarrStatus = sonarrInfo.status || 'unknown';
+
+                            // Simple status icon (no text) - to the left of season title
+                            // Green check = fully downloaded, Green minus-circle = partial, Blue check = requested/monitoring
+                            let statusIcon = '';
+                            if (sonarrStatus === 'available') {
+                                statusIcon = '<i class="fas fa-check-circle season-status-icon green" title="Downloaded"></i>';
+                            } else if (sonarrStatus === 'partially_available') {
+                                statusIcon = '<i class="fas fa-minus-circle season-status-icon green-partial" title="Partially Downloaded"></i>';
+                            } else if (sonarrStatus === 'processing' || sonarrStatus === 'pending') {
+                                statusIcon = '<i class="fas fa-check-square season-status-icon blue" title="Requested"></i>';
                             }
+
                             // Show episode count, or just "Episodes" if unknown (from Sonarr lookup)
                             const episodeText = season.episode_count > 0
                                 ? `${season.episode_count} Episode${season.episode_count > 1 ? 's' : ''}`
@@ -10314,9 +10420,9 @@
                             <div class="season-item" data-season="${season.season_number}">
                                 <div class="season-header" onclick="toggleSeason(${season.season_number}, ${currentMedia.id})">
                                     <div class="season-header-left">
+                                        ${statusIcon}
                                         <span class="season-title">Season ${season.season_number}</span>
                                         <span class="season-episode-count">${episodeText}</span>
-                                        ${availabilityBadge}
                                     </div>
                                     <i class="fas fa-chevron-down season-chevron"></i>
                                 </div>
@@ -10550,18 +10656,53 @@
             // Track if we show any button
             let showContainer = false;
 
+            // ===== TV SHOW: Check for unrequested seasons =====
+            // For TV shows, determine if there are seasons that can still be requested
+            let hasUnrequestedSeasons = false;
+            let hasUnrequested4kSeasons = false;
+            if (currentMedia.mediaType === 'tv' && currentMedia.seasons) {
+                const seasonStatusMap = currentMedia.seasonStatus || {};
+                const validSeasons = currentMedia.seasons.filter(s =>
+                    s.season_number > 0 && (s.episode_count > 0 || s.source === 'sonarr' || s.source === 'tvdb')
+                );
+
+                for (const season of validSeasons) {
+                    const seasonInfo = seasonStatusMap[season.season_number] || {};
+                    const status = seasonInfo.status || 'unknown';
+                    const status4k = seasonInfo.status4k || 'unknown';
+
+                    // Check if this season hasn't been requested yet (regular)
+                    if (status === 'unknown') {
+                        hasUnrequestedSeasons = true;
+                    }
+                    // Check if this season hasn't been requested yet (4K)
+                    if (status4k === 'unknown') {
+                        hasUnrequested4kSeasons = true;
+                    }
+                }
+            }
+
             // ===== NON-4K BUTTON LOGIC =====
-            // Hide if already available on Plex
-            if (non4kAvailable) {
+            // Hide if already available on Plex (and no unrequested seasons for TV)
+            if (non4kAvailable && !(currentMedia.mediaType === 'tv' && hasUnrequestedSeasons)) {
                 btn.style.display = 'none';
             }
             // Show "Processing" (greyed) if downloading in Radarr/Sonarr
-            else if (non4kProcessing) {
+            else if (non4kProcessing && !(currentMedia.mediaType === 'tv' && hasUnrequestedSeasons)) {
                 btn.style.display = '';
                 btn.disabled = true;
                 btn.classList.add('btn-requested');
                 btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> <span>Processing</span>';
                 btn.onclick = null;
+                showContainer = true;
+            }
+            // TV Shows: Show "Request More" if some seasons are requested but others aren't
+            else if (currentMedia.mediaType === 'tv' && hasUnrequestedSeasons && (non4kRequested || non4kProcessing || non4kAvailable)) {
+                btn.style.display = '';
+                btn.disabled = false;
+                btn.classList.add('btn-request-more');
+                btn.innerHTML = '<i class="fas fa-plus"></i> <span>Request More</span>';
+                btn.onclick = () => submitRequestFromDetails(false);
                 showContainer = true;
             }
             // Show "Requested" (greyed) if pending/approved
@@ -10597,17 +10738,26 @@
             // ===== 4K BUTTON LOGIC =====
             // Only show if user has 4K rights AND non-4K is requested/processing/available
             if (can4k && (non4kRequested || non4kProcessing || non4kAvailable)) {
-                // Hide if 4K is already available
-                if (fourKAvailable) {
+                // Hide if 4K is already available (and no unrequested 4K seasons for TV)
+                if (fourKAvailable && !(currentMedia.mediaType === 'tv' && hasUnrequested4kSeasons)) {
                     btn4k.style.display = 'none';
                 }
                 // Show "Processing 4K" (greyed) if downloading in 4K Radarr/Sonarr
-                else if (fourKProcessing) {
+                else if (fourKProcessing && !(currentMedia.mediaType === 'tv' && hasUnrequested4kSeasons)) {
                     btn4k.style.display = '';
                     btn4k.disabled = true;
                     btn4k.classList.add('btn-requested-4k');
                     btn4k.innerHTML = '<i class="fas fa-spinner fa-spin"></i> <span>Processing 4K</span>';
                     btn4k.onclick = null;
+                    showContainer = true;
+                }
+                // TV Shows: Show "Request More 4K" if some 4K seasons are requested but others aren't
+                else if (currentMedia.mediaType === 'tv' && hasUnrequested4kSeasons && (fourKRequested || fourKProcessing || fourKAvailable)) {
+                    btn4k.style.display = '';
+                    btn4k.disabled = false;
+                    btn4k.classList.add('btn-request-more');
+                    btn4k.innerHTML = '<i class="fas fa-plus"></i> <span>Request More 4K</span>';
+                    btn4k.onclick = () => submitRequestFromDetails(true);
                     showContainer = true;
                 }
                 // Show "4K Requested" (greyed 4K style) if pending/approved
@@ -10900,14 +11050,43 @@
 
             // Create season checkboxes - include Sonarr seasons even if episode count unknown
             const seasons = currentMedia.seasons?.filter(s => s.season_number > 0 && (s.episode_count > 0 || s.source === 'sonarr' || s.source === 'tvdb')) || [];
+            const seasonStatusMap = currentMedia.seasonStatus || {};
+
             checkboxList.innerHTML = seasons.map(season => {
                 const episodeLabel = season.episode_count > 0
                     ? `${season.episode_count} episode${season.episode_count > 1 ? 's' : ''}`
                     : 'episodes';
+
+                // Get season status (regular or 4K based on modal mode)
+                const seasonInfo = seasonStatusMap[season.season_number] || {};
+                const status = is4k ? seasonInfo.status4k : seasonInfo.status;
+                const isRequested = status && status !== 'unknown';
+                const isProcessing = status === 'processing';
+                const isAvailable = status === 'available' || status === 'partially_available';
+
+                // Determine if checkbox should be disabled and unchecked
+                const isDisabled = isRequested || isProcessing || isAvailable;
+                const disabledAttr = isDisabled ? 'disabled' : '';
+                const checkedAttr = isDisabled ? '' : 'checked';
+
+                // Create status badge (Sonarr status - not Plex)
+                let statusBadge = '';
+                if (isAvailable) {
+                    // Downloaded in Sonarr (may or may not be on Plex yet)
+                    statusBadge = `<span class="season-status-badge downloaded"><i class="fas fa-download"></i> Downloaded</span>`;
+                } else if (isProcessing) {
+                    // Monitored/downloading in Sonarr
+                    statusBadge = `<span class="season-status-badge processing"><i class="fas fa-sync-alt fa-spin"></i> Processing</span>`;
+                } else if (isRequested) {
+                    // Requested but not yet in Sonarr
+                    statusBadge = `<span class="season-status-badge requested"><i class="fas fa-clock"></i> Requested</span>`;
+                }
+
                 return `
-                <div class="season-checkbox-item" onclick="if(event.target.tagName !== 'INPUT' && event.target.tagName !== 'LABEL') this.querySelector('input').click();">
-                    <input type="checkbox" id="season-${season.season_number}" value="${season.season_number}" checked>
+                <div class="season-checkbox-item ${isDisabled ? 'disabled' : ''}" onclick="if(!this.classList.contains('disabled') && event.target.tagName !== 'INPUT' && event.target.tagName !== 'LABEL') this.querySelector('input').click();">
+                    <input type="checkbox" id="season-${season.season_number}" value="${season.season_number}" ${checkedAttr} ${disabledAttr}>
                     <label for="season-${season.season_number}">Season ${season.season_number} (${episodeLabel})</label>
+                    ${statusBadge}
                 </div>
             `}).join('');
 
@@ -13376,28 +13555,62 @@
 
                     <div class="settings-card" style="margin-top: 24px;">
                         <div class="settings-card-header">
-                            <h3><i class="fas fa-database"></i> TVDB Integration</h3>
+                            <h3><i class="fas fa-key"></i> API Keys</h3>
                         </div>
                         <div class="settings-form">
-                            <p class="settings-description">TheTVDB provides more complete TV show season data than TMDB. When configured, missing seasons will be supplemented from TVDB. Get a free API key at <a href="https://thetvdb.com/api-information" target="_blank" style="color: #6366f1;">thetvdb.com</a></p>
-                            <div class="settings-row">
-                                <label>TVDB API Key</label>
-                                <input type="password" id="tvdb-api-key" class="settings-input" placeholder="Enter your TVDB API key">
+                            <p class="settings-description">Configure API keys for external services used by the Request Site.</p>
+
+                            <div style="margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid #334155;">
+                                <h4 style="margin: 0 0 8px 0; color: #f8fafc; font-size: 14px;"><i class="fas fa-film" style="margin-right: 8px; color: #6366f1;"></i>TMDB (The Movie Database)</h4>
+                                <p class="settings-description" style="margin-bottom: 12px;">Required for movie and TV show metadata. Get a free API key at <a href="https://www.themoviedb.org/settings/api" target="_blank" style="color: #6366f1;">themoviedb.org</a></p>
+                                <div class="settings-row">
+                                    <label>TMDB API Key</label>
+                                    <div style="position: relative; display: flex; gap: 8px;">
+                                        <input type="password" id="tmdb-api-key" class="settings-input" placeholder="Enter your TMDB API key" style="flex: 1; padding-right: 40px;">
+                                        <button type="button" onclick="toggleApiKeyVisibility('tmdb-api-key', this)" class="api-key-toggle" title="Show/Hide">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="settings-row" style="display: flex; gap: 12px; align-items: center;">
+                                    <button class="settings-btn settings-btn-secondary" onclick="testTmdbConnection()">
+                                        <i class="fas fa-plug"></i> Test Connection
+                                    </button>
+                                    <button class="settings-btn settings-btn-primary" onclick="saveTmdbApiKey()">
+                                        <i class="fas fa-save"></i> Save
+                                    </button>
+                                    <span id="tmdb-status" style="font-size: 13px;"></span>
+                                </div>
                             </div>
-                            <div class="settings-row" style="display: flex; gap: 12px; align-items: center;">
-                                <button class="settings-btn settings-btn-secondary" onclick="testTvdbConnection()">
-                                    <i class="fas fa-plug"></i> Test Connection
-                                </button>
-                                <button class="settings-btn settings-btn-primary" onclick="saveTvdbApiKey()">
-                                    <i class="fas fa-save"></i> Save
-                                </button>
-                                <span id="tvdb-status" style="font-size: 13px;"></span>
+
+                            <div>
+                                <h4 style="margin: 0 0 8px 0; color: #f8fafc; font-size: 14px;"><i class="fas fa-tv" style="margin-right: 8px; color: #6366f1;"></i>TVDB (TheTVDB)</h4>
+                                <p class="settings-description" style="margin-bottom: 12px;">Optional - provides more complete TV show season data than TMDB. When configured, missing seasons will be supplemented from TVDB. Get a free API key at <a href="https://thetvdb.com/api-information" target="_blank" style="color: #6366f1;">thetvdb.com</a></p>
+                                <div class="settings-row">
+                                    <label>TVDB API Key</label>
+                                    <div style="position: relative; display: flex; gap: 8px;">
+                                        <input type="password" id="tvdb-api-key" class="settings-input" placeholder="Enter your TVDB API key" style="flex: 1; padding-right: 40px;">
+                                        <button type="button" onclick="toggleApiKeyVisibility('tvdb-api-key', this)" class="api-key-toggle" title="Show/Hide">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="settings-row" style="display: flex; gap: 12px; align-items: center;">
+                                    <button class="settings-btn settings-btn-secondary" onclick="testTvdbConnection()">
+                                        <i class="fas fa-plug"></i> Test Connection
+                                    </button>
+                                    <button class="settings-btn settings-btn-primary" onclick="saveTvdbApiKey()">
+                                        <i class="fas fa-save"></i> Save
+                                    </button>
+                                    <span id="tvdb-status" style="font-size: 13px;"></span>
+                                </div>
                             </div>
                         </div>
                     </div>
                 `;
 
-                // Load TVDB API key after DOM is rendered
+                // Load API keys after DOM is rendered
+                loadTmdbApiKey();
                 loadTvdbApiKey();
             } catch (error) {
                 console.error('Failed to load servers:', error);
@@ -15477,6 +15690,112 @@
             } catch (error) {
                 console.error('Failed to save auto-scan preference:', error);
                 showRequestToast('Failed to save auto-scan preference', 'error');
+            }
+        }
+
+        // API Key visibility toggle
+        function toggleApiKeyVisibility(inputId, button) {
+            const input = document.getElementById(inputId);
+            const icon = button.querySelector('i');
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.classList.remove('fa-eye');
+                icon.classList.add('fa-eye-slash');
+            } else {
+                input.type = 'password';
+                icon.classList.remove('fa-eye-slash');
+                icon.classList.add('fa-eye');
+            }
+        }
+
+        // TMDB API Key functions
+        async function loadTmdbApiKey() {
+            try {
+                const token = localStorage.getItem('sessionToken') || sessionStorage.getItem('sessionToken');
+                const response = await fetch('/api/v2/request-site/settings/tmdb', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    const input = document.getElementById('tmdb-api-key');
+                    if (input && data.apiKey) {
+                        input.value = data.apiKey;
+                    }
+                }
+            } catch (error) {
+                console.log('Could not load TMDB API key:', error);
+            }
+        }
+
+        async function saveTmdbApiKey() {
+            const input = document.getElementById('tmdb-api-key');
+            const statusEl = document.getElementById('tmdb-status');
+            const apiKey = input.value.trim();
+
+            statusEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+            statusEl.style.color = '#94a3b8';
+
+            try {
+                const token = localStorage.getItem('sessionToken') || sessionStorage.getItem('sessionToken');
+                const response = await fetch('/api/v2/request-site/settings', {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ tmdb_api_key: apiKey })
+                });
+
+                if (response.ok) {
+                    statusEl.innerHTML = '<i class="fas fa-check"></i> Saved!';
+                    statusEl.style.color = '#22c55e';
+                    setTimeout(() => { statusEl.innerHTML = ''; }, 3000);
+                } else {
+                    throw new Error('Failed to save');
+                }
+            } catch (error) {
+                statusEl.innerHTML = '<i class="fas fa-times"></i> Failed to save';
+                statusEl.style.color = '#ef4444';
+            }
+        }
+
+        async function testTmdbConnection() {
+            const input = document.getElementById('tmdb-api-key');
+            const statusEl = document.getElementById('tmdb-status');
+            const apiKey = input.value.trim();
+
+            if (!apiKey) {
+                statusEl.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Enter an API key first';
+                statusEl.style.color = '#f59e0b';
+                return;
+            }
+
+            statusEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Testing...';
+            statusEl.style.color = '#94a3b8';
+
+            try {
+                const token = localStorage.getItem('sessionToken') || sessionStorage.getItem('sessionToken');
+                const response = await fetch('/api/v2/request-site/tmdb/test', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ apiKey })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    statusEl.innerHTML = '<i class="fas fa-check"></i> Connected successfully!';
+                    statusEl.style.color = '#22c55e';
+                } else {
+                    statusEl.innerHTML = `<i class="fas fa-times"></i> ${result.error || 'Connection failed'}`;
+                    statusEl.style.color = '#ef4444';
+                }
+            } catch (error) {
+                statusEl.innerHTML = '<i class="fas fa-times"></i> Connection failed';
+                statusEl.style.color = '#ef4444';
             }
         }
 
