@@ -54,12 +54,39 @@ const Utils = {
     },
 
     /**
+     * Parse date string robustly - handles both SQLite and PostgreSQL formats
+     * SQLite: "2026-01-07 00:00:00" (no timezone)
+     * PostgreSQL: "2026-01-07T00:00:00.000Z" (already has timezone)
+     */
+    parseDate(dateString) {
+        if (!dateString) return null;
+
+        // If it's already a Date object, return it
+        if (dateString instanceof Date) return dateString;
+
+        // Convert to string if needed
+        let str = String(dateString);
+
+        // Check if it already has timezone info (Z or +/- offset)
+        const hasTimezone = /[Z]$/.test(str) || /[+-]\d{2}:\d{2}$/.test(str);
+
+        if (!hasTimezone) {
+            // Replace space with T for ISO format compatibility
+            str = str.replace(' ', 'T');
+            // Add Z to treat as UTC
+            str += 'Z';
+        }
+
+        return new Date(str);
+    },
+
+    /**
      * Format date
-     * SQLite stores timestamps in UTC - add 'Z' to parse correctly
      */
     formatDate(dateString) {
         if (!dateString) return 'N/A';
-        const date = new Date(dateString + 'Z');
+        const date = this.parseDate(dateString);
+        if (!date || isNaN(date.getTime())) return 'N/A';
         return date.toLocaleDateString('en-US', {
             year: 'numeric',
             month: 'short',
@@ -69,11 +96,11 @@ const Utils = {
 
     /**
      * Format datetime
-     * SQLite stores timestamps in UTC - add 'Z' to parse correctly
      */
     formatDateTime(dateString) {
         if (!dateString) return 'N/A';
-        const date = new Date(dateString + 'Z');
+        const date = this.parseDate(dateString);
+        if (!date || isNaN(date.getTime())) return 'N/A';
         return date.toLocaleString('en-US', {
             year: 'numeric',
             month: 'short',
@@ -85,11 +112,11 @@ const Utils = {
 
     /**
      * Check if date is expiring soon (within 7 days)
-     * SQLite stores timestamps in UTC - add 'Z' to parse correctly
      */
     isExpiringSoon(dateString) {
         if (!dateString) return false;
-        const date = new Date(dateString + 'Z');
+        const date = this.parseDate(dateString);
+        if (!date || isNaN(date.getTime())) return false;
         const now = new Date();
         const diffTime = date - now;
         const diffDays = diffTime / (1000 * 60 * 60 * 24);
@@ -98,11 +125,11 @@ const Utils = {
 
     /**
      * Check if date is expired
-     * SQLite stores timestamps in UTC - add 'Z' to parse correctly
      */
     isExpired(dateString) {
         if (!dateString) return false;
-        const date = new Date(dateString + 'Z');
+        const date = this.parseDate(dateString);
+        if (!date || isNaN(date.getTime())) return false;
         return date < new Date();
     },
 
