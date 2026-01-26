@@ -129,19 +129,41 @@ const Utils = {
     },
 
     /**
+     * Parse date string - handles ISO 8601 with timezone, date-only, etc.
+     */
+    parseDate(dateString) {
+        if (!dateString) return null;
+
+        const str = String(dateString).trim();
+
+        // If already has timezone info (ends with Z or has offset), parse directly
+        if (str.endsWith('Z') || /[+-]\d{2}:\d{2}$/.test(str)) {
+            return new Date(str);
+        }
+
+        // Check if it's a date-only string (YYYY-MM-DD)
+        if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+            const [year, month, day] = str.split('-');
+            return new Date(year, month - 1, day);
+        }
+
+        // Try parsing as-is first
+        let date = new Date(str);
+        if (!isNaN(date.getTime())) {
+            return date;
+        }
+
+        // Last resort: add Z and try again
+        return new Date(str + 'Z');
+    },
+
+    /**
      * Check if date is expiring soon (within 7 days)
      */
     isExpiringSoon(dateString) {
         if (!dateString) return false;
-
-        let date;
-        // Check if it's a date-only string
-        if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
-            const [year, month, day] = dateString.split('-');
-            date = new Date(year, month - 1, day);
-        } else {
-            date = new Date(dateString + 'Z');
-        }
+        const date = this.parseDate(dateString);
+        if (!date || isNaN(date.getTime())) return false;
 
         const now = new Date();
         const diffTime = date - now;
@@ -154,16 +176,8 @@ const Utils = {
      */
     isExpired(dateString) {
         if (!dateString) return false;
-
-        let date;
-        // Check if it's a date-only string
-        if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
-            const [year, month, day] = dateString.split('-');
-            date = new Date(year, month - 1, day);
-        } else {
-            date = new Date(dateString + 'Z');
-        }
-
+        const date = this.parseDate(dateString);
+        if (!date || isNaN(date.getTime())) return false;
         return date < new Date();
     },
 
