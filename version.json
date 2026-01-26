@@ -1,5 +1,5 @@
 {
-  "version": "2.0.26",
+  "version": "2.0.27",
   "name": "Stream Panel v2 (PostgreSQL)",
   "releaseDate": "2026-01-24",
   "database": "postgresql",

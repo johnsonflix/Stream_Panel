@@ -84,7 +84,8 @@ router.get('/', async (req, res) => {
         }
 
         if (searchQuery) {
-            conditions.push('(u.name LIKE ? OR u.email LIKE ? OR u.iptv_username LIKE ? OR u.plex_email LIKE ? OR u.plex_username LIKE ?)');
+            // Use ILIKE for case-insensitive search in PostgreSQL
+            conditions.push('(u.name ILIKE ? OR u.email ILIKE ? OR u.iptv_username ILIKE ? OR u.plex_email ILIKE ? OR u.plex_username ILIKE ?)');
             const searchPattern = `%${searchQuery}%`;
             values.push(searchPattern, searchPattern, searchPattern, searchPattern, searchPattern);
         }
@@ -102,7 +103,7 @@ router.get('/', async (req, res) => {
             values.push(tagId);
         }
 
-        // Filter by expiring soon (within 7 days)
+        // Filter by expiring soon (within 7 days) or expired
         if (expiringSoon) {
             const now = new Date().toISOString();
             const sevenDays = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
@@ -115,6 +116,15 @@ router.get('/', async (req, res) => {
             } else if (expiringSoon === 'any') {
                 conditions.push(`((u.plex_enabled = 1 AND (sp.price_type IS NULL OR sp.price_type != 'free') AND u.plex_expiration_date IS NOT NULL AND u.plex_expiration_date >= ? AND u.plex_expiration_date <= ?) OR (u.iptv_enabled = 1 AND u.iptv_expiration_date IS NOT NULL AND u.iptv_expiration_date >= ? AND u.iptv_expiration_date <= ?))`);
                 values.push(now, sevenDays, now, sevenDays);
+            } else if (expiringSoon === 'plex_expired') {
+                conditions.push(`(u.plex_enabled = 1 AND (sp.price_type IS NULL OR sp.price_type != 'free') AND u.plex_expiration_date IS NOT NULL AND u.plex_expiration_date < ?)`);
+                values.push(now);
+            } else if (expiringSoon === 'iptv_expired') {
+                conditions.push(`(u.iptv_enabled = 1 AND u.iptv_expiration_date IS NOT NULL AND u.iptv_expiration_date < ?)`);
+                values.push(now);
+            } else if (expiringSoon === 'any_expired') {
+                conditions.push(`((u.plex_enabled = 1 AND (sp.price_type IS NULL OR sp.price_type != 'free') AND u.plex_expiration_date IS NOT NULL AND u.plex_expiration_date < ?) OR (u.iptv_enabled = 1 AND u.iptv_expiration_date IS NOT NULL AND u.iptv_expiration_date < ?))`);
+                values.push(now, now);
             }
         }
 

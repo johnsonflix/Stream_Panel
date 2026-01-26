@@ -366,6 +366,9 @@ const Users = {
                             <option value="plex">Plex Expiring Soon</option>
                             <option value="iptv">IPTV Expiring Soon</option>
                             <option value="any">Any Expiring Soon</option>
+                            <option value="plex_expired">Plex Expired</option>
+                            <option value="iptv_expired">IPTV Expired</option>
+                            <option value="any_expired">Any Expired</option>
                         </select>
                     </div>
                 </div>
@@ -505,8 +508,15 @@ const Users = {
             const hasFilters = this.currentFilters.search || this.currentFilters.ownerId || this.currentFilters.tagId || this.currentFilters.expiringSoon;
             let emptyMessage = 'No users yet';
             if (this.currentFilters.expiringSoon && !this.currentFilters.search && !this.currentFilters.ownerId && !this.currentFilters.tagId) {
-                const filterLabels = { plex: 'Plex', iptv: 'IPTV', any: 'any service' };
-                emptyMessage = `No users with ${filterLabels[this.currentFilters.expiringSoon] || ''} subscriptions expiring within 7 days`;
+                const filterLabels = {
+                    plex: 'Plex', iptv: 'IPTV', any: 'any service',
+                    plex_expired: 'Plex', iptv_expired: 'IPTV', any_expired: 'any service'
+                };
+                const isExpired = this.currentFilters.expiringSoon.includes('expired');
+                const label = filterLabels[this.currentFilters.expiringSoon] || '';
+                emptyMessage = isExpired
+                    ? `No users with expired ${label} subscriptions`
+                    : `No users with ${label} subscriptions expiring within 7 days`;
             } else if (hasFilters) {
                 emptyMessage = 'No users found matching your filters';
             }
