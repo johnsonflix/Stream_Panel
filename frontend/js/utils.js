@@ -157,18 +157,15 @@ const Utils = {
             return '<span class="badge badge-secondary">No Expiration</span>';
         }
 
-        // DEBUG: Show raw date directly in badge - REMOVE AFTER DEBUGGING
-        const debugRaw = String(dateString).substring(0, 20);
-
         if (this.isExpired(dateString)) {
-            return `<span class="badge badge-danger">Expired ${this.formatDate(dateString)}</span><br><small style="color:#ff6b6b;font-size:9px;">[${debugRaw}]</small>`;
+            return `<span class="badge badge-danger">Expired ${this.formatDate(dateString)}</span>`;
         }
 
         if (this.isExpiringSoon(dateString)) {
-            return `<span class="badge badge-warning">Expires ${this.formatDate(dateString)}</span><br><small style="color:#ffa500;font-size:9px;">[${debugRaw}]</small>`;
+            return `<span class="badge badge-warning">Expires ${this.formatDate(dateString)}</span>`;
         }
 
-        return `<span class="badge badge-success">Expires ${this.formatDate(dateString)}</span><br><small style="color:#2ecc71;font-size:9px;">[${debugRaw}]</small>`;
+        return `<span class="badge badge-success">Expires ${this.formatDate(dateString)}</span>`;
     },
 
     /**
