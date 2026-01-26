@@ -54,9 +54,8 @@ const Utils = {
     },
 
     /**
-     * Parse date string robustly - handles both SQLite and PostgreSQL formats
-     * SQLite: "2026-01-07 00:00:00" (no timezone)
-     * PostgreSQL: "2026-01-07T00:00:00.000Z" (already has timezone)
+     * Parse date string robustly - handles multiple formats
+     * Formats: ISO 8601, SQLite datetime, date-only strings
      */
     parseDate(dateString) {
         if (!dateString) return null;
@@ -64,20 +63,30 @@ const Utils = {
         // If it's already a Date object, return it
         if (dateString instanceof Date) return dateString;
 
-        // Convert to string if needed
-        let str = String(dateString);
+        // Convert to string and trim
+        let str = String(dateString).trim();
 
-        // Check if it already has timezone info (Z or +/- offset)
-        const hasTimezone = /[Z]$/.test(str) || /[+-]\d{2}:\d{2}$/.test(str);
-
-        if (!hasTimezone) {
-            // Replace space with T for ISO format compatibility
-            str = str.replace(' ', 'T');
-            // Add Z to treat as UTC
-            str += 'Z';
+        // Try parsing directly first - works for ISO 8601 formats
+        let date = new Date(str);
+        if (!isNaN(date.getTime())) {
+            return date;
         }
 
-        return new Date(str);
+        // Try with T replacing space (SQLite format: "2026-01-07 00:00:00")
+        str = str.replace(' ', 'T');
+        date = new Date(str);
+        if (!isNaN(date.getTime())) {
+            return date;
+        }
+
+        // Try adding Z for UTC (date-only: "2026-01-07")
+        date = new Date(str + 'Z');
+        if (!isNaN(date.getTime())) {
+            return date;
+        }
+
+        // Fallback: return invalid date
+        return new Date(NaN);
     },
 
     /**
@@ -148,15 +157,20 @@ const Utils = {
             return '<span class="badge badge-secondary">No Expiration</span>';
         }
 
+        // DEBUG: Add title showing raw date for troubleshooting
+        const parsed = this.parseDate(dateString);
+        const now = new Date();
+        const debugTitle = `Raw: ${dateString} | Parsed: ${parsed ? parsed.toISOString() : 'null'} | Now: ${now.toISOString()} | Expired: ${parsed < now}`;
+
         if (this.isExpired(dateString)) {
-            return `<span class="badge badge-danger">Expired ${this.formatDate(dateString)}</span>`;
+            return `<span class="badge badge-danger" title="${debugTitle}">Expired ${this.formatDate(dateString)}</span>`;
         }
 
         if (this.isExpiringSoon(dateString)) {
-            return `<span class="badge badge-warning">Expires ${this.formatDate(dateString)}</span>`;
+            return `<span class="badge badge-warning" title="${debugTitle}">Expires ${this.formatDate(dateString)}</span>`;
         }
 
-        return `<span class="badge badge-success">Expires ${this.formatDate(dateString)}</span>`;
+        return `<span class="badge badge-success" title="${debugTitle}">Expires ${this.formatDate(dateString)}</span>`;
     },
 
     /**

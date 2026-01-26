@@ -1,10 +1,12 @@
 {
-  "version": "2.0.21",
+  "version": "2.0.22",
   "name": "Stream Panel v2 (PostgreSQL)",
   "releaseDate": "2026-01-24",
   "database": "postgresql",
   "minDockerVersion": "20.10.0",
   "changelog": [
+    "v2.0.22: Debug expiration badges - hover to see raw date values for troubleshooting",
+    "v2.0.22: More robust date parsing with multiple fallback strategies",
     "v2.0.21: Fixed expired IPTV subscriptions showing as 'EXPIRES' instead of 'EXPIRED' on Users page",
     "v2.0.21: Fixed date parsing for PostgreSQL timestamps that already include timezone info",
     "v2.0.20: Request Site season-level status tracking - shows icons for downloaded/partial/requested seasons",
