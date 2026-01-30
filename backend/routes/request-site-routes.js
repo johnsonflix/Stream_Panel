@@ -1009,6 +1009,32 @@ router.get('/tv/:id', async (req, res) => {
                 }
             }
 
+            // Fallback: also check media_requests table for requested seasons
+            // This handles requests made before season tracking was added
+            const allRequests = await dbAll(
+                `SELECT seasons, status, is_4k FROM media_requests WHERE tmdb_id = $1 AND media_type = 'tv' AND status NOT IN ('declined', 'failed')`,
+                [tvId]
+            );
+            for (const req of allRequests) {
+                if (req.seasons) {
+                    try {
+                        const reqSeasons = typeof req.seasons === 'string' ? JSON.parse(req.seasons) : req.seasons;
+                        if (Array.isArray(reqSeasons)) {
+                            for (const sn of reqSeasons) {
+                                if (!seasonStatus[sn]) {
+                                    seasonStatus[sn] = { status: 'unknown', status4k: 'unknown' };
+                                }
+                                // Only set if not already tracked with a real status
+                                const field = req.is_4k ? 'status4k' : 'status';
+                                if (!seasonStatus[sn][field] || seasonStatus[sn][field] === 'unknown') {
+                                    seasonStatus[sn][field] = req.status || 'pending';
+                                }
+                            }
+                        }
+                    } catch (e) { /* ignore parse errors */ }
+                }
+            }
+
             // Query Sonarr directly for per-season monitoring status
             // This ensures we show accurate status even for shows added outside Request Site
             if (cached && cached.sonarr_id) {
@@ -1806,38 +1832,57 @@ router.post('/requests', async (req, res) => {
                     [tmdbId, 'tv']
                 );
 
+                // Build season status map from request_site_seasons table
+                const seasonStatusMap = {};
+
                 if (mediaRecord) {
                     const statusField = is4k ? 'status_4k' : 'status';
                     const seasonRecords = await dbAll(
                         `SELECT season_number, ${statusField} as status FROM request_site_seasons WHERE media_id = $1`,
                         [mediaRecord.id]
                     );
-
-                    const seasonStatusMap = {};
                     for (const sr of seasonRecords) {
                         seasonStatusMap[sr.season_number] = sr.status;
                     }
-
-                    // Filter out seasons that are already requested/processing/available
-                    const newSeasons = seasons.filter(seasonNum => {
-                        const status = seasonStatusMap[seasonNum];
-                        return !status || status === 'unknown';
-                    });
-
-                    if (newSeasons.length === 0) {
-                        return res.status(400).json({
-                            error: 'All selected seasons have already been requested',
-                            existingRequest: existing
-                        });
-                    }
-
-                    // Update seasons array to only include new seasons
-                    seasons = newSeasons;
-                    console.log(`[Request Site] TV show already has request, adding new seasons: ${newSeasons.join(', ')}`);
-                } else {
-                    // No media record exists yet - allow the request (shouldn't happen normally)
-                    console.log(`[Request Site] TV show has request but no media record - allowing additional seasons`);
                 }
+
+                // Fallback: also check media_requests.seasons column for all existing requests
+                const allExistingRequests = await dbAll(
+                    `SELECT seasons, status, is_4k FROM media_requests WHERE tmdb_id = $1 AND media_type = 'tv' AND status NOT IN ('declined', 'failed')`,
+                    [tmdbId]
+                );
+                for (const req of allExistingRequests) {
+                    if (req.seasons) {
+                        try {
+                            const reqSeasons = typeof req.seasons === 'string' ? JSON.parse(req.seasons) : req.seasons;
+                            if (Array.isArray(reqSeasons)) {
+                                for (const sn of reqSeasons) {
+                                    const matchesType = is4k ? req.is_4k : !req.is_4k;
+                                    if (matchesType && (!seasonStatusMap[sn] || seasonStatusMap[sn] === 'unknown')) {
+                                        seasonStatusMap[sn] = req.status || 'pending';
+                                    }
+                                }
+                            }
+                        } catch (e) { /* ignore parse errors */ }
+                    }
+                }
+
+                // Filter out seasons that are already requested/processing/available
+                const newSeasons = seasons.filter(seasonNum => {
+                    const status = seasonStatusMap[seasonNum];
+                    return !status || status === 'unknown';
+                });
+
+                if (newSeasons.length === 0) {
+                    return res.status(400).json({
+                        error: 'All selected seasons have already been requested',
+                        existingRequest: existing
+                    });
+                }
+
+                // Update seasons array to only include new seasons
+                seasons = newSeasons;
+                console.log(`[Request Site] TV show already has request, adding new seasons: ${newSeasons.join(', ')}`);
             } else {
                 // Movies or TV without specific seasons - reject duplicate
                 return res.status(400).json({ error: 'This media has already been requested', existingRequest: existing });

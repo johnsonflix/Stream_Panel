@@ -1,10 +1,12 @@
 {
-  "version": "2.0.28",
+  "version": "2.0.29",
   "name": "Stream Panel v2 (PostgreSQL)",
   "releaseDate": "2026-01-30",
   "database": "postgresql",
   "minDockerVersion": "20.10.0",
   "changelog": [
+    "v2.0.29: Fixed duplicate season requests - checks media_requests table as fallback when request_site_seasons has no records",
+    "v2.0.29: Season selection modal now correctly disables already-requested seasons across all users",
     "v2.0.22: Debug expiration badges - hover to see raw date values for troubleshooting",
     "v2.0.22: More robust date parsing with multiple fallback strategies",
     "v2.0.21: Fixed expired IPTV subscriptions showing as 'EXPIRES' instead of 'EXPIRED' on Users page",
