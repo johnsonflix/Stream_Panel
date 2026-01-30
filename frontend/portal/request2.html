@@ -11248,8 +11248,11 @@
             closeSeasonModal();
         }
 
+        let _submittingRequest = false;
         async function submitTVRequest(seasons, is4k = false) {
             if (!currentMedia || !currentUser) return;
+            if (_submittingRequest) return;
+            _submittingRequest = true;
 
             try {
                 const response = await fetch('/api/v2/request-site/requests', {
@@ -11285,13 +11288,15 @@
                 }
 
                 // Close modal and update button states
-                closeSeasonSelectionModal();
+                closeSeasonModal();
                 updateDetailsRequestButton();
                 // Refresh usage indicator
                 loadUserUsage();
             } catch (error) {
                 console.error('Error submitting request:', error);
                 alert(error.message || 'Failed to submit request. Please try again.');
+            } finally {
+                _submittingRequest = false;
             }
         }
 
@@ -11332,6 +11337,8 @@
                 return;
             }
 
+            if (_submittingRequest) return;
+
             const container = document.getElementById('details-request-container');
             const btn = document.getElementById('details-request-btn');
 
@@ -11347,6 +11354,7 @@
                 return;
             }
 
+            _submittingRequest = true;
             try {
                 const response = await fetch('/api/v2/request-site/requests', {
                     method: 'POST',
@@ -11389,6 +11397,8 @@
                 alert('Failed to submit request');
                 btn.disabled = false;
                 updateDetailsRequestButton(); // Reset button state
+            } finally {
+                _submittingRequest = false;
             }
         }
 
