@@ -180,6 +180,7 @@ class RadarrService {
 
             // Check if already exists
             const existing = await this.movieExistsByTmdbId(options.tmdbId);
+            console.log(`[Radarr] Movie exists check: ${existing ? `YES (id=${existing.id}, monitored=${existing.monitored}, hasFile=${existing.hasFile})` : 'NO'}`);
             if (existing) {
                 if (existing.hasFile) {
                     return {
@@ -234,7 +235,9 @@ class RadarrService {
                 images: lookupResult.images || []
             };
 
+            console.log(`[Radarr] Adding movie: tmdbId=${movieData.tmdbId}, title=${movieData.title}, qualityProfileId=${movieData.qualityProfileId}, rootFolder=${movieData.rootFolderPath}, searchForMovie=${movieData.addOptions.searchForMovie}`);
             const response = await this.client.post('/movie', movieData);
+            console.log(`[Radarr] Movie added successfully: id=${response.data?.id}, title=${response.data?.title}`);
 
             return {
                 success: true,
@@ -242,9 +245,12 @@ class RadarrService {
             };
         } catch (error) {
             console.error('[Radarr] Failed to add movie:', error.message);
+            if (error.response?.data) {
+                console.error('[Radarr] Error response:', JSON.stringify(error.response.data).substring(0, 500));
+            }
             return {
                 success: false,
-                error: error.response?.data?.message || error.message
+                error: error.response?.data?.message || error.response?.data?.[0]?.errorMessage || error.message
             };
         }
     }

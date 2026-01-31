@@ -2196,6 +2196,7 @@ async function processMovieRequest(requestId, serverId = null) {
     }
 
     console.log(`[Request Site] Processing movie request #${requestId} (4K: ${is4k}) using server: ${radarr.server.name}`);
+    console.log(`[Request Site] Radarr server config: qualityProfileId=${radarr.server.quality_profile_id}, rootFolder=${radarr.server.root_folder_path}, searchOnAdd=${radarr.server.search_on_add}, url=${radarr.server.url}`);
 
     const result = await radarr.service.addMovie({
         tmdbId: request.tmdb_id,
@@ -2204,8 +2205,10 @@ async function processMovieRequest(requestId, serverId = null) {
         minimumAvailability: radarr.server.minimum_availability || 'announced',
         tags: JSON.parse(radarr.server.tags || '[]'),
         monitored: true,
-        searchNow: radarr.server.search_on_add === 1
+        searchNow: radarr.server.search_on_add == 1
     });
+
+    console.log(`[Request Site] Radarr addMovie result: success=${result.success}, alreadyExists=${result.alreadyExists}, hasFile=${result.hasFile}, wasUpdated=${result.wasUpdated}, movieId=${result.movie?.id}, error=${result.error}`);
 
     if (result.success) {
         // Check if movie already has file - mark as available immediately

@@ -1,10 +1,12 @@
 {
-  "version": "2.0.29",
+  "version": "2.0.30",
   "name": "Stream Panel v2 (PostgreSQL)",
   "releaseDate": "2026-01-30",
   "database": "postgresql",
   "minDockerVersion": "20.10.0",
   "changelog": [
+    "v2.0.30: Added debug logging for Radarr/Sonarr request processing to diagnose movies not being added",
+    "v2.0.30: Fixed search_on_add comparison (loose equality for PostgreSQL string/int values)",
     "v2.0.29: Fixed duplicate season requests - checks media_requests table as fallback when request_site_seasons has no records",
     "v2.0.29: Season selection modal now correctly disables already-requested seasons across all users",
     "v2.0.22: Debug expiration badges - hover to see raw date values for troubleshooting",
