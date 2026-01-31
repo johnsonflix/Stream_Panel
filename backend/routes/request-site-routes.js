@@ -1393,7 +1393,7 @@ router.post('/servers', async (req, res) => {
 
         res.json({
             success: true,
-            id: result[0]?.id,
+            id: result.insertId || result[0]?.id,
             version: testResult.version
         });
     } catch (error) {
@@ -1917,7 +1917,7 @@ router.post('/requests', async (req, res) => {
             is4k ? 1 : 0, requestedBy
         ]);
 
-        const requestId = result[0]?.id;
+        const requestId = result.insertId || result[0]?.id;
 
         // For TV shows, create/update request_site_media and request_site_seasons records
         // This enables per-season status tracking from the moment of request
@@ -1935,7 +1935,7 @@ router.post('/requests', async (req, res) => {
                         VALUES ($1, 'tv', $2, 'pending', 'unknown', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                         RETURNING id
                     `, [tmdbId, title]);
-                    mediaRecord = { id: insertResult[0]?.id };
+                    mediaRecord = { id: insertResult.insertId || insertResult[0]?.id };
                 }
 
                 if (mediaRecord && mediaRecord.id) {
@@ -2329,7 +2329,7 @@ async function processTvRequest(requestId, seasons = null, serverId = null) {
                 VALUES ($1, 'tv', $2, 'processing', 'unknown', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                 RETURNING id
             `, [request.tmdb_id, request.title]);
-            mediaRecord = { id: insertResult[0]?.id };
+            mediaRecord = { id: insertResult.insertId || insertResult[0]?.id };
         }
 
         if (mediaRecord && mediaRecord.id) {
