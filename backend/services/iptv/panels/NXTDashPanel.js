@@ -997,6 +997,22 @@ class NXTDashPanel extends BaseIPTVPanel {
 
             console.log(`✅ Successfully synced ${insertedCount} bouquets from panel ${this.name}`);
 
+            // Remove stale bouquets that no longer exist on the panel
+            try {
+                const validBouquetIds = bouquets.map(b => b.id.toString());
+                const placeholders = validBouquetIds.map(() => '?').join(',');
+                const deleteResult = await this.db.query(
+                    `DELETE FROM iptv_bouquets WHERE iptv_panel_id = ? AND bouquet_id NOT IN (${placeholders})`,
+                    [this.id, ...validBouquetIds]
+                );
+                const deletedCount = deleteResult?.changes || deleteResult?.rowCount || 0;
+                if (deletedCount > 0) {
+                    console.log(`🗑️ Removed ${deletedCount} stale bouquet(s) no longer on panel`);
+                }
+            } catch (deleteError) {
+                console.warn(`⚠️ Failed to clean up stale bouquets:`, deleteError.message);
+            }
+
             await this.updateHealthStatus('online');
 
             // Return bouquets with category info
