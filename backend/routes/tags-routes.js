@@ -658,7 +658,7 @@ router.post('/auto-assign', async (req, res) => {
                 // Case 1: Tag linked to Plex server(s)
                 if (linkedServers.length > 0) {
                     const serverIds = linkedServers.map(s => s.plex_server_id);
-                    // Find all users with active shares to ANY of these Plex servers
+                    // Find all users with active library shares to ANY of these Plex servers
                     const placeholders = serverIds.map(() => '?').join(',');
                     const usersWithServer = await db.query(`
                         SELECT DISTINCT ups.user_id as id
@@ -666,6 +666,10 @@ router.post('/auto-assign', async (req, res) => {
                         INNER JOIN users u ON ups.user_id = u.id
                         WHERE ups.plex_server_id IN (${placeholders})
                           AND ups.removed_at IS NULL
+                          AND ups.share_status = 'active'
+                          AND ups.library_ids IS NOT NULL
+                          AND ups.library_ids != ''
+                          AND ups.library_ids != '[]'
                           AND u.plex_enabled = 1
                     `, serverIds);
 
@@ -794,6 +798,10 @@ async function autoAssignTagsForUser(userId) {
                     WHERE ups.plex_server_id IN (${placeholders})
                       AND ups.user_id = ?
                       AND ups.removed_at IS NULL
+                      AND ups.share_status = 'active'
+                      AND ups.library_ids IS NOT NULL
+                      AND ups.library_ids != ''
+                      AND ups.library_ids != '[]'
                       AND u.plex_enabled = 1
                 `, [...serverIds, userId]);
 
