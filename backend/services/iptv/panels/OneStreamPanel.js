@@ -137,13 +137,64 @@ class OneStreamPanel extends BaseIPTVPanel {
                 trial: isTrial
             });
 
-            const response = await axios({
-                method: 'POST',
-                url: `${this.baseURL}/ext/line/create`,
-                headers: this.getHeaders(),
-                data: payload,
-                timeout: 30000
-            });
+            let response;
+            try {
+                response = await axios({
+                    method: 'POST',
+                    url: `${this.baseURL}/ext/line/create`,
+                    headers: this.getHeaders(),
+                    data: payload,
+                    timeout: 30000
+                });
+            } catch (apiError) {
+                // Check if it's a bouquet validation error - auto-retry without invalid bouquets
+                if (apiError.response?.status === 400 && apiError.response?.data?.details && payload.bouquets?.length > 0) {
+                    const details = apiError.response.data.details;
+                    const invalidKeys = Object.keys(details).filter(k => k.startsWith('bouquets.'));
+
+                    if (invalidKeys.length > 0) {
+                        // Extract invalid bouquet indices
+                        const invalidIndices = new Set(invalidKeys.map(k => parseInt(k.split('.')[1])));
+                        const invalidBouquetIds = payload.bouquets.filter((_, idx) => invalidIndices.has(idx));
+                        const validBouquets = payload.bouquets.filter((_, idx) => !invalidIndices.has(idx));
+
+                        console.warn(`⚠️ Panel rejected ${invalidKeys.length} bouquet(s): ${invalidBouquetIds.join(', ')} - retrying with ${validBouquets.length} valid bouquets`);
+
+                        if (validBouquets.length > 0) {
+                            payload.bouquets = validBouquets;
+                            // Generate new rid for retry
+                            payload.rid = `subsapp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+                            response = await axios({
+                                method: 'POST',
+                                url: `${this.baseURL}/ext/line/create`,
+                                headers: this.getHeaders(),
+                                data: payload,
+                                timeout: 30000
+                            });
+                            console.log(`✅ Retry succeeded with ${validBouquets.length} bouquets`);
+                        } else {
+                            // No valid bouquets left - retry without bouquets entirely
+                            console.warn(`⚠️ No valid bouquets remaining - creating user without bouquets`);
+                            delete payload.bouquets;
+                            payload.rid = `subsapp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+                            response = await axios({
+                                method: 'POST',
+                                url: `${this.baseURL}/ext/line/create`,
+                                headers: this.getHeaders(),
+                                data: payload,
+                                timeout: 30000
+                            });
+                            console.log(`✅ Retry succeeded without bouquets`);
+                        }
+                    } else {
+                        throw apiError; // Not a bouquet error, re-throw
+                    }
+                } else {
+                    throw apiError; // Not a 400 or no details, re-throw
+                }
+            }
 
             console.log('📝 Panel API response:', JSON.stringify(response.data, null, 2));
 
