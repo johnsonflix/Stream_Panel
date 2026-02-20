@@ -649,17 +649,19 @@ async function sendNotification(type, data) {
         const promises = [];
 
         // Email - can be configured for any notification type
+        // Check user's email channel preference (null/undefined = inherit system default, 0 = disabled)
+        const userEmailEnabled = !userPrefs || userPrefs.email_enabled !== 0;
         if (isTypeEnabled(settings.email, type)) {
             if (type === NotificationType.MEDIA_PENDING) {
-                // New request - notify admins/approvers
+                // New request - notify admins/approvers (admin-level, no user pref check)
                 const recipients = await getNotificationRecipients(data.mediaType, data.is4k);
                 for (const r of recipients) promises.push(sendEmailNotification(r, type, data));
             } else if (type === NotificationType.MEDIA_AVAILABLE && settings.notifyAdminOnAvailable) {
                 // Media available - notify admins AND the requesting user
                 const recipients = await getNotificationRecipients(data.mediaType, data.is4k);
                 for (const r of recipients) promises.push(sendEmailNotification(r, type, data));
-                if (user) promises.push(sendEmailNotification(user, type, data));
-            } else if (isUserNotification && user) {
+                if (user && userEmailEnabled) promises.push(sendEmailNotification(user, type, data));
+            } else if (isUserNotification && user && userEmailEnabled) {
                 // User notifications - notify the requesting user
                 promises.push(sendEmailNotification(user, type, data));
             }
@@ -684,10 +686,12 @@ async function sendNotification(type, data) {
         }
 
         // WebPush - uses types from settings
+        // Check user's webpush channel preference (null/undefined = inherit system default, 0 = disabled)
+        const userWebpushEnabled = !userPrefs || userPrefs.webpush_enabled !== 0;
         console.log('[Notifications] WebPush check - enabled:', settings.webpush?.enabled, 'type:', type, 'typeEnabled:', isTypeEnabled(settings.webpush, type));
         if (isTypeEnabled(settings.webpush, type)) {
             if (type === NotificationType.MEDIA_PENDING) {
-                // New request - notify admins/approvers who have webpush subscriptions
+                // New request - notify admins/approvers who have webpush subscriptions (admin-level, no user pref check)
                 const recipients = await getNotificationRecipients(data.mediaType, data.is4k);
                 console.log('[Notifications] WebPush MEDIA_PENDING - recipients:', recipients.map(r => r.id));
                 for (const r of recipients) promises.push(sendWebPushNotification(r.id, type, data));
@@ -696,8 +700,8 @@ async function sendNotification(type, data) {
                 const recipients = await getNotificationRecipients(data.mediaType, data.is4k);
                 console.log('[Notifications] WebPush MEDIA_AVAILABLE - recipients:', recipients.map(r => r.id));
                 for (const r of recipients) promises.push(sendWebPushNotification(r.id, type, data));
-                if (user) promises.push(sendWebPushNotification(user.id, type, data));
-            } else if (user) {
+                if (user && userWebpushEnabled) promises.push(sendWebPushNotification(user.id, type, data));
+            } else if (user && userWebpushEnabled) {
                 // User notifications - notify the requesting user
                 console.log('[Notifications] WebPush user notification - userId:', user.id);
                 promises.push(sendWebPushNotification(user.id, type, data));

@@ -626,3 +626,10 @@ DO $$ BEGIN
         ALTER TABLE request_site_notification_logs DROP CONSTRAINT request_site_notification_logs_request_id_fkey;
     END IF;
 END $$;
+
+-- Add original_language column to media_requests
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'media_requests' AND column_name = 'original_language') THEN
+        ALTER TABLE media_requests ADD COLUMN original_language TEXT;
+    END IF;
+END $$;

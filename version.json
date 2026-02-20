@@ -1,10 +1,13 @@
 {
-  "version": "2.0.35",
+  "version": "2.0.36",
   "name": "Stream Panel v2 (PostgreSQL)",
   "releaseDate": "2026-02-20",
   "database": "postgresql",
   "minDockerVersion": "20.10.0",
   "changelog": [
+    "v2.0.36: Added approve/decline buttons on media detail page for admins with approval rights",
+    "v2.0.36: Show original language on manage requests page - non-English highlighted in yellow",
+    "v2.0.36: Fixed email/webpush notifications ignoring user channel preferences (email_enabled, webpush_enabled)",
     "v2.0.35: Fixed auto-tag assignment giving wrong Plex tags - now requires active share_status AND actual library access, not just a share record existing",
     "v2.0.34: Bouquet sync now removes stale bouquets that no longer exist on the panel (both 1-Stream and NXT Dash)",
     "v2.0.33: Auto-retry 1-Stream user creation when bouquets are invalid - strips rejected bouquet IDs and retries automatically",

@@ -1712,7 +1712,8 @@ router.post('/requests', async (req, res) => {
     try {
         const {
             userId, tmdbId, mediaType, title, posterPath, backdropPath,
-            overview, releaseDate, seasons: requestedSeasons, is4k = false, requestedBy
+            overview, releaseDate, seasons: requestedSeasons, is4k = false, requestedBy,
+            originalLanguage
         } = req.body;
 
         // Use let so we can filter to only unrequested seasons later
@@ -1908,13 +1909,13 @@ router.post('/requests', async (req, res) => {
         const result = await dbRun(`
             INSERT INTO media_requests (
                 user_id, tmdb_id, media_type, title, poster_path, backdrop_path,
-                overview, release_date, status, seasons, is_4k, requested_by
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+                overview, release_date, status, seasons, is_4k, requested_by, original_language
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
             RETURNING id
         `, [
             userId, tmdbId, mediaType, title, posterPath, backdropPath,
             overview, releaseDate, status, seasons ? JSON.stringify(seasons) : null,
-            is4k ? 1 : 0, requestedBy
+            is4k ? 1 : 0, requestedBy, originalLanguage || null
         ]);
 
         const requestId = result.insertId || result[0]?.id;

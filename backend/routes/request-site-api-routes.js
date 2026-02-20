@@ -692,6 +692,7 @@ router.get('/requests/all', async (req, res) => {
                     NULLIF(r.requested_by, ''),
                     'Unknown'
                 ) as requested_by,
+                r.original_language,
                 r.requested_at as created_at
             FROM media_requests r
             LEFT JOIN users u ON u.id = r.user_id

@@ -1821,6 +1821,30 @@
         .sidebar-request-btn.btn-request-more:hover {
             background: linear-gradient(135deg, #38bdf8 0%, #0ea5e9 100%);
         }
+        .sidebar-request-btn.btn-approve-detail {
+            background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+        }
+        .sidebar-request-btn.btn-approve-detail:hover:not(:disabled) {
+            background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
+        }
+        .sidebar-request-btn.btn-decline-detail {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            margin-top: 8px;
+        }
+        .sidebar-request-btn.btn-decline-detail:hover:not(:disabled) {
+            background: linear-gradient(135deg, #f87171 0%, #ef4444 100%);
+        }
+        .sidebar-request-btn.btn-4k-approve {
+            background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+        }
+        .sidebar-request-btn.btn-4k-decline {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            margin-top: 4px;
+        }
+        #details-approve-container {
+            display: flex;
+            flex-direction: column;
+        }
 
         /* Full Cast/Crew Page */
         .full-crew-page {
@@ -3556,6 +3580,22 @@
             font-size: 12px;
             color: #94a3b8;
             margin-bottom: 2px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .admin-request-lang {
+            font-size: 10px;
+            padding: 1px 5px;
+            border-radius: 3px;
+            background: rgba(100, 116, 139, 0.3);
+            color: #94a3b8;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+        .admin-request-lang.non-english {
+            background: rgba(234, 179, 8, 0.2);
+            color: #eab308;
         }
         .admin-request-title {
             font-size: 16px;
@@ -7136,6 +7176,21 @@
                     </button>
                     <button class="sidebar-request-btn btn-4k" id="details-request-4k-btn" onclick="submitRequestFromDetails(true)" style="display: none; margin-top: 8px;">
                         <i class="fas fa-download"></i> <span>Request 4K</span>
+                    </button>
+                </div>
+                <!-- Admin Approve/Decline Buttons (shown for pending requests when user has approval rights) -->
+                <div id="details-approve-container" class="sidebar-request-container" style="display: none;">
+                    <button class="sidebar-request-btn btn-approve-detail" id="details-approve-btn" onclick="approveFromDetails(false)">
+                        <i class="fas fa-check"></i> <span>Approve</span>
+                    </button>
+                    <button class="sidebar-request-btn btn-decline-detail" id="details-decline-btn" onclick="declineFromDetails(false)">
+                        <i class="fas fa-times"></i> <span>Decline</span>
+                    </button>
+                    <button class="sidebar-request-btn btn-approve-detail btn-4k-approve" id="details-approve-4k-btn" onclick="approveFromDetails(true)" style="display: none; margin-top: 8px;">
+                        <i class="fas fa-check"></i> <span>Approve 4K</span>
+                    </button>
+                    <button class="sidebar-request-btn btn-decline-detail btn-4k-decline" id="details-decline-4k-btn" onclick="declineFromDetails(true)" style="display: none;">
+                        <i class="fas fa-times"></i> <span>Decline 4K</span>
                     </button>
                 </div>
 
@@ -10783,6 +10838,144 @@
 
             // Show or hide container based on whether any button is visible
             container.style.display = showContainer ? '' : 'none';
+
+            // ===== ADMIN APPROVE/DECLINE BUTTONS =====
+            updateDetailsApproveButtons();
+        }
+
+        function updateDetailsApproveButtons() {
+            const approveContainer = document.getElementById('details-approve-container');
+            const approveBtn = document.getElementById('details-approve-btn');
+            const declineBtn = document.getElementById('details-decline-btn');
+            const approve4kBtn = document.getElementById('details-approve-4k-btn');
+            const decline4kBtn = document.getElementById('details-decline-4k-btn');
+
+            if (!approveContainer) return;
+
+            // Hide by default
+            approveContainer.style.display = 'none';
+            approveBtn.style.display = 'none';
+            declineBtn.style.display = 'none';
+            approve4kBtn.style.display = 'none';
+            decline4kBtn.style.display = 'none';
+
+            if (currentMediaBlocked) return;
+
+            let showApproveContainer = false;
+
+            // Check non-4K pending request
+            const request = currentMedia.request;
+            if (request && request.status?.toLowerCase() === 'pending') {
+                const canApprove = canUserApproveRequest({
+                    is_4k: false,
+                    media_type: currentMedia.mediaType
+                });
+                if (canApprove) {
+                    approveBtn.style.display = '';
+                    declineBtn.style.display = '';
+                    approveBtn.disabled = false;
+                    declineBtn.disabled = false;
+                    approveBtn.innerHTML = '<i class="fas fa-check"></i> <span>Approve</span>';
+                    declineBtn.innerHTML = '<i class="fas fa-times"></i> <span>Decline</span>';
+                    showApproveContainer = true;
+                }
+            }
+
+            // Check 4K pending request
+            const request4k = currentMedia.request4k;
+            if (request4k && request4k.status?.toLowerCase() === 'pending') {
+                const canApprove4k = canUserApproveRequest({
+                    is_4k: true,
+                    media_type: currentMedia.mediaType
+                });
+                if (canApprove4k) {
+                    approve4kBtn.style.display = '';
+                    decline4kBtn.style.display = '';
+                    approve4kBtn.disabled = false;
+                    decline4kBtn.disabled = false;
+                    approve4kBtn.innerHTML = '<i class="fas fa-check"></i> <span>Approve 4K</span>';
+                    decline4kBtn.innerHTML = '<i class="fas fa-times"></i> <span>Decline 4K</span>';
+                    showApproveContainer = true;
+                }
+            }
+
+            approveContainer.style.display = showApproveContainer ? '' : 'none';
+        }
+
+        async function approveFromDetails(is4k) {
+            const request = is4k ? currentMedia.request4k : currentMedia.request;
+            if (!request) return;
+
+            const btn = is4k ? document.getElementById('details-approve-4k-btn') : document.getElementById('details-approve-btn');
+            if (btn) {
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> <span>Approving...</span>';
+                btn.disabled = true;
+            }
+
+            try {
+                const token = localStorage.getItem('sessionToken') || sessionStorage.getItem('sessionToken') || localStorage.getItem('portal_token');
+                const response = await fetch(`/api/v2/request-site/requests/${request.id}/approve`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.error || 'Failed to approve request');
+                }
+
+                // Refresh the detail page to show updated status
+                openMediaModal(currentMedia.id, currentMedia.mediaType, true);
+            } catch (error) {
+                console.error('Error approving from details:', error);
+                alert('Failed to approve: ' + error.message);
+                if (btn) {
+                    btn.innerHTML = is4k ? '<i class="fas fa-check"></i> <span>Approve 4K</span>' : '<i class="fas fa-check"></i> <span>Approve</span>';
+                    btn.disabled = false;
+                }
+            }
+        }
+
+        async function declineFromDetails(is4k) {
+            const request = is4k ? currentMedia.request4k : currentMedia.request;
+            if (!request) return;
+
+            if (!confirm('Are you sure you want to decline this request?')) return;
+
+            const btn = is4k ? document.getElementById('details-decline-4k-btn') : document.getElementById('details-decline-btn');
+            if (btn) {
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> <span>Declining...</span>';
+                btn.disabled = true;
+            }
+
+            try {
+                const token = localStorage.getItem('sessionToken') || sessionStorage.getItem('sessionToken') || localStorage.getItem('portal_token');
+                const response = await fetch(`/api/v2/request-site/requests/${request.id}/decline`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.error || 'Failed to decline request');
+                }
+
+                // Refresh the detail page to show updated status
+                openMediaModal(currentMedia.id, currentMedia.mediaType, true);
+            } catch (error) {
+                console.error('Error declining from details:', error);
+                alert('Failed to decline: ' + error.message);
+                if (btn) {
+                    btn.innerHTML = is4k ? '<i class="fas fa-times"></i> <span>Decline 4K</span>' : '<i class="fas fa-times"></i> <span>Decline</span>';
+                    btn.disabled = false;
+                }
+            }
         }
 
         // Track expanded seasons and their episode data
@@ -11269,7 +11462,8 @@
                         releaseDate: currentMedia.first_air_date,
                         seasons,
                         is4k,
-                        requestedBy: `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() || currentUser.name || 'Unknown'
+                        requestedBy: `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() || currentUser.name || 'Unknown',
+                        originalLanguage: currentMedia.original_language || null
                     })
                 });
 
@@ -11370,7 +11564,8 @@
                         releaseDate: currentMedia.release_date || currentMedia.first_air_date,
                         seasons,
                         is4k,
-                        requestedBy: `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() || currentUser.name || 'Unknown'
+                        requestedBy: `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() || currentUser.name || 'Unknown',
+                        originalLanguage: currentMedia.original_language || null
                     })
                 });
 
@@ -12947,6 +13142,12 @@
                 const is4kRequest = request.is_4k === 1 || request.is_4k === true;
                 const fourKBadge = is4kRequest ? '<span class="admin-request-4k-badge">4K</span>' : '';
 
+                // Language display
+                const lang = request.original_language;
+                const langDisplay = lang ? lang.toUpperCase() : '';
+                const isNonEnglish = lang && lang !== 'en';
+                const langBadge = langDisplay ? `<span class="admin-request-lang${isNonEnglish ? ' non-english' : ''}">${langDisplay}</span>` : '';
+
                 // Check if current user can approve this specific request
                 const canApproveThisRequest = canUserApproveRequest(request);
 
@@ -12955,7 +13156,7 @@
                         ${backdropUrl ? `<div class="admin-request-backdrop" style="background-image: url('${backdropUrl}')"></div>` : ''}
                         ${posterHtml}
                         <div class="admin-request-info">
-                            <div class="admin-request-year">${releaseYear}</div>
+                            <div class="admin-request-year">${releaseYear}${langBadge ? ' ' + langBadge : ''}</div>
                             <div class="admin-request-title">${request.title}${fourKBadge}</div>
                             ${seasonsHtml}
                         </div>
