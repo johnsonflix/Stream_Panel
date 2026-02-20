@@ -13041,6 +13041,21 @@
             displayAdminRequests(adminRequestsData, typeFilter, sortBy);
         }
 
+        // Language code to full name mapping for common TMDB languages
+        const langCodeToName = {
+            en: 'English', es: 'Spanish', fr: 'French', de: 'German', it: 'Italian',
+            pt: 'Portuguese', ja: 'Japanese', ko: 'Korean', zh: 'Chinese', hi: 'Hindi',
+            ar: 'Arabic', ru: 'Russian', nl: 'Dutch', sv: 'Swedish', da: 'Danish',
+            no: 'Norwegian', fi: 'Finnish', pl: 'Polish', tr: 'Turkish', th: 'Thai',
+            id: 'Indonesian', vi: 'Vietnamese', he: 'Hebrew', el: 'Greek', cs: 'Czech',
+            hu: 'Hungarian', ro: 'Romanian', uk: 'Ukrainian', bg: 'Bulgarian',
+            hr: 'Croatian', sk: 'Slovak', sl: 'Slovenian', lt: 'Lithuanian',
+            lv: 'Latvian', et: 'Estonian', ms: 'Malay', tl: 'Filipino',
+            ta: 'Tamil', te: 'Telugu', ml: 'Malayalam', kn: 'Kannada',
+            bn: 'Bengali', ur: 'Urdu', fa: 'Persian', af: 'Afrikaans',
+            sw: 'Swahili', cn: 'Cantonese', nb: 'Norwegian', is: 'Icelandic'
+        };
+
         function displayAdminRequests(requests, typeFilter = 'all', sortBy = 'newest') {
             let filtered = [...requests];
 
@@ -13142,11 +13157,11 @@
                 const is4kRequest = request.is_4k === 1 || request.is_4k === true;
                 const fourKBadge = is4kRequest ? '<span class="admin-request-4k-badge">4K</span>' : '';
 
-                // Language display
+                // Language display - map code to full name
                 const lang = request.original_language;
-                const langDisplay = lang ? lang.toUpperCase() : '';
+                const langName = lang ? (langCodeToName[lang] || lang.toUpperCase()) : '';
                 const isNonEnglish = lang && lang !== 'en';
-                const langBadge = langDisplay ? `<span class="admin-request-lang${isNonEnglish ? ' non-english' : ''}">${langDisplay}</span>` : '';
+                const langBadge = langName ? `<span class="admin-request-lang${isNonEnglish ? ' non-english' : ''}">${langName}</span>` : '';
 
                 // Check if current user can approve this specific request
                 const canApproveThisRequest = canUserApproveRequest(request);

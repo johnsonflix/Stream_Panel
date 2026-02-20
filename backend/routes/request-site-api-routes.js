@@ -705,12 +705,21 @@ router.get('/requests/all', async (req, res) => {
         // Backfill original_language for existing requests that don't have it
         const missingLang = requests.filter(r => !r.original_language);
         if (missingLang.length > 0) {
-            // Get unique tmdb_ids to look up
-            const uniqueIds = [...new Set(missingLang.map(r => ({ tmdbId: r.tmdb_id, mediaType: r.media_type })))];
+            // Get unique tmdb_id + media_type combos using string key for proper dedup
+            const seen = new Set();
+            const uniqueLookups = [];
+            for (const r of missingLang) {
+                const key = `${r.media_type}-${r.tmdb_id}`;
+                if (!seen.has(key)) {
+                    seen.add(key);
+                    uniqueLookups.push({ tmdbId: r.tmdb_id, mediaType: r.media_type });
+                }
+            }
+
             const langMap = {};
 
-            // Fetch languages from TMDB (fire in parallel, limit to avoid overload)
-            const lookups = uniqueIds.slice(0, 20).map(async ({ tmdbId, mediaType }) => {
+            // Fetch languages from TMDB in parallel
+            const lookups = uniqueLookups.map(async ({ tmdbId, mediaType }) => {
                 try {
                     const data = mediaType === 'movie'
                         ? await tmdb.getMovie(tmdbId, '')
@@ -718,11 +727,13 @@ router.get('/requests/all', async (req, res) => {
                     if (data?.original_language) {
                         langMap[`${mediaType}-${tmdbId}`] = data.original_language;
                     }
-                } catch (e) { /* ignore lookup failures */ }
+                } catch (e) {
+                    console.log(`[Request Site] Failed to fetch language for ${mediaType}/${tmdbId}:`, e.message);
+                }
             });
             await Promise.allSettled(lookups);
 
-            // Update DB and response in parallel
+            // Update DB and response
             for (const req of missingLang) {
                 const lang = langMap[`${req.media_type}-${req.tmdb_id}`];
                 if (lang) {
@@ -731,6 +742,7 @@ router.get('/requests/all', async (req, res) => {
                     query('UPDATE media_requests SET original_language = $1 WHERE tmdb_id = $2 AND media_type = $3 AND original_language IS NULL', [lang, req.tmdb_id, req.media_type]).catch(() => {});
                 }
             }
+            console.log(`[Request Site] Backfilled language for ${Object.keys(langMap).length}/${uniqueLookups.length} requests`);
         }
 
         res.json({ success: true, requests });
