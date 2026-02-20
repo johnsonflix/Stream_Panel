@@ -544,7 +544,18 @@ class JobProcessor {
                 }
             } catch (error) {
                 console.error(`[JobProcessor] IPTV provisioning error:`, error);
-                this.updateJobStatus(jobId, 'iptv', 'failed', error.message);
+                // Include API response details in status message if available
+                let errorMsg = error.message;
+                if (error.response?.data) {
+                    const respData = error.response.data;
+                    if (respData.error) {
+                        errorMsg = respData.error;
+                        if (respData.details) {
+                            errorMsg += ': ' + JSON.stringify(respData.details);
+                        }
+                    }
+                }
+                this.updateJobStatus(jobId, 'iptv', 'failed', errorMsg);
             }
             } // end else (create new IPTV user)
         }

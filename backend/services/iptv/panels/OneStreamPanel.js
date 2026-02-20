@@ -246,6 +246,13 @@ class OneStreamPanel extends BaseIPTVPanel {
 
         } catch (error) {
             console.error(`❌ Failed to create user ${username}:`, error.message);
+            if (error.response) {
+                console.error(`❌ API Error Response:`, {
+                    status: error.response.status,
+                    statusText: error.response.statusText,
+                    data: JSON.stringify(error.response.data, null, 2)
+                });
+            }
 
             await this.logActivity(
                 null,
